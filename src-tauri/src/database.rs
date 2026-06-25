@@ -129,10 +129,27 @@ impl Database {
                 provider_id INTEGER PRIMARY KEY,
                 snapshot_json TEXT NOT NULL,
                 fetched_at INTEGER NOT NULL,
+                source TEXT NOT NULL DEFAULT 'auto',
                 FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE
             )",
             [],
         )?;
+
+        // Idempotent column add for databases created before `source` existed
+        // (pre-V0.1-rev2). Fresh DBs get the column from CREATE above.
+        let has_source: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('quota_cache') WHERE name = 'source'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+        if has_source == 0 {
+            conn.execute(
+                "ALTER TABLE quota_cache ADD COLUMN source TEXT NOT NULL DEFAULT 'auto'",
+                [],
+            )?;
+        }
 
         Ok(())
     }
@@ -227,5 +244,102 @@ impl Database {
             rusqlite::params![provider_id, key, value, visibility, sort_index, now],
         )?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// quota_cache.source column is added by setup_schema on a fresh DB.
+    /// New presets inserted via INSERT...ON CONFLICT must respect the column.
+    #[test]
+    fn quota_cache_source_column_default_auto() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        db.seed_preset_providers().unwrap();
+
+        // After setup + seed, every quota_cache row defaults to source='auto'
+        // (which is fine — there are no rows yet, but the schema accepts it).
+        let count: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM quota_cache", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "Fresh DB should have no quota_cache rows");
+
+        // Manual quota insert: source='manual' must be storable.
+        let now: i64 = 1_700_000_000;
+        db.conn.execute(
+            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
+             VALUES ('test', NULL, 0, 1, 0, 99, ?1, ?1)",
+            [now],
+        )
+        .unwrap();
+        let pid: i64 = db.conn.last_insert_rowid();
+        db.conn.execute(
+            "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
+             VALUES (?1, '{}', ?2, 'manual')",
+            rusqlite::params![pid, now],
+        )
+        .unwrap();
+
+        // Read back the source column.
+        let source: String = db
+            .conn
+            .query_row(
+                "SELECT source FROM quota_cache WHERE provider_id = ?1",
+                [pid],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(source, "manual");
+    }
+
+    /// ON CONFLICT(provider_id) DO UPDATE must flip source from auto → manual
+    /// when a user overwrites an auto-fetched snapshot.
+    #[test]
+    fn quota_cache_source_overwrite_on_conflict() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        db.seed_preset_providers().unwrap();
+
+        let now: i64 = 1_700_000_000;
+        db.conn.execute(
+            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
+             VALUES ('test', NULL, 0, 1, 0, 99, ?1, ?1)",
+            [now],
+        )
+        .unwrap();
+        let pid: i64 = db.conn.last_insert_rowid();
+
+        // First insert: auto source
+        db.conn.execute(
+            "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
+             VALUES (?1, '{\"auto\":true}', ?2, 'auto')",
+            rusqlite::params![pid, now],
+        )
+        .unwrap();
+        // Overwrite: manual source
+        db.conn.execute(
+            "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
+             VALUES (?1, '{\"manual\":true}', ?2, 'manual')
+             ON CONFLICT(provider_id) DO UPDATE SET
+                snapshot_json = excluded.snapshot_json,
+                fetched_at = excluded.fetched_at,
+                source = excluded.source",
+            rusqlite::params![pid, now + 1],
+        )
+        .unwrap();
+
+        let (json, source): (String, String) = db
+            .conn
+            .query_row(
+                "SELECT snapshot_json, source FROM quota_cache WHERE provider_id = ?1",
+                [pid],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(source, "manual");
+        assert!(json.contains("manual"));
     }
 }

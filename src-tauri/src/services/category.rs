@@ -1,14 +1,14 @@
 use crate::error::AppError;
 use crate::store::AppState;
 use crate::types::Category;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AddCategoryRequest {
     pub name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DeleteCategoryRequest {
     pub id: i64,
     pub migrate_to: i64,

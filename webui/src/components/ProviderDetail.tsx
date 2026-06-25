@@ -8,6 +8,7 @@ import { KvRow } from "./KvRow";
 import { QuotaBadge } from "./QuotaBadge";
 import { AddKvModal } from "./AddKvModal";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ManualQuotaModal } from "./ManualQuotaModal";
 import { Icon, useToast, ProviderIcon, PRESET_LABELS } from "./Icon";
 
 interface ProviderDetailProps {
@@ -19,6 +20,7 @@ export function ProviderDetail({ providerId }: ProviderDetailProps) {
   const { showToast } = useToast();
   const [addKvOpen, setAddKvOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [manualQuotaOpen, setManualQuotaOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editNotes, setEditNotes] = useState("");
@@ -230,7 +232,10 @@ export function ProviderDetail({ providerId }: ProviderDetailProps) {
 
         {/* Quota badge */}
         <div className="mt-3">
-          <QuotaBadge providerId={provider.id} preset={provider.preset} />
+          <QuotaBadge
+            providerId={provider.id}
+            onOpenManual={() => setManualQuotaOpen(true)}
+          />
         </div>
       </div>
 
@@ -245,9 +250,12 @@ export function ProviderDetail({ providerId }: ProviderDetailProps) {
         </div>
 
         {provider.fields.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            <p>暂无字段</p>
-            <p className="mt-1">点击上方按钮添加</p>
+          <div className="py-8 text-center">
+            <p className="text-sm text-muted-foreground mb-3">暂无字段</p>
+            <Button size="sm" onClick={() => setAddKvOpen(true)}>
+              <Icon name="plus" className="w-3.5 h-3.5 mr-1" />
+              添加第一个字段
+            </Button>
           </div>
         ) : (
           <div className="border border-border rounded-lg divide-y divide-border">
@@ -292,6 +300,14 @@ export function ProviderDetail({ providerId }: ProviderDetailProps) {
         message={`确定要删除 "${provider.name}" 吗？此操作无法撤销。`}
         confirmText="删除"
         variant="destructive"
+      />
+
+      {/* Manual quota entry (Anthropic / quota fetch failure) */}
+      <ManualQuotaModal
+        isOpen={manualQuotaOpen}
+        onClose={() => setManualQuotaOpen(false)}
+        providerId={provider.id}
+        providerName={provider.name}
       />
     </div>
   );
