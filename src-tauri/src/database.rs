@@ -258,7 +258,7 @@ impl Database {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)",
             rusqlite::params![
                 record.id, record.agent_type, record.model, record.provider_name, record.occurred_at, record.recorded_at,
-                record.session_id, record.request_id, record.input_tokens, record.output_tokens, record.total_tokens,
+                record.session_id, record.request_id, record.prompt_tokens, record.completion_tokens, record.total_tokens,
                 record.cache_read_input_tokens, record.cache_creation_input_tokens, record.reasoning_tokens,
                 record.input_tokens, record.output_tokens, record.prompt_cost, record.completion_cost, record.cache_read_cost,
                 record.cache_creation_cost, record.reasoning_cost, record.total_cost, record.currency, record.pricing_version,
@@ -302,9 +302,9 @@ impl Database {
     pub fn list_token_usage_records(&self, offset: i64, limit: i64) -> Result<Vec<TokenUsageRecord>, AppError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, agent_type, model, provider_name, occurred_at, recorded_at, session_id, request_id,
-             total_tokens, cache_read_input_tokens, cache_creation_input_tokens, reasoning_tokens,
-             input_tokens, output_tokens, prompt_cost, completion_cost, cache_read_cost, cache_creation_cost, reasoning_cost,
-             total_cost, currency, pricing_version, usage_details, cost_details
+             prompt_tokens, completion_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens,
+             reasoning_tokens, input_tokens, output_tokens, prompt_cost, completion_cost, cache_read_cost,
+             cache_creation_cost, reasoning_cost, total_cost, currency, pricing_version, usage_details, cost_details
              FROM token_usage_records ORDER BY occurred_at DESC LIMIT ?1 OFFSET ?2"
         )?;
         let records = stmt.query_map([limit, offset], |row| {
@@ -317,25 +317,196 @@ impl Database {
                 recorded_at: row.get(5)?,
                 session_id: row.get(6)?,
                 request_id: row.get(7)?,
-                total_tokens: row.get(8)?,
-                cache_read_input_tokens: row.get(9)?,
-                cache_creation_input_tokens: row.get(10)?,
-                reasoning_tokens: row.get(11)?,
-                input_tokens: row.get(12)?,
-                output_tokens: row.get(13)?,
-                prompt_cost: row.get(14)?,
-                completion_cost: row.get(15)?,
-                cache_read_cost: row.get(16)?,
-                cache_creation_cost: row.get(17)?,
-                reasoning_cost: row.get(18)?,
-                total_cost: row.get(19)?,
-                currency: row.get(20)?,
-                pricing_version: row.get(21)?,
-                usage_details: row.get(22)?,
-                cost_details: row.get(23)?,
+                prompt_tokens: row.get(8)?,
+                completion_tokens: row.get(9)?,
+                total_tokens: row.get(10)?,
+                cache_read_input_tokens: row.get(11)?,
+                cache_creation_input_tokens: row.get(12)?,
+                reasoning_tokens: row.get(13)?,
+                input_tokens: row.get(14)?,
+                output_tokens: row.get(15)?,
+                prompt_cost: row.get(16)?,
+                completion_cost: row.get(17)?,
+                cache_read_cost: row.get(18)?,
+                cache_creation_cost: row.get(19)?,
+                reasoning_cost: row.get(20)?,
+                total_cost: row.get(21)?,
+                currency: row.get(22)?,
+                pricing_version: row.get(23)?,
+                usage_details: row.get(24)?,
+                cost_details: row.get(25)?,
             })
         })?.collect::<Result<Vec<_>, _>>().map_err(AppError::Database)?;
         Ok(records)
+    }
+
+    pub fn list_token_usage_records_filtered(
+        &self,
+        agent_type: Option<&str>,
+        model: Option<&str>,
+        provider_name: Option<&str>,
+        date_from: Option<i64>,
+        date_to: Option<i64>,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<TokenUsageRecord>, AppError> {
+        let mut sql = String::from(
+            "SELECT id, agent_type, model, provider_name, occurred_at, recorded_at, session_id, request_id,
+             prompt_tokens, completion_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens,
+             reasoning_tokens, input_tokens, output_tokens, prompt_cost, completion_cost, cache_read_cost,
+             cache_creation_cost, reasoning_cost, total_cost, currency, pricing_version, usage_details, cost_details
+             FROM token_usage_records WHERE 1=1"
+        );
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        if let Some(v) = agent_type {
+            sql.push_str(" AND agent_type = ?");
+            params.push(Box::new(v.to_string()));
+        }
+        if let Some(v) = model {
+            sql.push_str(" AND model = ?");
+            params.push(Box::new(v.to_string()));
+        }
+        if let Some(v) = provider_name {
+            sql.push_str(" AND provider_name = ?");
+            params.push(Box::new(v.to_string()));
+        }
+        if let Some(v) = date_from {
+            sql.push_str(" AND occurred_at >= ?");
+            params.push(Box::new(v));
+        }
+        if let Some(v) = date_to {
+            sql.push_str(" AND occurred_at <= ?");
+            params.push(Box::new(v));
+        }
+        sql.push_str(" ORDER BY occurred_at DESC LIMIT ? OFFSET ?");
+        params.push(Box::new(limit));
+        params.push(Box::new(offset));
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|b| b.as_ref()).collect();
+        let mut stmt = self.conn.prepare(&sql)?;
+        let records = stmt.query_map(param_refs.as_slice(), |row| {
+            Ok(TokenUsageRecord {
+                id: row.get(0)?,
+                agent_type: row.get(1)?,
+                model: row.get(2)?,
+                provider_name: row.get(3)?,
+                occurred_at: row.get(4)?,
+                recorded_at: row.get(5)?,
+                session_id: row.get(6)?,
+                request_id: row.get(7)?,
+                prompt_tokens: row.get(8)?,
+                completion_tokens: row.get(9)?,
+                total_tokens: row.get(10)?,
+                cache_read_input_tokens: row.get(11)?,
+                cache_creation_input_tokens: row.get(12)?,
+                reasoning_tokens: row.get(13)?,
+                input_tokens: row.get(14)?,
+                output_tokens: row.get(15)?,
+                prompt_cost: row.get(16)?,
+                completion_cost: row.get(17)?,
+                cache_read_cost: row.get(18)?,
+                cache_creation_cost: row.get(19)?,
+                reasoning_cost: row.get(20)?,
+                total_cost: row.get(21)?,
+                currency: row.get(22)?,
+                pricing_version: row.get(23)?,
+                usage_details: row.get(24)?,
+                cost_details: row.get(25)?,
+            })
+        })?.collect::<Result<Vec<_>, _>>().map_err(AppError::Database)?;
+        Ok(records)
+    }
+
+    pub fn get_token_usage_record_by_id(&self, id: &str) -> Result<Option<TokenUsageRecord>, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, agent_type, model, provider_name, occurred_at, recorded_at, session_id, request_id,
+             prompt_tokens, completion_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens,
+             reasoning_tokens, input_tokens, output_tokens, prompt_cost, completion_cost, cache_read_cost,
+             cache_creation_cost, reasoning_cost, total_cost, currency, pricing_version, usage_details, cost_details
+             FROM token_usage_records WHERE id = ?1"
+        )?;
+        let mut rows = stmt.query([id])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(TokenUsageRecord {
+                id: row.get(0)?,
+                agent_type: row.get(1)?,
+                model: row.get(2)?,
+                provider_name: row.get(3)?,
+                occurred_at: row.get(4)?,
+                recorded_at: row.get(5)?,
+                session_id: row.get(6)?,
+                request_id: row.get(7)?,
+                prompt_tokens: row.get(8)?,
+                completion_tokens: row.get(9)?,
+                total_tokens: row.get(10)?,
+                cache_read_input_tokens: row.get(11)?,
+                cache_creation_input_tokens: row.get(12)?,
+                reasoning_tokens: row.get(13)?,
+                input_tokens: row.get(14)?,
+                output_tokens: row.get(15)?,
+                prompt_cost: row.get(16)?,
+                completion_cost: row.get(17)?,
+                cache_read_cost: row.get(18)?,
+                cache_creation_cost: row.get(19)?,
+                reasoning_cost: row.get(20)?,
+                total_cost: row.get(21)?,
+                currency: row.get(22)?,
+                pricing_version: row.get(23)?,
+                usage_details: row.get(24)?,
+                cost_details: row.get(25)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn delete_daily_for_date(&self, date: &str) -> Result<(), AppError> {
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM daily_agent_model_usage WHERE date = ?1",
+            [date],
+        )?;
+        tx.execute(
+            "DELETE FROM daily_model_usage WHERE date = ?1",
+            [date],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn count_token_usage_records_filtered(
+        &self,
+        agent_type: Option<&str>,
+        model: Option<&str>,
+        provider_name: Option<&str>,
+        date_from: Option<i64>,
+        date_to: Option<i64>,
+    ) -> Result<i64, AppError> {
+        let mut sql = String::from("SELECT COUNT(*) FROM token_usage_records WHERE 1=1");
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        if let Some(v) = agent_type {
+            sql.push_str(" AND agent_type = ?");
+            params.push(Box::new(v.to_string()));
+        }
+        if let Some(v) = model {
+            sql.push_str(" AND model = ?");
+            params.push(Box::new(v.to_string()));
+        }
+        if let Some(v) = provider_name {
+            sql.push_str(" AND provider_name = ?");
+            params.push(Box::new(v.to_string()));
+        }
+        if let Some(v) = date_from {
+            sql.push_str(" AND occurred_at >= ?");
+            params.push(Box::new(v));
+        }
+        if let Some(v) = date_to {
+            sql.push_str(" AND occurred_at <= ?");
+            params.push(Box::new(v));
+        }
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|b| b.as_ref()).collect();
+        let count: i64 = self.conn.query_row(&sql, param_refs.as_slice(), |row| row.get(0))
+            .map_err(AppError::Database)?;
+        Ok(count)
     }
 
     pub fn get_daily_usage_summary(&self, date: &str) -> Result<Vec<DailyAgentModelUsage>, AppError> {
