@@ -1,0 +1,108 @@
+@import "@radix-ui/colors/gray.css";
+@import "@radix-ui/colors/gray-dark.css";
+@import "@radix-ui/colors/iris.css";
+@import "@radix-ui/colors/iris-dark.css";
+@import "@radix-ui/colors/grass.css";
+@import "@radix-ui/colors/grass-dark.css";
+@import "@radix-ui/colors/amber.css";
+@import "@radix-ui/colors/amber-dark.css";
+@import "@radix-ui/colors/red.css";
+@import "@radix-ui/colors/red-dark.css";
+@import "@radix-ui/colors/ruby.css";
+@import "@radix-ui/colors/ruby-dark.css";
+@import "@radix-ui/colors/teal.css";
+@import "@radix-ui/colors/teal-dark.css";
+@import "@radix-ui/colors/indigo.css";
+@import "@radix-ui/colors/indigo-dark.css";
+@import "@radix-ui/colors/orange.css";
+@import "@radix-ui/colors/orange-dark.css";
+@import "@radix-ui/colors/cyan.css";
+@import "@radix-ui/colors/cyan-dark.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius: 0.5rem;
+  /* Dark theme (default) — Radix gray + iris accent */
+  --color-background: var(--gray-1);
+  --color-foreground: var(--gray-12);
+  --color-card: var(--gray-2);
+  --color-card-foreground: var(--gray-12);
+  --color-popover: var(--gray-2);
+  --color-popover-foreground: var(--gray-12);
+  --color-primary: var(--iris-9);
+  --color-primary-foreground: var(--gray-1);
+  --color-secondary: var(--gray-3);
+  --color-secondary-foreground: var(--gray-12);
+  --color-muted: var(--gray-3);
+  --color-muted-foreground: var(--gray-11);
+  --color-accent: var(--gray-4);
+  --color-accent-foreground: var(--gray-12);
+  --color-destructive: var(--red-9);
+  --color-destructive-foreground: var(--gray-1);
+  --color-border: var(--gray-6);
+  --color-input: var(--gray-7);
+  --color-ring: var(--iris-9);
+  --color-success: var(--grass-9);
+  --color-warning: var(--amber-9);
+  --color-danger: var(--red-9);
+  --color-critical: var(--ruby-9);
+}
+
+:root[data-theme="light"] {
+  /* Light theme overrides — same structure, lighter Radix values */
+  --color-background: var(--gray-1);
+  --color-foreground: var(--gray-12);
+  --color-card: var(--gray-1);
+  --color-card-foreground: var(--gray-12);
+  --color-popover: var(--gray-1);
+  --color-popover-foreground: var(--gray-12);
+  --color-primary: var(--iris-9);
+  --color-primary-foreground: var(--gray-1);
+  --color-secondary: var(--gray-2);
+  --color-secondary-foreground: var(--gray-12);
+  --color-muted: var(--gray-2);
+  --color-muted-foreground: var(--gray-10);
+  --color-accent: var(--gray-3);
+  --color-accent-foreground: var(--gray-12);
+  --color-destructive: var(--red-9);
+  --color-destructive-foreground: var(--gray-1);
+  --color-border: var(--gray-4);
+  --color-input: var(--gray-5);
+  --color-ring: var(--iris-9);
+  --color-success: var(--grass-9);
+  --color-warning: var(--amber-9);
+  --color-danger: var(--red-9);
+  --color-critical: var(--ruby-9);
+}
+
+:root[data-theme="auto"] {
+  /* Auto: same as dark for now; matchMedia listener flips dark/light */
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"] {
+    /* Light theme overrides — same structure, lighter Radix values */
+    --color-background: var(--gray-1);
+    --color-foreground: var(--gray-12);
+    --color-card: var(--gray-1);
+    --color-card-foreground: var(--gray-12);
+    --color-popover: var(--gray-1);
+    --color-popover-foreground: var(--gray-12);
+    --color-primary: var(--iris-9);
+    --color-primary-foreground: var(--gray-1);
+    --color-secondary: var(--gray-2);
+    --color-secondary-foreground: var(--gray-12);
+    --color-muted: var(--gray-2);
+    --color-muted-foreground: var(--gray-10);
+    --color-accent: var(--gray-3);
+    --color-accent-foreground: var(--gray-12);
+    --color-destructive: var(--red-9);
+    --color-destructive-foreground: var(--gray-1);
+    --color-border: var(--gray-4);
+    --color-input: var(--gray-5);
+    --color-ring: var(--iris-9);
+  }
+}
