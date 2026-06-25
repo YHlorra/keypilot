@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"git add .gitignore && git commit -m \\\"Remove private file exclusions from .gitignore\\\" && git checkout main\",\"description\":\"Commit .gitignore fix\"}",
-  "error": "Exit code 1\nOn branch docs\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   .omc/state/hud-stdin-cache.json\n\tmodified:   .omc/state/sessions/9364ca36-e0c6-4f0b-8c54-9994a50533c9/last-tool-error-state.json\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")",
-  "timestamp": "2026-06-25T01:58:37.616Z",
-  "retry_count": 3
+  "tool_input_preview": "{\"command\":\"cat > .gitignore << 'GITIGNORE_EOF'\\n# Rust / Cargo\\n/src-tauri/target/\\n**/*.rs.bk\\nCargo.lock.bak\\n\\n# Tauri\\n/src-tauri/gen/\\n\\n# Node / pnpm\\n/webui/node_modules/\\n/webui/dist/\\n/webui...",
+  "error": "Exit code 1\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nOn branch docs\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   .omc/state/hud-stdin-cache.json\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")",
+  "timestamp": "2026-06-25T01:58:52.156Z",
+  "retry_count": 4
 }
