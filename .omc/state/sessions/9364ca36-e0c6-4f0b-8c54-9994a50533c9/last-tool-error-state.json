@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"git checkout docs && git status --short\",\"description\":\"Switch to docs branch and check status\"}",
-  "error": "Exit code 1\nerror: The following untracked working tree files would be overwritten by checkout:\n\tPLAN.md\nPlease move or remove them before you switch branches.\nAborting",
-  "timestamp": "2026-06-25T01:56:14.346Z",
-  "retry_count": 2
+  "tool_input_preview": "{\"command\":\"git checkout main && git ls-files PLAN.md progress.md session-handoff.md openspec/ .claude/ .omc/ .slim/ scripts/ 2>&1\",\"description\":\"Verify main branch doesn't track private files\"}",
+  "error": "Exit code 1\nerror: Your local changes to the following files would be overwritten by checkout:\n\t.omc/state/hud-stdin-cache.json\nPlease commit your changes or stash them before you switch branches.\nAborting",
+  "timestamp": "2026-06-25T01:57:36.450Z",
+  "retry_count": 1
 }
