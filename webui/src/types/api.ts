@@ -163,3 +163,134 @@ export type QuitAppResponse = void;
 // set_manual_quota (Phase 3 — stores in quota_cache without touching provider notes)
 export interface SetManualQuotaRequest { id: number; snapshot: QuotaSnapshot; }
 export type SetManualQuotaResponse = void;
+
+// === Token Usage types (REQ-TOKEN-001.2/001.3/002) ===
+
+// TokenBreakdown — REQ-TOKEN-001.2 usage_details
+export interface TokenBreakdown {
+  input?: number;
+  output?: number;
+  cache_read?: number;       // cache_read_input_tokens
+  cache_creation?: number;  // cache_creation_input_tokens
+  reasoning?: number;       // reasoning_tokens
+}
+
+// CostBreakdown — REQ-TOKEN-001.3 cost_details
+export interface CostBreakdown {
+  input?: number;
+  output?: number;
+  cache_read?: number;
+  total?: number;
+}
+
+// UsageRecordInput — what the frontend sends to record_usage
+export interface UsageRecordInput {
+  occurred_at: string;
+  finished_at?: string;
+  latency_ms?: number;
+  provider: string;
+  model: string;
+  agent_type?: string;
+  user_id?: string;
+  session_id?: string;
+  observation_type?: string;
+  status?: string;
+  error_code?: string;
+  cache_hit?: number;
+  usage_details: TokenBreakdown;
+  cost_details?: CostBreakdown;
+  pricing_version?: string;
+  messages?: string;
+  response?: string;
+  tags?: string[];
+}
+
+// UsageRecord — returned by record_usage, list_usage_records
+export interface UsageRecord extends UsageRecordInput {
+  id: string;
+}
+
+// UsageFilter — shared by list_usage_records and get_usage_summary
+export interface UsageFilter {
+  start_date?: string;
+  end_date?: string;
+  agent_type?: string;
+  model?: string;
+  provider?: string;
+  status?: string;
+}
+
+// AgentPair — part of UsageSummary
+export interface AgentPair {
+  agent_type: string;
+  model: string;
+  provider: string;
+  total_tokens: number;
+  total_cost_usd: number;
+  request_count: number;
+  token_breakdown: {
+    input?: number;
+    output?: number;
+    cache_read?: number;
+    cache_creation?: number;
+    reasoning?: number;
+  };
+}
+
+// DailySeriesPoint — part of UsageSummary
+export interface DailySeriesPoint {
+  date: string;
+  total_tokens: number;
+  total_cost_usd: number;
+  request_count: number;
+}
+
+// UsageSummary — returned by get_usage_summary (REQ-TOKEN-002.1)
+export interface UsageSummary {
+  total_tokens: number;
+  total_cost_usd: number;
+  total_requests: number;
+  agent_pairs: AgentPair[];
+  daily_series: DailySeriesPoint[];
+}
+
+// ImportResult — returned by import_usage
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  errors: string[];
+}
+
+// ImportFormat — union literal
+export type ImportFormat = 'jsonl' | 'csv';
+
+// PricingEntry — returned by get_pricing
+export interface PricingEntry {
+  model: string;
+  input_cost_per_token: number;
+  output_cost_per_token: number;
+  cache_read_cost?: number;
+  cache_creation_cost?: number;
+  supports_reasoning?: boolean;
+}
+
+// PaginatedResponse<T> — standard pagination shape
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  perPage: number;
+}
+
+// UsageError — error detail for a failed import row
+export interface UsageError {
+  line: number;
+  message: string;
+}
+
+// UsageBreakdown — summary of usage by category (used in detail panel)
+export interface UsageBreakdown {
+  label: string;
+  value: number;
+  cost?: number;
+}
