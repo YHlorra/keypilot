@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cat > .gitignore << 'GITIGNORE_EOF'\\n# Rust / Cargo\\n/src-tauri/target/\\n**/*.rs.bk\\nCargo.lock.bak\\n\\n# Tauri\\n/src-tauri/gen/\\n\\n# Node / pnpm\\n/webui/node_modules/\\n/webui/dist/\\n/webui...",
-  "error": "Exit code 1\nwarning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it\nOn branch docs\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   .omc/state/hud-stdin-cache.json\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")",
-  "timestamp": "2026-06-25T01:58:52.156Z",
-  "retry_count": 4
+  "tool_input_preview": "{\"command\":\"git checkout main && echo \\\"=== main: private files tracked? ===\\\" && git ls-files PLAN.md progress.md session-handoff.md openspec/ .claude/ .omc/ .slim/ scripts/ 2>&1 && echo \\\"(none = co...",
+  "error": "Exit code 1\nerror: Your local changes to the following files would be overwritten by checkout:\n\t.omc/state/hud-stdin-cache.json\nPlease commit your changes or stash them before you switch branches.\nAborting",
+  "timestamp": "2026-06-25T01:59:16.199Z",
+  "retry_count": 5
 }
