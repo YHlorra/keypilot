@@ -114,3 +114,78 @@ pub struct QuotaSnapshot {
     /// Unix epoch seconds when quota resets (None for PostgreSQL).
     pub reset_at: Option<i64>,
 }
+
+// --- Token Usage types (Stage A) ---
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenUsageRecord {
+    pub id: String,
+    pub agent_type: String,
+    pub model: String,
+    pub provider_name: String,
+    pub occurred_at: i64,
+    pub recorded_at: i64,
+    pub session_id: Option<String>,
+    pub request_id: Option<String>,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub cache_read_input_tokens: i64,
+    pub cache_creation_input_tokens: i64,
+    pub reasoning_tokens: i64,
+    pub prompt_cost: f64,
+    pub completion_cost: f64,
+    pub cache_read_cost: f64,
+    pub cache_creation_cost: f64,
+    pub reasoning_cost: f64,
+    pub total_cost: f64,
+    pub currency: String,
+    pub pricing_version: Option<String>,
+    pub usage_details: Option<String>,
+    pub cost_details: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DailyAgentModelUsage {
+    pub date: String,
+    pub agent_type: String,
+    pub model: String,
+    pub provider: String,
+    pub request_count: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub total_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DailyModelUsage {
+    pub date: String,
+    pub model: String,
+    pub provider: String,
+    pub request_count: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub total_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PricingEntry {
+    pub model: String,
+    pub provider: String,
+    pub input_price_per_1m: Option<f64>,
+    pub output_price_per_1m: Option<f64>,
+    pub cache_read_price_per_1m: Option<f64>,
+    pub cache_creation_price_per_1m: Option<f64>,
+    pub reasoning_price_per_1m: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenCounts {
+    pub input: i64,
+    pub output: i64,
+    pub cache_read: i64,
+    pub cache_creation: i64,
+    pub reasoning: i64,
+}
