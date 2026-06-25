@@ -7,6 +7,7 @@ Cargo.lock.bak
 /src-tauri/gen/
 
 # Node / pnpm
+/node_modules/                       # worktree-root junction (Windows: webui/node_modules)
 /webui/node_modules/
 /webui/dist/
 /webui/.vite/
