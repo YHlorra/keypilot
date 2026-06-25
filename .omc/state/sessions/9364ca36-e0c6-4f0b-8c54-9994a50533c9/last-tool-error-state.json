@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"git checkout main && git ls-files PLAN.md progress.md session-handoff.md openspec/ .claude/ .omc/ .slim/ scripts/ 2>&1\",\"description\":\"Verify main branch doesn't track private files\"}",
-  "error": "Exit code 1\nerror: Your local changes to the following files would be overwritten by checkout:\n\t.omc/state/hud-stdin-cache.json\nPlease commit your changes or stash them before you switch branches.\nAborting",
-  "timestamp": "2026-06-25T01:57:36.450Z",
-  "retry_count": 1
+  "tool_input_preview": "{\"command\":\"git add .gitignore && git commit -m \\\"Remove private file exclusions from .gitignore\\\" && git checkout main\",\"description\":\"Commit .gitignore fix\"}",
+  "error": "Exit code 1\nOn branch docs\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   .omc/state/hud-stdin-cache.json\n\tmodified:   .omc/state/sessions/9364ca36-e0c6-4f0b-8c54-9994a50533c9/last-tool-error-state.json\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")",
+  "timestamp": "2026-06-25T01:58:37.616Z",
+  "retry_count": 3
 }
