@@ -1,0 +1,599 @@
+{
+  "version": "2026-06-25",
+  "models": [
+    {
+      "model": "gpt-4o",
+      "provider": "OpenAI",
+      "input_price_per_1m": 2.50,
+      "output_price_per_1m": 10.00,
+      "cache_read_price_per_1m": 1.25,
+      "cache_creation_price_per_1m": 2.50,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gpt-4o-mini",
+      "provider": "OpenAI",
+      "input_price_per_1m": 0.15,
+      "output_price_per_1m": 0.60,
+      "cache_read_price_per_1m": 0.075,
+      "cache_creation_price_per_1m": 0.15,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gpt-4-turbo",
+      "provider": "OpenAI",
+      "input_price_per_1m": 10.00,
+      "output_price_per_1m": 30.00,
+      "cache_read_price_per_1m": 2.50,
+      "cache_creation_price_per_1m": 10.00,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gpt-3.5-turbo",
+      "provider": "OpenAI",
+      "input_price_per_1m": 0.50,
+      "output_price_per_1m": 1.50,
+      "cache_read_price_per_1m": 0.50,
+      "cache_creation_price_per_1m": 0.50,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "o1",
+      "provider": "OpenAI",
+      "input_price_per_1m": 15.00,
+      "output_price_per_1m": 60.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "o1-mini",
+      "provider": "OpenAI",
+      "input_price_per_1m": 3.00,
+      "output_price_per_1m": 12.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "o3",
+      "provider": "OpenAI",
+      "input_price_per_1m": 10.00,
+      "output_price_per_1m": 40.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "o3-mini",
+      "provider": "OpenAI",
+      "input_price_per_1m": 1.10,
+      "output_price_per_1m": 4.40,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "claude-opus-4",
+      "provider": "Anthropic",
+      "input_price_per_1m": 15.00,
+      "output_price_per_1m": 75.00,
+      "cache_read_price_per_1m": 1.50,
+      "cache_creation_price_per_1m": 18.75,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "claude-sonnet-4",
+      "provider": "Anthropic",
+      "input_price_per_1m": 3.00,
+      "output_price_per_1m": 15.00,
+      "cache_read_price_per_1m": 0.30,
+      "cache_creation_price_per_1m": 3.75,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "claude-3.5-sonnet",
+      "provider": "Anthropic",
+      "input_price_per_1m": 3.00,
+      "output_price_per_1m": 15.00,
+      "cache_read_price_per_1m": 0.30,
+      "cache_creation_price_per_1m": 3.75,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "claude-3-haiku",
+      "provider": "Anthropic",
+      "input_price_per_1m": 0.25,
+      "output_price_per_1m": 1.25,
+      "cache_read_price_per_1m": 0.025,
+      "cache_creation_price_per_1m": 0.3125,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "deepseek-chat",
+      "provider": "DeepSeek",
+      "input_price_per_1m": 0.14,
+      "output_price_per_1m": 0.28,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "deepseek-reasoner",
+      "provider": "DeepSeek",
+      "input_price_per_1m": 0.55,
+      "output_price_per_1m": 2.19,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gemini-2.5-pro",
+      "provider": "Google",
+      "input_price_per_1m": 1.25,
+      "output_price_per_1m": 10.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gemini-2.5-flash",
+      "provider": "Google",
+      "input_price_per_1m": 0.15,
+      "output_price_per_1m": 0.60,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gemini-2.0-flash",
+      "provider": "Google",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.40,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gemini-1.5-pro",
+      "provider": "Google",
+      "input_price_per_1m": 1.25,
+      "output_price_per_1m": 5.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gemini-1.5-flash",
+      "provider": "Google",
+      "input_price_per_1m": 0.075,
+      "output_price_per_1m": 0.30,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "claude-opus-4-5",
+      "provider": "Anthropic",
+      "input_price_per_1m": 15.00,
+      "output_price_per_1m": 75.00,
+      "cache_read_price_per_1m": 1.50,
+      "cache_creation_price_per_1m": 18.75,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "claude-sonnet-4-5",
+      "provider": "Anthropic",
+      "input_price_per_1m": 3.00,
+      "output_price_per_1m": 15.00,
+      "cache_read_price_per_1m": 0.30,
+      "cache_creation_price_per_1m": 3.75,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "claude-3-opus",
+      "provider": "Anthropic",
+      "input_price_per_1m": 15.00,
+      "output_price_per_1m": 75.00,
+      "cache_read_price_per_1m": 1.50,
+      "cache_creation_price_per_1m": 18.75,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gpt-4",
+      "provider": "OpenAI",
+      "input_price_per_1m": 30.00,
+      "output_price_per_1m": 60.00,
+      "cache_read_price_per_1m": 15.00,
+      "cache_creation_price_per_1m": 30.00,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gpt-4-32k",
+      "provider": "OpenAI",
+      "input_price_per_1m": 60.00,
+      "output_price_per_1m": 120.00,
+      "cache_read_price_per_1m": 30.00,
+      "cache_creation_price_per_1m": 60.00,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "o1-pro",
+      "provider": "OpenAI",
+      "input_price_per_1m": 20.00,
+      "output_price_per_1m": 80.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "claude-3-opus-20240229",
+      "provider": "Anthropic",
+      "input_price_per_1m": 15.00,
+      "output_price_per_1m": 75.00,
+      "cache_read_price_per_1m": 1.50,
+      "cache_creation_price_per_1m": 18.75,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "claude-3-sonnet-20240229",
+      "provider": "Anthropic",
+      "input_price_per_1m": 3.00,
+      "output_price_per_1m": 15.00,
+      "cache_read_price_per_1m": 0.30,
+      "cache_creation_price_per_1m": 3.75,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "claude-3-haiku-20240307",
+      "provider": "Anthropic",
+      "input_price_per_1m": 0.25,
+      "output_price_per_1m": 1.25,
+      "cache_read_price_per_1m": 0.025,
+      "cache_creation_price_per_1m": 0.3125,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "deepseek-coder",
+      "provider": "DeepSeek",
+      "input_price_per_1m": 0.14,
+      "output_price_per_1m": 0.28,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "llama-3.1-405b",
+      "provider": "Meta",
+      "input_price_per_1m": 0.80,
+      "output_price_per_1m": 2.40,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "llama-3.1-70b",
+      "provider": "Meta",
+      "input_price_per_1m": 0.30,
+      "output_price_per_1m": 0.90,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "llama-3.1-8b",
+      "provider": "Meta",
+      "input_price_per_1m": 0.06,
+      "output_price_per_1m": 0.18,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "llama-3.3-70b",
+      "provider": "Meta",
+      "input_price_per_1m": 0.30,
+      "output_price_per_1m": 0.90,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "llama-3.3-8b",
+      "provider": "Meta",
+      "input_price_per_1m": 0.06,
+      "output_price_per_1m": 0.18,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "llama-4-maverick",
+      "provider": "Meta",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.30,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "llama-4-scout",
+      "provider": "Meta",
+      "input_price_per_1m": 0.08,
+      "output_price_per_1m": 0.24,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "mistral-large",
+      "provider": "Mistral",
+      "input_price_per_1m": 2.00,
+      "output_price_per_1m": 6.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "mistral-small",
+      "provider": "Mistral",
+      "input_price_per_1m": 0.20,
+      "output_price_per_1m": 0.60,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "mixtral-8x7b",
+      "provider": "Mistral",
+      "input_price_per_1m": 0.40,
+      "output_price_per_1m": 0.80,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "codestral",
+      "provider": "Mistral",
+      "input_price_per_1m": 0.20,
+      "output_price_per_1m": 1.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "pixtral-large",
+      "provider": "Mistral",
+      "input_price_per_1m": 2.00,
+      "output_price_per_1m": 6.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "command-r-plus",
+      "provider": "Cohere",
+      "input_price_per_1m": 2.50,
+      "output_price_per_1m": 10.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "command-r",
+      "provider": "Cohere",
+      "input_price_per_1m": 0.50,
+      "output_price_per_1m": 1.50,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "grok-2",
+      "provider": "xAI",
+      "input_price_per_1m": 2.00,
+      "output_price_per_1m": 10.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "grok-2-vision",
+      "provider": "xAI",
+      "input_price_per_1m": 2.00,
+      "output_price_per_1m": 10.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "qwen-2.5-72b",
+      "provider": "Alibaba",
+      "input_price_per_1m": 0.40,
+      "output_price_per_1m": 0.80,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "qwen-2.5-7b",
+      "provider": "Alibaba",
+      "input_price_per_1m": 0.05,
+      "output_price_per_1m": 0.10,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "qwen-2.5-coder-32b",
+      "provider": "Alibaba",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.20,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "yi-large",
+      "provider": "01.AI",
+      "input_price_per_1m": 2.50,
+      "output_price_per_1m": 5.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "yi-medium",
+      "provider": "01.AI",
+      "input_price_per_1m": 0.50,
+      "output_price_per_1m": 1.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "glm-4",
+      "provider": "Zhipu",
+      "input_price_per_1m": 1.00,
+      "output_price_per_1m": 2.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "glm-4-flash",
+      "provider": "Zhipu",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.20,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "ernie-bot-4",
+      "provider": "Baidu",
+      "input_price_per_1m": 0.80,
+      "output_price_per_1m": 2.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "step-2-16k",
+      "provider": "StepFun",
+      "input_price_per_1m": 0.50,
+      "output_price_per_1m": 1.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "moonshot-v1-8k",
+      "provider": "Moonshot",
+      "input_price_per_1m": 0.50,
+      "output_price_per_1m": 1.50,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "spark-3.5",
+      "provider": "iFlytek",
+      "input_price_per_1m": 0.33,
+      "output_price_per_1m": 0.67,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "jamba-1.5-large",
+      "provider": "AI21 Labs",
+      "input_price_per_1m": 2.00,
+      "output_price_per_1m": 8.00,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "dbrx-instruct",
+      "provider": "Databricks",
+      "input_price_per_1m": 0.70,
+      "output_price_per_1m": 2.10,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "tulu-2-70b",
+      "provider": "AI2",
+      "input_price_per_1m": 0.80,
+      "output_price_per_1m": 2.40,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "aya-101",
+      "provider": "Cohere",
+      "input_price_per_1m": 0.30,
+      "output_price_per_1m": 0.90,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "olmo-2-7b",
+      "provider": "AI2",
+      "input_price_per_1m": 0.05,
+      "output_price_per_1m": 0.15,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "phi-4",
+      "provider": "Microsoft",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.40,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "phi-4-mini",
+      "provider": "Microsoft",
+      "input_price_per_1m": 0.05,
+      "output_price_per_1m": 0.20,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "qwen2.5-14b",
+      "provider": "Alibaba",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.20,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "qwen2.5-32b",
+      "provider": "Alibaba",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.20,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    },
+    {
+      "model": "gemini-2.0-flash-thinking",
+      "provider": "Google",
+      "input_price_per_1m": 0.10,
+      "output_price_per_1m": 0.40,
+      "cache_read_price_per_1m": null,
+      "cache_creation_price_per_1m": null,
+      "reasoning_price_per_1m": null
+    }
+  ]
+}
