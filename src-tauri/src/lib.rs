@@ -26,7 +26,6 @@ pub fn run() {
             let db_path = app_dir.join("keypilot.db");
             let db = Database::open(&db_path)?;
             db.setup_schema()?;
-            db.seed_preset_providers()?;
 
             let state = AppState::new(db);
             app.manage(state);
@@ -35,7 +34,11 @@ pub fn run() {
             let _tray = tray::init_tray(app.handle())?;
 
             // Create main window
-            let (label, title) = ("main", "KeyPilot");
+            let unique_id = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let (label, title) = (format!("keypilot-{}", unique_id), "KeyPilot");
 
             let builder = WebviewWindowBuilder::new(
                 app,
@@ -63,6 +66,7 @@ pub fn run() {
     commands::provider::delete_category,
     commands::provider::test_connection,
     commands::quota::fetch_quota,
+    commands::quota::set_manual_quota,
     commands::provider::get_theme,
     commands::provider::set_theme,
     commands::tray::pin_provider,

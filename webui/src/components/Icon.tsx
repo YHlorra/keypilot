@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createContext, useContext, useState, useCallback } from "react";
-import { Eye, EyeOff, Copy, Trash2, Plus, RefreshCw, Check, X, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Copy, Trash2, Plus, RefreshCw, Check, X, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Provider preset colors (Option A: teal/indigo/orange/gray/cyan)
@@ -9,7 +9,7 @@ export const PRESET_COLORS: Record<string, string> = {
   deepseek: "#3e63dd",   // indigo
   anthropic: "#f76808", // orange
   github: "#8e8e8e",     // gray
-  postgresql: "#00a2c7", // cyan
+  postgres: "#00a2c7", // cyan
 };
 
 export const PRESET_LABELS: Record<string, string> = {
@@ -17,7 +17,7 @@ export const PRESET_LABELS: Record<string, string> = {
   deepseek: "DeepSeek",
   anthropic: "Anthropic",
   github: "GitHub",
-  postgresql: "PostgreSQL",
+  postgres: "PostgreSQL",
 };
 
 interface IconProps {
@@ -37,6 +37,7 @@ export const Icon = React.memo(function Icon({ name, className, color }: IconPro
     check: <Check className={cn("w-4 h-4", className)} style={{ color }} />,
     x: <X className={cn("w-4 h-4", className)} style={{ color }} />,
     loader: <Loader2 className={cn("w-4 h-4 animate-spin", className)} style={{ color }} />,
+    search: <Search className={cn("w-4 h-4", className)} style={{ color }} />,
   };
 
   return <>{iconMap[name] || null}</>;

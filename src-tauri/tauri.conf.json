@@ -2,6 +2,8 @@
   "$schema": "https://schema.tauri.app/config/2",
   "identifier": "com.keypilot.app",
   "build": {
+    "beforeDevCommand": "pnpm -C webui dev",
+    "devUrl": "http://localhost:1420",
     "frontendDist": "../webui/dist"
   },
   "bundle": {
@@ -10,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "label": "main",
+        "label": "keypilot-main",
         "title": "KeyPilot",
         "width": 1200,
         "height": 760
