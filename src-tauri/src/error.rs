@@ -34,6 +34,15 @@ pub enum AppError {
 
     #[error("http error: {0}")]
     Http(String),
+
+    #[error("invalid token usage format: {0}")]
+    TokenUsageInvalidFormat(String),
+
+    #[error("duplicate token usage record: {0}")]
+    TokenUsageDuplicate(String),
+
+    #[error("pricing not found for model: {0}")]
+    TokenUsagePricingNotFound(String),
 }
 
 // Tauri command serialization: { code: String, message: String }
@@ -56,6 +65,9 @@ impl serde::Serialize for AppError {
             Self::ProviderCannotTest(_) => "PROVIDER_CANNOT_TEST",
             Self::ProviderQuotaUnsupported(_) => "PROVIDER_QUOTA_UNSUPPORTED",
             Self::Http(_) => "HTTP",
+            Self::TokenUsageInvalidFormat(_) => "TOKEN_USAGE_INVALID_FORMAT",
+            Self::TokenUsageDuplicate(_) => "TOKEN_USAGE_DUPLICATE",
+            Self::TokenUsagePricingNotFound(_) => "TOKEN_USAGE_PRICING_NOT_FOUND",
         };
         s.serialize_field("code", code)?;
         s.serialize_field("message", &self.to_string())?;

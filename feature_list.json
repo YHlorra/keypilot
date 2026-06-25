@@ -205,6 +205,31 @@
       "notes": "Screenshots are V0.1 launch artifacts; placeholder .txt files reference actual screenshot capture needed"
     },
     {
+      "id": "stage-a",
+      "name": "Token Usage Data Foundation (database.rs + PricingService)",
+      "description": "Schema v3→v4 migration adding 3 tables (token_usage_records, daily_agent_model_usage, daily_model_usage) + PricingService with 50-model pricing.json + error variants. Direct integration tests (no IPC).",
+      "files": [
+        "src-tauri/src/database.rs",
+        "src-tauri/src/error.rs",
+        "src-tauri/src/types.rs",
+        "src-tauri/src/services/pricing.rs",
+        "src-tauri/src/services/mod.rs",
+        "src-tauri/src/store.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/data/migrations/v3_to_v4.sql",
+        "src-tauri/data/pricing.json",
+        "src-tauri/tests/ipc_e2e.rs"
+      ],
+      "depends_on": ["stage-1"],
+      "status": "done",
+      "evidence": "cargo check: PASS\ncargo test: 6/6 PASS (3 pricing + 1 rollup + 1 insert+query+rollup)\nBug fix: query_map parameter order [limit, offset] not [offset, limit]\nHard constraints: visibility TEXT NOT NULL DEFAULT 'visible': PASS; value TEXT: PASS; preset TEXT: PASS; category_id INTEGER NOT NULL: PASS; encryption crates: PASS (empty); fs::write: PASS (create_dir_all for %APPDATA% only, whitelisted)\n",
+      "started_at": "2026-06-25",
+      "ended_at": "2026-06-25",
+      "assignee": "fixer",
+      "notes": "Tests rewritten from broken Tauri IPC e2e to direct DB/service integration tests. Bug: query_map([offset, limit]) passed params in wrong order — SQL LIMIT got 0. Fixed to [limit, offset]. Removed debug eprintln! statements after fix.",
+      "openspec_ref": "openspec/changes/token-usage-history/tasks.md T5.1 + T5.3"
+    },
+    {
       "id": "stage-9",
       "name": "V0.1 验收 (13 项清单)",
       "description": "V0.1 acceptance test suite — 13 项手动验收清单。",
