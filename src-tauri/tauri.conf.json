@@ -10,7 +10,7 @@
   "app": {
     "windows": [
       {
-        "label": "main",
+        "label": "keypilot-main",
         "title": "KeyPilot",
         "width": 1200,
         "height": 760
