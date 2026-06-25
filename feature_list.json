@@ -79,7 +79,7 @@
       "ended_at": "2026-06-25",
       "assignee": "fixer",
       "notes": "**rev 2 修正**:与 stage-3 并行(都 depends_on stage-1)。前提:Phase 1.5 完成 webui/src/types/api.ts(在 stage-2 启动前已落)。rev 2 修正:adapter_for returns Option(不开 panic),T2.6 async runtime 用 tauri::async_runtime::spawn(spawn_blocking for SQLite)。",
-      "openspec_ref": "openspec/changes/v0.1-general-credentials/tasks.md T2.1-T2.7 + spec.md REQ-PROV-007/008/009, REQ-QUOTA-004/005/006""
+      "openspec_ref": "openspec/changes/v0.1-general-credentials/tasks.md T2.1-T2.7 + spec.md REQ-PROV-007/008/009, REQ-QUOTA-004/005/006"
     },
     {
       "id": "stage-3",
@@ -228,6 +228,24 @@
       "assignee": "fixer",
       "notes": "Tests rewritten from broken Tauri IPC e2e to direct DB/service integration tests. Bug: query_map([offset, limit]) passed params in wrong order — SQL LIMIT got 0. Fixed to [limit, offset]. Removed debug eprintln! statements after fix.",
       "openspec_ref": "openspec/changes/token-usage-history/tasks.md T5.1 + T5.3"
+    },
+    {
+      "id": "stage-b",
+      "name": "TokenUsageService — pure Rust business layer",
+      "description": "services/token_usage.rs — TokenUsageService holding Arc<Mutex<Database>> + Arc<PricingService>. 6 sync methods: record_usage / list_records / get_summary / import_jsonl / import_csv / refresh_daily_rollups. 7 DTOs in types.rs (UsageRecordInput / UsageFilter / UsageSummary / UsageSummaryAgentPair / DailySeries / ImportResult / ImportError). Fixed Stage A INSERT bug (prompt_tokens/completion_tokens columns now read from TokenUsageRecord fields). 4 new DB methods: list_token_usage_records_filtered, count_token_usage_records_filtered, get_token_usage_record_by_id, delete_daily_for_date. JSONL dual-format parser (Claude + Codex). CSV with quoted-field handling. FNV-1a 64-bit hex for deterministic import dedup id. 13 unit tests inlined.",
+      "files": [
+        "src-tauri/src/services/token_usage.rs",
+        "src-tauri/src/services/mod.rs",
+        "src-tauri/src/types.rs",
+        "src-tauri/src/database.rs"
+      ],
+      "depends_on": ["stage-a"],
+      "status": "done",
+      "evidence": "cargo check --manifest-path src-tauri/Cargo.toml --lib: PASS\ncargo test --manifest-path src-tauri/Cargo.toml --lib: 18/18 PASS (13 new + 5 existing)\n  - record_usage_happy_path: PASS\n  - record_usage_duplicate: PASS\n  - cost_calculation_known_model: PASS (gpt-4o 1M+1M = $12.50)\n  - cost_calculation_unknown_model: PASS (cost=0 + pricing_missing_for in cost_details)\n  - list_records_filtered_by_date: PASS\n  - list_records_filtered_by_agent: PASS\n  - get_summary_aggregates_correctly: PASS\n  - import_jsonl_claude_format: PASS\n  - import_jsonl_codex_format: PASS\n  - import_jsonl_dedup: PASS (imported=1, skipped=1)\n  - import_csv_basic: PASS\n  - import_csv_bad_header: PASS (TokenUsageInvalidFormat)\n  - refresh_daily_rollups_recomputes: PASS\nHard constraints:\n  - grep 'use tauri' services/token_usage.rs: 0 matches\n  - grep 'tx.commit' services/token_usage.rs: 1 match (refresh_daily_rollups)\n  - All fallible fns return Result<T, AppError>\n  - No fs::write in services/",
+      "started_at": "2026-06-26",
+      "ended_at": "2026-06-26",
+      "assignee": "fixer",
+      "notes": "Methods are sync (not async) — rusqlite + std::sync::Mutex are blocking. Tauri IPC layer (Stage C) wraps with spawn_blocking if needed. No Cargo.toml changes — FNV-1a hash inlined to avoid sha2 dep. Stage A INSERT bug fixed in this stage: added prompt_tokens/completion_tokens fields to TokenUsageRecord, updated both INSERT params and list_token_usage_records SELECT to read correct columns."
     },
     {
       "id": "stage-9",
