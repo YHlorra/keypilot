@@ -1,0 +1,50 @@
+# Rust / Cargo
+/src-tauri/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Tauri
+/src-tauri/gen/
+
+# Node / pnpm
+/webui/node_modules/
+/webui/dist/
+/webui/.vite/
+/webui/*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# 临时
+/tmp/
+*.tmp
+*.bak
+
+# OpenCode slim (kept out of git, readable to OpenCode)
+.slim/deepwork/
+
+# OpenCode agent state (HUD cache etc.)
+.omc/
+
+# Development session docs (internal, not for VCS)
+progress.md
+session-handoff.md

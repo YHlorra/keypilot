@@ -1,0 +1,3 @@
+TODO: Main Window - Dark Theme screenshot
+Placeholder for: docs/screenshots/main-dark.png
+Capture: Main window in Dark theme showing provider list + sidebar + detail panel

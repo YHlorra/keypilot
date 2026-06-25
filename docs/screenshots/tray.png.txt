@@ -1,0 +1,3 @@
+TODO: Tray Hover Card screenshot
+Placeholder for: docs/screenshots/tray.png
+Capture: System tray hover card with pinned provider list and quota display

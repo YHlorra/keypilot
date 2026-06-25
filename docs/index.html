@@ -1,0 +1,1993 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+  <title>KEY MANAGER · 凭证库</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --fg: #f0f0fa;
+      --muted: rgba(240, 240, 250, 0.62);
+      --border: rgba(240, 240, 250, 0.32);
+      --border-soft: rgba(240, 240, 250, 0.10);
+      --accent: #f0f0fa;
+      --accent-on: #000000;
+      --accent-hover: #ffffff;
+      --success: #4ade80;
+      --warn: #eab308;
+      --danger: #ef4444;
+
+      --font-display: "D-DIN-Bold", "DIN Alternate", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      --font-body: "D-DIN", "DIN Alternate", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "PingFang SC", Menlo, Monaco, Consolas, monospace;
+
+      --text-xs: 10px;
+      --text-sm: 12px;
+      --text-base: 14px;
+      --text-lg: 16px;
+      --text-xl: 20px;
+      --text-2xl: 24px;
+      --text-3xl: 32px;
+
+      --leading-body: 1.55;
+      --tracking-display: 0.02em;
+      --tracking-wide: 0.08em;
+      --tracking-wider: 0.14em;
+
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+
+      --radius-sm: 4px;
+      --radius-pill: 32px;
+
+      --motion-fast: 140ms;
+      --motion-base: 220ms;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: var(--leading-body);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow: hidden;
+      letter-spacing: 0.01em;
+    }
+    button { font-family: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+    input, select { font-family: inherit; color: inherit; background: none; border: none; outline: none; }
+    ul { list-style: none; }
+    code { font-family: var(--font-mono); font-size: inherit; }
+    ::selection { background: var(--accent); color: var(--accent-on); }
+
+    .desktop {
+      width: 100vw;
+      height: 100vh;
+      background:
+        radial-gradient(1200px 600px at 20% -10%, rgba(240, 240, 250, 0.04), transparent 60%),
+        radial-gradient(900px 500px at 110% 110%, rgba(240, 240, 250, 0.025), transparent 60%),
+        #000;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .window {
+      width: 100%;
+      max-width: 1440px;
+      height: 100%;
+      max-height: 900px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 38px 1fr 28px;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 30px 80px -20px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Titlebar */
+    .titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border-soft);
+      background: rgba(240, 240, 250, 0.015);
+      user-select: none;
+    }
+    .traffic-lights { display: flex; gap: 8px; align-items: center; }
+    .traffic-lights span {
+      width: 12px; height: 12px; border-radius: 50%;
+      border: 1px solid var(--border-soft);
+    }
+    .traffic-lights span:nth-child(1) { background: rgba(255, 95, 86, 0.35); }
+    .traffic-lights span:nth-child(2) { background: rgba(255, 189, 46, 0.35); }
+    .traffic-lights span:nth-child(3) { background: rgba(39, 201, 63, 0.35); }
+
+    .titlebar-title {
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .titlebar-title .sep { opacity: 0.4; margin: 0 8px; }
+
+    .titlebar-actions { display: flex; gap: 8px; align-items: center; }
+    .titlebar-search {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-sm);
+      background: rgba(240, 240, 250, 0.03);
+      width: 240px;
+    }
+    .titlebar-search input { flex: 1; font-size: var(--text-sm); color: var(--fg); }
+    .titlebar-search input::placeholder { color: var(--muted); letter-spacing: 0.02em; }
+    .titlebar-search svg { opacity: 0.5; }
+
+    .titlebar-btn {
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 6px 12px;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-pill);
+      transition: color var(--motion-fast), background var(--motion-fast), border-color var(--motion-fast);
+    }
+    .titlebar-btn:hover { color: var(--fg); background: rgba(240, 240, 250, 0.06); border-color: var(--border); }
+    .titlebar-btn.primary {
+      color: var(--accent-on);
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .titlebar-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+    /* Workbench */
+    .workbench { display: grid; grid-template-columns: 300px 1fr; overflow: hidden; }
+
+    /* Sidebar */
+    .sidebar {
+      border-right: 1px solid var(--border-soft);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      background: rgba(240, 240, 250, 0.012);
+    }
+    .sidebar-section { padding: 14px 0; }
+    .sidebar-section + .sidebar-section { border-top: 1px solid var(--border-soft); }
+    .group-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 18px 8px;
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+      transition: color var(--motion-fast);
+      background: none;
+      border: none;
+      width: 100%;
+      text-align: left;
+    }
+    .group-title:hover { color: var(--fg); }
+    .group-title::before {
+      content: '';
+      width: 6px; height: 6px;
+      border-right: 1.2px solid currentColor;
+      border-bottom: 1.2px solid currentColor;
+      transform: rotate(45deg) translate(-1px, -1px);
+      transition: transform var(--motion-fast);
+      flex-shrink: 0;
+      opacity: 0.7;
+    }
+    .group-title .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sidebar-section.collapsed .group-title::before { transform: rotate(-45deg) translate(-1px, -1px); }
+    .sidebar-section.collapsed .provider-list { display: none; }
+    .group-title .count {
+      font-family: var(--font-mono);
+      letter-spacing: 0;
+      opacity: 0.7;
+    }
+    .group-remove {
+      font-family: var(--font-display);
+      font-size: 14px;
+      line-height: 1;
+      letter-spacing: 0;
+      color: var(--muted);
+      opacity: 0;
+      padding: 4px 6px;
+      margin: -4px -6px -4px 0;
+      border-radius: 2px;
+      transition: opacity var(--motion-fast), color var(--motion-fast), background var(--motion-fast);
+    }
+    .group-title:hover .group-remove { opacity: 0.6; }
+    .group-remove:hover { opacity: 1 !important; color: var(--danger); background: rgba(239, 68, 68, 0.08); }
+    .sidebar-add-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      margin-top: 4px;
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color var(--motion-fast), background var(--motion-fast);
+      user-select: none;
+      border-top: 1px solid var(--border-soft);
+    }
+    .sidebar-add-group:hover { color: var(--fg); background: rgba(240, 240, 250, 0.04); }
+    .sidebar-add-group .plus { font-size: 12px; letter-spacing: 0; }
+    .provider-list { padding: 0; }
+    .provider-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 18px;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: background var(--motion-fast), border-color var(--motion-fast);
+    }
+    .provider-item:hover { background: rgba(240, 240, 250, 0.04); }
+    .provider-item.active {
+      background: rgba(240, 240, 250, 0.07);
+      border-left-color: var(--accent);
+    }
+    .provider-name { font-size: var(--text-base); color: var(--fg); }
+    .provider-meta {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--muted);
+    }
+    .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      display: inline-block;
+    }
+    .dot.ok { background: var(--success); box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.18); }
+    .dot.warn { background: var(--warn); box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.18); }
+    .dot.critical { background: var(--danger); box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18); }
+
+    /* Detail */
+    .detail { overflow-y: auto; padding: 28px 40px 40px; }
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 22px;
+      border-bottom: 1px solid var(--border-soft);
+      margin-bottom: 26px;
+      gap: 24px;
+    }
+    .detail-title-block { min-width: 0; }
+    .detail-title {
+      font-family: var(--font-display);
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: var(--tracking-display);
+      text-transform: uppercase;
+    }
+    .detail-subtitle {
+      font-size: var(--text-sm);
+      color: var(--muted);
+      margin-top: 6px;
+      letter-spacing: 0.02em;
+    }
+    .eyebrow {
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .detail-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    .btn {
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      padding: 9px 16px;
+      border-radius: var(--radius-pill);
+      transition: background var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
+      white-space: nowrap;
+    }
+    .btn-ghost {
+      background: rgba(240, 240, 250, 0.05);
+      color: var(--fg);
+      border: 1px solid var(--border-soft);
+    }
+    .btn-ghost:hover { background: rgba(240, 240, 250, 0.10); border-color: var(--border); }
+    .btn-solid {
+      background: var(--accent);
+      color: var(--accent-on);
+      border: 1px solid var(--accent);
+    }
+    .btn-solid:hover { background: var(--accent-hover); }
+    .btn-solid:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-solid.ok {
+      background: transparent;
+      color: var(--success);
+      border-color: var(--success);
+    }
+    .btn-danger-ghost {
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    .btn-danger-ghost:hover { background: rgba(239, 68, 68, 0.08); border-color: var(--danger); }
+    .btn-mini {
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 4px 10px;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-sm);
+      transition: color var(--motion-fast), border-color var(--motion-fast), background var(--motion-fast);
+      white-space: nowrap;
+    }
+    .btn-mini:hover { color: var(--fg); border-color: var(--border); background: rgba(240, 240, 250, 0.04); }
+    .btn-mini.copied { color: var(--success); border-color: var(--success); background: rgba(74, 222, 128, 0.08); }
+    .btn-mini.danger:hover { color: var(--danger); border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.06); }
+    .btn-icon {
+      width: 26px; height: 26px;
+      display: inline-grid; place-items: center;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      font-family: var(--font-display);
+      font-size: 12px;
+      letter-spacing: 0;
+      transition: color var(--motion-fast), border-color var(--motion-fast), background var(--motion-fast);
+    }
+    .btn-icon:hover { color: var(--fg); border-color: var(--border); background: rgba(240, 240, 250, 0.04); }
+    .btn-icon.danger:hover { color: var(--danger); border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.06); }
+
+    /* KV list */
+    .kv-list { display: flex; flex-direction: column; }
+    .kv-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto auto;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--border-soft);
+      border-bottom: none;
+      transition: border-color var(--motion-fast);
+    }
+    .kv-row:first-child {
+      border-top-left-radius: var(--radius-sm);
+      border-top-right-radius: var(--radius-sm);
+    }
+    .kv-row:last-child {
+      border-bottom: 1px solid var(--border-soft);
+      border-bottom-left-radius: var(--radius-sm);
+      border-bottom-right-radius: var(--radius-sm);
+    }
+    .kv-row:hover { border-color: var(--border); }
+    .kv-key {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .kv-value {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--fg);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    .kv-value.masked { letter-spacing: 0.15em; }
+    .kv-value.url { color: var(--fg); }
+    .kv-row .actions { display: flex; gap: 4px; opacity: 0.55; transition: opacity var(--motion-fast); }
+    .kv-row:hover .actions { opacity: 1; }
+
+    .kv-add {
+      margin-top: 14px;
+      padding: 11px 14px;
+      border: 1px dashed var(--border-soft);
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      text-align: left;
+      width: 100%;
+      cursor: pointer;
+      transition: color var(--motion-fast), border-color var(--motion-fast);
+    }
+    .kv-add:hover { color: var(--fg); border-color: var(--border); }
+
+    /* Meta */
+    .meta-row {
+      display: flex;
+      gap: 24px;
+      padding: 12px 0 0;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+    .meta-row span strong {
+      font-weight: 400;
+      color: var(--fg);
+      margin-left: 6px;
+    }
+
+    /* Status bar */
+    .statusbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 16px;
+      border-top: 1px solid var(--border-soft);
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wide);
+      text-transform: uppercase;
+      color: var(--muted);
+      background: rgba(240, 240, 250, 0.015);
+    }
+    .statusbar .dot { width: 6px; height: 6px; }
+    .statusbar .spacer { flex: 1; }
+    .statusbar .mono { font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; }
+
+    /* Modal */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal.open { display: flex; }
+    .modal-card {
+      width: 480px;
+      max-width: calc(100vw - 48px);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 32px;
+    }
+    .modal-card.wide { width: 720px; }
+    .modal-card.narrow { width: 420px; }
+    .modal h2 {
+      font-family: var(--font-display);
+      font-size: var(--text-xl);
+      font-weight: 700;
+      letter-spacing: var(--tracking-display);
+      text-transform: uppercase;
+      margin-bottom: 22px;
+    }
+    .modal h2 .sub {
+      font-size: var(--text-sm);
+      color: var(--muted);
+      letter-spacing: var(--tracking-wide);
+      margin-left: 8px;
+    }
+    .form-field { margin-bottom: 14px; }
+    .form-field label {
+      display: block;
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .form-field input,
+    .form-field select {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: var(--text-base);
+      color: var(--fg);
+      background: rgba(240, 240, 250, 0.04);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-sm);
+      transition: border-color var(--motion-fast);
+    }
+    .form-field input:focus,
+    .form-field select:focus { border-color: var(--border); }
+    .form-field input::placeholder { color: var(--muted); }
+    .form-hint {
+      font-size: var(--text-xs);
+      color: var(--muted);
+      letter-spacing: 0.02em;
+      margin-top: 6px;
+    }
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border-soft);
+    }
+    .confirm-desc {
+      font-size: var(--text-base);
+      color: var(--muted);
+      line-height: 1.6;
+      margin: -8px 0 0;
+    }
+    .confirm-desc .confirm-name { color: var(--fg); font-weight: 500; }
+
+    /* Settings */
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px 32px;
+      margin-bottom: 8px;
+    }
+    .settings-eyebrow {
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--muted);
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-soft);
+      margin-bottom: 8px;
+    }
+    .settings-section { display: flex; flex-direction: column; gap: 2px; }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .settings-row:last-child { border-bottom: none; }
+    .settings-label { font-size: var(--text-base); color: var(--fg); }
+    .settings-hint { font-size: var(--text-xs); color: var(--muted); margin-top: 2px; letter-spacing: 0.02em; }
+    .toggle { position: relative; display: inline-block; width: 32px; height: 18px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle span {
+      position: absolute; inset: 0;
+      background: rgba(240, 240, 250, 0.12);
+      border-radius: 9px;
+      transition: background var(--motion-fast);
+    }
+    .toggle span::before {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 14px; height: 14px;
+      background: var(--fg);
+      border-radius: 50%;
+      transition: transform var(--motion-fast);
+    }
+    .toggle input:checked + span { background: var(--accent); }
+    .toggle input:checked + span::before { transform: translateX(14px); background: var(--accent-on); }
+    .select-mini {
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      color: var(--fg);
+      background: rgba(240, 240, 250, 0.04);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-sm);
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 56px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--accent);
+      color: var(--accent-on);
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      padding: 10px 20px;
+      border-radius: var(--radius-pill);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--motion-base), transform var(--motion-base);
+      z-index: 200;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.error { background: var(--danger); color: #fff; }
+
+    /* Empty state */
+    .state-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 80px 20px;
+      text-align: center;
+      color: var(--muted);
+      height: 100%;
+    }
+    .state-block .state-icon {
+      width: 36px; height: 36px;
+      border: 1px dashed var(--border);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-family: var(--font-display);
+      font-size: var(--text-base);
+      letter-spacing: 0;
+    }
+    .state-block .state-title {
+      font-family: var(--font-display);
+      font-size: var(--text-base);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--fg);
+    }
+    .state-block .state-desc { font-size: var(--text-sm); max-width: 320px; line-height: 1.5; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(240, 240, 250, 0.10); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(240, 240, 250, 0.20); }
+
+    :focus { outline: none; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    body.modal-open { overflow: hidden; }
+
+    /* ─── System tray (bottom-right) ───────────────────────── */
+    .sys-tray {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      z-index: 140;
+      cursor: pointer;
+      transition: border-color var(--motion-fast), background var(--motion-fast);
+    }
+    .sys-tray:hover { border-color: var(--accent); background: rgba(240, 240, 250, 0.05); }
+    .sys-tray-mark {
+      width: 14px; height: 14px;
+      border: 1.2px solid var(--fg);
+      border-radius: 2px;
+      position: relative;
+    }
+    .sys-tray-mark::before, .sys-tray-mark::after {
+      content: '';
+      position: absolute;
+      background: var(--fg);
+    }
+    .sys-tray-mark::before {
+      left: 2px; right: 2px; top: 4px; height: 1.2px;
+    }
+    .sys-tray-mark::after {
+      left: 2px; right: 2px; top: 8px; height: 1.2px;
+      width: 6px;
+    }
+    .sys-tray-dot {
+      position: absolute;
+      top: -3px; right: -3px;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      border: 1.5px solid var(--bg);
+      display: none;
+    }
+    .sys-tray-dot.has { display: block; }
+    .sys-tray-dot.warn { background: var(--warn); }
+    .sys-tray-dot.critical { background: var(--danger); }
+
+    /* Hover preview card */
+    .sys-tray-card {
+      position: fixed;
+      right: 24px;
+      bottom: 70px;
+      width: 280px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
+      z-index: 145;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: opacity var(--motion-fast), transform var(--motion-fast);
+    }
+    .sys-tray-card.open {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .sys-tray-card[hidden] { display: none; }
+    .sys-tray-card-header {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 12px 14px 8px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .sys-tray-card-hint {
+      font-size: var(--text-xs);
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+    .sys-tray-card-list {
+      max-height: 280px;
+      overflow-y: auto;
+      padding: 6px 0;
+    }
+    .sys-tray-card-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 14px;
+      cursor: pointer;
+      transition: background var(--motion-fast);
+      gap: 12px;
+    }
+    .sys-tray-card-list li:hover { background: rgba(240, 240, 250, 0.05); }
+    .sys-tray-card-list .stc-name {
+      font-size: var(--text-base);
+      color: var(--fg);
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sys-tray-card-list .stc-quota {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+    .sys-tray-card-list .stc-quota.critical { color: var(--danger); }
+    .sys-tray-card-list .stc-quota.warn { color: var(--warn); }
+    .sys-tray-card-list .stc-quota.ok { color: var(--fg); }
+    .sys-tray-card-empty {
+      padding: 22px 14px;
+      text-align: center;
+      font-size: var(--text-sm);
+      color: var(--muted);
+    }
+    .sys-tray-card-foot {
+      padding: 8px 14px;
+      border-top: 1px solid var(--border-soft);
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* Right-click menu */
+    .sys-tray-menu {
+      position: fixed;
+      z-index: 160;
+      min-width: 220px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
+      padding: 6px 0;
+      list-style: none;
+      opacity: 0;
+      transform: translateY(4px);
+      pointer-events: none;
+      transition: opacity var(--motion-fast), transform var(--motion-fast);
+    }
+    .sys-tray-menu.open {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .sys-tray-menu[hidden] { display: none; }
+    .sys-tray-menu .menu-eyebrow {
+      display: block;
+      padding: 6px 14px 4px;
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: var(--tracking-wider);
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .sys-tray-menu .menu-field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px 14px;
+      font-size: var(--text-sm);
+      color: var(--fg);
+      cursor: pointer;
+      transition: background var(--motion-fast);
+    }
+    .sys-tray-menu .menu-field:hover { background: rgba(240, 240, 250, 0.06); }
+    .sys-tray-menu .menu-field .field-key {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .sys-tray-menu .menu-field .field-preview {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0;
+      max-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .sys-tray-menu .menu-divider {
+      height: 1px;
+      background: var(--border-soft);
+      margin: 4px 0;
+    }
+    .sys-tray-menu .menu-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      font-size: var(--text-sm);
+      color: var(--fg);
+      cursor: pointer;
+      transition: background var(--motion-fast);
+    }
+    .sys-tray-menu .menu-item:hover { background: rgba(240, 240, 250, 0.06); }
+    .sys-tray-menu .menu-item.danger { color: var(--danger); }
+    .sys-tray-menu .menu-item .shortcut {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0;
+    }
+
+    /* Inline edit inputs inside KV row */
+    .kv-row.editing {
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .kv-row.editing .actions,
+    .kv-row.editing .kv-display { display: none; }
+    .kv-row.editing .kv-edit { display: contents; }
+    .kv-row .kv-edit { display: none; }
+    .kv-row.editing { border-color: var(--border); background: rgba(240, 240, 250, 0.04); }
+  </style>
+</head>
+<body>
+  <div class="desktop">
+    <div class="window">
+
+      <header class="titlebar">
+        <div class="traffic-lights" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="titlebar-title">KEY MANAGER<span class="sep">·</span>凭证库</div>
+        <div class="titlebar-actions">
+          <label class="titlebar-search">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+              <circle cx="5" cy="5" r="3.4"/><path d="m8 8 2.5 2.5"/>
+            </svg>
+            <input id="search" placeholder="搜索凭证 / 键 / 值" />
+          </label>
+          <button class="titlebar-btn" id="settingsBtn">设置</button>
+          <button class="titlebar-btn primary" id="addBtn">+ 新建</button>
+        </div>
+      </header>
+
+      <main class="workbench">
+        <aside class="sidebar" id="sidebarRoot">
+          <div class="sidebar-section" data-group="default">
+            <button class="group-title" type="button" aria-expanded="true">
+              <span class="label">凭证</span>
+              <span class="count">3</span>
+            </button>
+            <ul class="provider-list" role="list">
+              <li class="provider-item active" data-cred="deepseek" role="button" tabindex="0" aria-current="true">
+                <span class="provider-name">DeepSeek</span>
+                <span class="provider-meta"><span class="dot warn"></span><span>大模型</span></span>
+              </li>
+              <li class="provider-item" data-cred="github" role="button" tabindex="0" aria-current="false">
+                <span class="provider-name">GitHub</span>
+                <span class="provider-meta"><span class="dot ok"></span><span>开发</span></span>
+              </li>
+              <li class="provider-item" data-cred="postgres" role="button" tabindex="0" aria-current="false">
+                <span class="provider-name">PostgreSQL</span>
+                <span class="provider-meta"><span class="dot ok"></span><span>数据库</span></span>
+              </li>
+            </ul>
+          </div>
+          <div class="sidebar-add-group" id="addGroupBtn"><span class="plus">+</span><span>新建分类</span></div>
+        </aside>
+
+        <section class="detail" id="detail">
+          <header class="detail-header">
+            <div class="detail-title-block">
+              <span class="eyebrow">大模型 · DEEPSEEK</span>
+              <h1 class="detail-title">DeepSeek</h1>
+              <div class="detail-subtitle">deepseek-chat / deepseek-coder</div>
+            </div>
+            <div class="detail-actions">
+              <button class="btn btn-ghost" data-action="test">测试连通性</button>
+              <button class="btn btn-ghost" data-action="rename">重命名</button>
+              <button class="btn btn-danger-ghost" data-action="delete">删除</button>
+            </div>
+          </header>
+          <div class="kv-list" id="kvList">
+            <div class="kv-row" data-k="base_url">
+              <div class="kv-key">BASE_URL</div>
+              <div class="kv-value url" data-display>https://api.deepseek.com/v1</div>
+              <div class="actions">
+                <button class="btn-icon" data-kv-action="copy" title="复制">⧉</button>
+                <button class="btn-icon" data-kv-action="edit" title="编辑">✎</button>
+                <button class="btn-icon danger" data-kv-action="del" title="删除">×</button>
+              </div>
+              <div class="kv-edit">
+                <input type="text" data-edit-key value="base_url" />
+                <input type="text" data-edit-value value="https://api.deepseek.com/v1" />
+              </div>
+            </div>
+            <div class="kv-row" data-k="api_key">
+              <div class="kv-key">API_KEY</div>
+              <div class="kv-value masked" data-display>sk-ds-•••••••••••••••••••••••••••••••8mKp</div>
+              <div class="actions">
+                <button class="btn-icon" data-kv-action="toggle" title="显示/隐藏">◉</button>
+                <button class="btn-icon" data-kv-action="copy" title="复制">⧉</button>
+                <button class="btn-icon" data-kv-action="edit" title="编辑">✎</button>
+                <button class="btn-icon danger" data-kv-action="del" title="删除">×</button>
+              </div>
+              <div class="kv-edit">
+                <input type="text" data-edit-key value="api_key" />
+                <input type="text" data-edit-value value="sk-ds-AbCdEf1234567890XyZ9aBcDeFgHiJkLmNoPqR8mKp" />
+              </div>
+            </div>
+            <div class="kv-row" data-k="model">
+              <div class="kv-key">MODEL</div>
+              <div class="kv-value" data-display>deepseek-chat</div>
+              <div class="actions">
+                <button class="btn-icon" data-kv-action="copy" title="复制">⧉</button>
+                <button class="btn-icon" data-kv-action="edit" title="编辑">✎</button>
+                <button class="btn-icon danger" data-kv-action="del" title="删除">×</button>
+              </div>
+              <div class="kv-edit">
+                <input type="text" data-edit-key value="model" />
+                <input type="text" data-edit-value value="deepseek-chat" />
+              </div>
+            </div>
+          </div>
+          <button class="kv-add" data-action="add-kv">+ 新增键值对</button>
+          <div class="meta-row">
+            <span>创建 <strong>2026-06-01</strong></span>
+            <span>更新 <strong>3 分钟前</strong></span>
+            <span>条目 <strong>3</strong></span>
+          </div>
+        </section>
+      </main>
+
+      <footer class="statusbar">
+        <span class="dot ok"></span>
+        <span>本地 Keychain 加密存储</span>
+        <span class="spacer"></span>
+        <span class="mono" id="activeCount">3 CREDENTIALS</span>
+        <span class="mono">v 0.2.0</span>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: add credential -->
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <h2 id="modalTitle">新建凭证<span class="sub">NEW CREDENTIAL</span></h2>
+      <div class="form-field">
+        <label>名称 · NAME</label>
+        <input type="text" id="newName" placeholder="例如：OpenAI · 生产环境" />
+      </div>
+      <div class="form-field">
+        <label>分类 · CATEGORY</label>
+        <select id="newCategory">
+          <option value="__default__">凭证（默认）</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>预设 · TEMPLATE</label>
+        <select id="newTemplate">
+          <option value="blank">空白 · 自行添加键值对</option>
+          <option value="llm">大模型 API（base_url / api_key）</option>
+          <option value="database">数据库连接（host / port / user / password）</option>
+          <option value="oauth">OAuth 凭据（client_id / client_secret / token）</option>
+        </select>
+        <div class="form-hint">预设只是往凭证里塞一组常见的键,后续可以自由增删改。</div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost modal-cancel">取消</button>
+        <button class="btn btn-solid modal-save">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: add KV (from detail) -->
+  <div class="modal" id="addKv" role="dialog" aria-modal="true" aria-labelledby="addKvTitle">
+    <div class="modal-card narrow">
+      <h2 id="addKvTitle">新增键值对<span class="sub">NEW KV</span></h2>
+      <div class="form-field">
+        <label>键 · KEY</label>
+        <input type="text" id="kvNewKey" placeholder="例如：region" />
+      </div>
+      <div class="form-field">
+        <label>值 · VALUE</label>
+        <input type="text" id="kvNewValue" placeholder="例如：us-east-1" />
+      </div>
+      <div class="form-field">
+        <label class="toggle-row">
+          <span style="display:flex; flex-direction:column; gap:2px;">
+            <span style="font-family: var(--font-display); font-size: var(--text-base); color: var(--fg);">敏感值 · 掩码显示</span>
+            <span style="font-size: var(--text-xs); color: var(--muted); letter-spacing: 0.02em;">默认值会用 • 遮盖,需要点 ◉ 才能看到</span>
+          </span>
+          <span class="toggle"><input type="checkbox" id="kvNewMask" /><span></span></span>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost modal-cancel">取消</button>
+        <button class="btn btn-solid" data-addkv-save>添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: settings -->
+  <div class="modal" id="settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-card wide">
+      <h2 id="settingsTitle">设置<span class="sub">SETTINGS</span></h2>
+      <div class="settings-grid">
+        <div class="settings-section">
+          <div class="settings-eyebrow">安全 · SECURITY</div>
+          <div class="settings-row">
+            <div><div class="settings-label">主密码</div><div class="settings-hint">用于解锁本地 Keychain · 5 分钟无操作自动锁定</div></div>
+            <button class="btn-mini" data-settings="master">修改</button>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-label">自动锁定</div><div class="settings-hint">闲置 5 分钟后自动锁定</div></div>
+            <label class="toggle"><input type="checkbox" checked /><span></span></label>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-label">剪贴板自动清除</div><div class="settings-hint">复制密钥 30 秒后清空</div></div>
+            <label class="toggle"><input type="checkbox" checked /><span></span></label>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-eyebrow">数据 · DATA</div>
+          <div class="settings-row">
+            <div><div class="settings-label">导出</div><div class="settings-hint">导出全部凭证为加密 JSON 备份</div></div>
+            <button class="btn-mini" data-settings="export">导出</button>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-label">导入</div><div class="settings-hint">从加密 JSON 备份恢复</div></div>
+            <button class="btn-mini" data-settings="import">导入</button>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-label">同步策略</div><div class="settings-hint">iCloud Drive · 仅本机</div></div>
+            <select class="select-mini"><option>仅本机</option><option>iCloud</option><option>WebDAV</option></select>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-eyebrow">外观 · APPEARANCE</div>
+          <div class="settings-row">
+            <div><div class="settings-label">主题</div><div class="settings-hint">纯黑光谱白</div></div>
+            <select class="select-mini"><option>纯黑</option><option>深空灰</option><option>跟随系统</option></select>
+          </div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-eyebrow">关于 · ABOUT</div>
+          <div class="settings-row">
+            <div><div class="settings-label">版本</div><div class="settings-hint mono">v 0.2.0 · build 2026.06.24</div></div>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-label">快捷键</div><div class="settings-hint">⌘N 新建 · ⌘K 搜索 · ⌘, 设置 · ↑↓ 切换</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-ghost modal-cancel">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: confirm -->
+  <div class="modal" id="confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmDesc">
+    <div class="modal-card narrow">
+      <h2 id="confirmTitle">确认删除</h2>
+      <p id="confirmDesc" class="confirm-desc">确认删除 <span class="confirm-name" id="confirmName">OpenAI</span>？此操作不可撤销。</p>
+      <div class="form-actions">
+        <button class="btn btn-ghost" data-confirm="cancel">取消</button>
+        <button class="btn btn-danger-ghost" data-confirm="ok">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- System-tray icon (bottom-right) + hover preview + context menu -->
+  <button class="sys-tray" id="sysTray" aria-label="系统托盘 · 显示 pinned 凭证" title="系统托盘">
+    <span class="sys-tray-mark" aria-hidden="true"></span>
+    <span class="sys-tray-dot" id="sysTrayDot" aria-hidden="true"></span>
+  </button>
+
+  <div class="sys-tray-card" id="sysTrayCard" hidden role="tooltip">
+    <div class="sys-tray-card-header">
+      <span class="eyebrow">PINNED · 已置顶凭证</span>
+      <span class="sys-tray-card-hint">点击图标右键菜单 · 点击空白处关闭</span>
+    </div>
+    <ul class="sys-tray-card-list" id="sysTrayCardList"></ul>
+    <div class="sys-tray-card-foot" id="sysTrayCardFoot"></div>
+  </div>
+
+  <ul class="sys-tray-menu" id="sysTrayMenu" hidden role="menu" aria-label="系统托盘菜单"></ul>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    /* ─── Data: flat key-value credentials ─────────────────── */
+    // Category: the human label, e.g. "大模型", "数据库", "开发"
+    // All fields are user-defined. Sensitive fields can be marked `mask: true`.
+    const DEFAULT_CATEGORY = { id: 'default', label: '凭证' };
+    const userCategories = [];
+
+    const CREDENTIALS = {
+      deepseek: {
+        name: 'DeepSeek',
+        category: 'default',
+        fields: [
+          { k: 'base_url', v: 'https://api.deepseek.com/v1' },
+          { k: 'api_key',  v: 'sk-ds-AbCdEf1234567890XyZ9aBcDeFgHiJkLmNoPqR8mKp', mask: true },
+          { k: 'model',    v: 'deepseek-chat' },
+        ],
+        created: '2026-06-01',
+        updated: '3 分钟前',
+        pinned: true,
+        quota: { used: 14.20, total: 20, unit: 'USD', level: 'critical' },
+      },
+      github: {
+        name: 'GitHub',
+        category: 'default',
+        fields: [
+          { k: 'base_url',   v: 'https://api.github.com' },
+          { k: 'token',      v: 'ghp_AbCdEf1234567890XyZ9aBcDeFgHiJkLmNoPqRVxYz', mask: true },
+          { k: 'username',   v: 'keypilot' },
+          { k: 'scopes',     v: 'repo, read:user' },
+        ],
+        created: '2026-03-10',
+        updated: '1 小时前',
+        pinned: true,
+        quota: { used: 1800, total: 5000, unit: 'req', level: 'ok' },
+      },
+      postgres: {
+        name: 'PostgreSQL',
+        category: 'default',
+        fields: [
+          { k: 'host',     v: 'localhost' },
+          { k: 'port',     v: '5432' },
+          { k: 'user',     v: 'app' },
+          { k: 'password', v: 'pa$$w0rd-Str0ng-Local-Dev', mask: true },
+          { k: 'database', v: 'main' },
+        ],
+        created: '2026-01-15',
+        updated: '5 分钟前',
+        pinned: true,
+        quota: { used: 68, total: 100, unit: 'GB', level: 'warn' },
+      },
+    };
+
+    const TEMPLATES = {
+      blank: [],
+      llm: [
+        { k: 'base_url', v: 'https://api.example.com/v1' },
+        { k: 'api_key',  v: '', mask: true },
+      ],
+      database: [
+        { k: 'host',     v: 'localhost' },
+        { k: 'port',     v: '5432' },
+        { k: 'user',     v: '' },
+        { k: 'password', v: '', mask: true },
+        { k: 'database', v: '' },
+      ],
+      oauth: [
+        { k: 'client_id',     v: '' },
+        { k: 'client_secret', v: '', mask: true },
+        { k: 'token',         v: '', mask: true },
+      ],
+    };
+
+    let currentId = 'deepseek';
+
+    /* ─── Render: sidebar ───────────────────────────────────── */
+    function categoryLabel(catId) {
+      if (catId === 'default') return '凭证';
+      const c = userCategories.find(x => x.id === catId);
+      return c ? c.label : '凭证';
+    }
+
+    function renderSidebar() {
+      const root = document.getElementById('sidebarRoot');
+      if (!root) return;
+      const sections = ['default', ...userCategories.map(c => c.id)].map(catId => {
+        const items = Object.entries(CREDENTIALS).filter(([k, c]) => c.category === catId);
+        return `
+          <div class="sidebar-section" data-group="${catId}">
+            <button class="group-title" type="button" aria-expanded="true">
+              <span class="label">${categoryLabel(catId)}</span>
+              <span class="count">${items.length}</span>
+              ${catId !== 'default' ? `<span class="group-remove" data-action="remove-group" data-group-id="${catId}" title="删除分类" aria-label="删除分类 ${categoryLabel(catId)}">×</span>` : ''}
+            </button>
+            <ul class="provider-list" role="list">
+              ${items.map(([id, c]) => `
+                <li class="provider-item${id === currentId ? ' active' : ''}" data-cred="${id}" role="button" tabindex="0" aria-current="${id === currentId ? 'true' : 'false'}">
+                  <span class="provider-name">${c.name}</span>
+                  <span class="provider-meta"><span class="dot ${id === currentId ? 'warn' : 'ok'}"></span><span>${c.fields.length} KV</span></span>
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+        `;
+      }).join('');
+      root.innerHTML = sections + `<div class="sidebar-add-group" id="addGroupBtn"><span class="plus">+</span><span>新建分类</span></div>`;
+      bindSidebarItems();
+    }
+
+    function bindSidebarItems() {
+      document.querySelectorAll('.provider-item[data-cred]').forEach(el => {
+        const trigger = () => renderDetail(el.dataset.cred);
+        el.addEventListener('click', trigger);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); trigger(); }
+        });
+      });
+    }
+
+    /* ─── Render: detail ────────────────────────────────────── */
+    function maskValue(v) {
+      if (!v) return '';
+      if (v.length <= 8) return '••••••••';
+      return v.slice(0, 4) + '••••••••••••••••••••••••••••••' + v.slice(-4);
+    }
+
+    function renderDetail(id) {
+      const c = CREDENTIALS[id];
+      if (!c) return;
+      currentId = id;
+
+      document.querySelectorAll('.provider-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.cred === id);
+        el.setAttribute('aria-current', el.dataset.cred === id ? 'true' : 'false');
+      });
+
+      const detailEl = document.getElementById('detail');
+      const eyebrowCat = categoryLabel(c.category);
+      const hasUrl = c.fields.some(f => /url|host|endpoint/i.test(f.k));
+      const hasKey = c.fields.some(f => /key|token|secret|password/i.test(f.k));
+      const canTest = hasUrl && hasKey;
+
+      detailEl.innerHTML = `
+        <header class="detail-header">
+          <div class="detail-title-block">
+            <span class="eyebrow">${eyebrowCat} · ${id.toUpperCase()}</span>
+            <h1 class="detail-title">${c.name}</h1>
+            <div class="detail-subtitle">${c.fields.length} 个键值对</div>
+          </div>
+          <div class="detail-actions">
+            <button class="btn btn-ghost" data-action="test" ${canTest ? '' : 'disabled'}>${canTest ? '测试连通性' : '需要 URL + 密钥'}</button>
+            <button class="btn btn-ghost" data-action="rename">重命名</button>
+            <button class="btn btn-danger-ghost" data-action="delete">删除</button>
+          </div>
+        </header>
+        <div class="kv-list" id="kvList">
+          ${c.fields.map((f, i) => `
+            <div class="kv-row" data-idx="${i}">
+              <div class="kv-key">${f.k}</div>
+              <div class="kv-value ${f.mask ? 'masked' : ''}" data-display data-full="${escapeAttr(f.v)}" data-mask="${escapeAttr(maskValue(f.v))}">${f.mask ? maskValue(f.v) : escapeHtml(f.v)}</div>
+              <div class="actions">
+                ${f.mask ? '<button class="btn-icon" data-kv-action="toggle" title="显示/隐藏">◉</button>' : ''}
+                <button class="btn-icon" data-kv-action="copy" title="复制">⧉</button>
+                <button class="btn-icon" data-kv-action="edit" title="编辑">✎</button>
+                <button class="btn-icon danger" data-kv-action="del" title="删除">×</button>
+              </div>
+              <div class="kv-edit">
+                <input type="text" data-edit-key value="${escapeAttr(f.k)}" />
+                <input type="text" data-edit-value value="${escapeAttr(f.v)}" />
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <button class="kv-add" data-action="add-kv">+ 新增键值对</button>
+        <div class="meta-row">
+          <span>创建 <strong>${c.created}</strong></span>
+          <span>更新 <strong>${c.updated}</strong></span>
+          <span>条目 <strong>${c.fields.length}</strong></span>
+        </div>
+      `;
+      bindDetailActions();
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+    function escapeAttr(s) { return escapeHtml(s); }
+
+    function bindDetailActions() {
+      const c = CREDENTIALS[currentId];
+      if (!c) return;
+
+      // KV row actions
+      document.querySelectorAll('#kvList .kv-row').forEach(row => {
+        const idx = +row.dataset.idx;
+        const valueEl = row.querySelector('[data-display]');
+        const keyInput = row.querySelector('[data-edit-key]');
+        const valInput = row.querySelector('[data-edit-value]');
+
+        row.querySelector('[data-kv-action="copy"]')?.addEventListener('click', (e) => {
+          const f = c.fields[idx];
+          if (!f) return;
+          navigator.clipboard?.writeText(f.v).catch(() => {});
+          flashCopied(e.currentTarget);
+        });
+
+        row.querySelector('[data-kv-action="toggle"]')?.addEventListener('click', (e) => {
+          const f = c.fields[idx];
+          if (!f) return;
+          const showing = valueEl.classList.contains('masked') === false;
+          if (showing) {
+            valueEl.textContent = f.mask ? maskValue(f.v) : f.v;
+            valueEl.classList.toggle('masked', !!f.mask);
+          } else {
+            valueEl.textContent = f.v;
+            valueEl.classList.remove('masked');
+          }
+        });
+
+        row.querySelector('[data-kv-action="edit"]')?.addEventListener('click', () => {
+          row.classList.add('editing');
+          valInput.focus();
+          valInput.select();
+        });
+
+        row.querySelector('[data-kv-action="del"]')?.addEventListener('click', () => {
+          const f = c.fields[idx];
+          openConfirm({
+            name: `字段「${f.k}」`,
+            onOk: () => {
+              c.fields.splice(idx, 1);
+              c.updated = '刚刚';
+              renderDetail(currentId);
+              renderSidebar();
+              toast('已删除字段 ' + f.k);
+            },
+          });
+        });
+
+        // Commit on blur or Enter
+        const commit = () => {
+          const newK = keyInput.value.trim();
+          const newV = valInput.value;
+          if (!newK) { keyInput.focus(); return; }
+          const f = c.fields[idx];
+          if (f) {
+            f.k = newK;
+            f.v = newV;
+            c.updated = '刚刚';
+          }
+          row.classList.remove('editing');
+          renderDetail(currentId);
+          renderSidebar();
+        };
+        valInput.addEventListener('blur', commit);
+        valInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+          if (e.key === 'Escape') { row.classList.remove('editing'); renderDetail(currentId); }
+        });
+      });
+
+      // Add KV
+      document.querySelector('[data-action="add-kv"]')?.addEventListener('click', () => openAddKv());
+
+      // Header actions
+      document.querySelector('[data-action="rename"]')?.addEventListener('click', () => {
+        const newName = prompt('重命名为：', c.name);
+        if (newName && newName.trim()) {
+          c.name = newName.trim();
+          c.updated = '刚刚';
+          renderDetail(currentId);
+          renderSidebar();
+          toast('已重命名为 ' + c.name);
+        }
+      });
+
+      document.querySelector('[data-action="delete"]')?.addEventListener('click', () => {
+        openConfirm({
+          name: `凭证「${c.name}」`,
+          onOk: () => {
+            delete CREDENTIALS[currentId];
+            const fallback = Object.keys(CREDENTIALS)[0];
+            if (fallback) {
+              currentId = fallback;
+              renderDetail(fallback);
+              renderSidebar();
+            } else {
+              renderEmpty();
+            }
+            toast('已删除凭证 ' + c.name);
+          },
+        });
+      });
+
+      document.querySelector('[data-action="test"]')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        if (btn.disabled) return;
+        const orig = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '测试中…';
+        btn.classList.remove('ok');
+        await new Promise(r => setTimeout(r, 1200));
+        const ms = 180 + Math.floor(Math.random() * 200);
+        btn.disabled = false;
+        btn.textContent = '✓ ' + ms + ' MS · OK';
+        btn.classList.add('ok');
+        setTimeout(() => { btn.textContent = orig; btn.classList.remove('ok'); }, 2200);
+      });
+    }
+
+    function flashCopied(btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1200);
+    }
+
+    function renderEmpty() {
+      currentId = null;
+      document.getElementById('detail').innerHTML = `
+        <div class="state-block">
+          <div class="state-icon">∅</div>
+          <div class="state-title">未选择任何凭证</div>
+          <div class="state-desc">从左侧选择,或新建第一条凭证。</div>
+        </div>`;
+      document.querySelectorAll('.provider-item').forEach(el => el.classList.remove('active'));
+    }
+
+    /* ─── Modal: add credential ─────────────────────────────── */
+    function refreshCategoryOptions() {
+      const sel = document.getElementById('newCategory');
+      if (!sel) return;
+      const opts = ['<option value="default">凭证（默认）</option>'];
+      userCategories.forEach(c => opts.push(`<option value="${c.id}">${c.label}</option>`));
+      sel.innerHTML = opts.join('');
+    }
+
+    function openModal() {
+      const modal = document.getElementById('modal');
+      modalReturnFocus = document.activeElement;
+      document.getElementById('newName').value = '';
+      document.getElementById('newTemplate').value = 'blank';
+      refreshCategoryOptions();
+      modal.classList.add('open');
+      document.body.classList.add('modal-open');
+      setTimeout(() => document.getElementById('newName').focus(), 50);
+    }
+    function closeModal() {
+      const modal = document.getElementById('modal');
+      modal.classList.remove('open');
+      document.body.classList.remove('modal-open');
+      if (modalReturnFocus?.focus) modalReturnFocus.focus();
+      modalReturnFocus = null;
+    }
+    function bindModal() {
+      document.querySelector('#modal .modal-cancel')?.addEventListener('click', closeModal);
+      document.querySelector('#modal .modal-save')?.addEventListener('click', () => {
+        const name = document.getElementById('newName').value.trim();
+        if (!name) { document.getElementById('newName').focus(); return; }
+        const category = document.getElementById('newCategory').value;
+        const template = document.getElementById('newTemplate').value;
+        const id = 'c_' + Date.now().toString(36);
+        CREDENTIALS[id] = {
+          name,
+          category,
+          fields: TEMPLATES[template].map(f => ({ ...f })),
+          created: new Date().toISOString().slice(0, 10),
+          updated: '刚刚',
+        };
+        closeModal();
+        currentId = id;
+        renderDetail(id);
+        renderSidebar();
+        toast('✓ 已创建 ' + name);
+      });
+      document.getElementById('modal')?.addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
+    }
+
+    /* ─── Modal: add KV ─────────────────────────────────────── */
+    function openAddKv() {
+      const modal = document.getElementById('addKv');
+      modalReturnFocus = document.activeElement;
+      document.getElementById('kvNewKey').value = '';
+      document.getElementById('kvNewValue').value = '';
+      document.getElementById('kvNewMask').checked = false;
+      modal.classList.add('open');
+      document.body.classList.add('modal-open');
+      setTimeout(() => document.getElementById('kvNewKey').focus(), 50);
+    }
+    function closeAddKv() {
+      const modal = document.getElementById('addKv');
+      modal.classList.remove('open');
+      document.body.classList.remove('modal-open');
+      if (modalReturnFocus?.focus) modalReturnFocus.focus();
+      modalReturnFocus = null;
+    }
+    function bindAddKv() {
+      document.querySelector('#addKv .modal-cancel')?.addEventListener('click', closeAddKv);
+      document.querySelector('[data-addkv-save]')?.addEventListener('click', () => {
+        const k = document.getElementById('kvNewKey').value.trim();
+        const v = document.getElementById('kvNewValue').value;
+        const mask = document.getElementById('kvNewMask').checked;
+        if (!k) { document.getElementById('kvNewKey').focus(); return; }
+        const c = CREDENTIALS[currentId];
+        if (!c) return;
+        c.fields.push({ k, v, mask });
+        c.updated = '刚刚';
+        closeAddKv();
+        renderDetail(currentId);
+        renderSidebar();
+        toast('✓ 已新增 ' + k);
+      });
+      document.getElementById('addKv')?.addEventListener('click', (e) => { if (e.target.id === 'addKv') closeAddKv(); });
+    }
+
+    /* ─── Sidebar: add / remove category ────────────────────── */
+    function bindSidebarGroups() {
+      const root = document.getElementById('sidebarRoot');
+      if (!root) return;
+      root.addEventListener('click', (e) => {
+        if (e.target.closest('[data-action="remove-group"]')) {
+          e.stopPropagation();
+          e.preventDefault();
+          const id = e.target.closest('[data-action="remove-group"]').dataset.groupId;
+          const c = userCategories.find(x => x.id === id);
+          if (!c) return;
+          openConfirm({
+            name: `分类「${c.label}」`,
+            onOk: () => {
+              userCategories.splice(userCategories.indexOf(c), 1);
+              Object.values(CREDENTIALS).forEach(cred => { if (cred.category === id) cred.category = 'default'; });
+              renderSidebar();
+              toast('已删除分类 ' + c.label);
+            },
+          });
+          return;
+        }
+        if (e.target.closest('#addGroupBtn')) {
+          const name = prompt('新建分类名称：', '我的分类');
+          const trimmed = (name || '').trim();
+          if (!trimmed) return;
+          const id = 'cat_' + Date.now().toString(36);
+          userCategories.push({ id, label: trimmed });
+          renderSidebar();
+          toast('已新增分类 ' + trimmed);
+          return;
+        }
+      });
+    }
+
+    /* ─── Search ────────────────────────────────────────────── */
+    function bindSearch() {
+      const input = document.getElementById('search');
+      input?.addEventListener('input', (e) => {
+        const q = e.target.value.toLowerCase().trim();
+        document.querySelectorAll('.provider-item[data-cred]').forEach(el => {
+          const cred = CREDENTIALS[el.dataset.cred];
+          if (!cred) { el.style.display = 'none'; return; }
+          const hay = (cred.name + ' ' + cred.fields.map(f => f.k + '=' + f.v).join(' ')).toLowerCase();
+          el.style.display = (!q || hay.includes(q)) ? '' : 'none';
+        });
+      });
+    }
+
+    /* ─── Titlebar ─────────────────────────────────────────── */
+    let modalReturnFocus = null;
+    function bindTitlebar() {
+      document.getElementById('addBtn')?.addEventListener('click', openModal);
+      document.getElementById('settingsBtn')?.addEventListener('click', openSettings);
+    }
+
+    /* ─── Settings ─────────────────────────────────────────── */
+    function openSettings() {
+      const modal = document.getElementById('settings');
+      modalReturnFocus = document.activeElement;
+      modal.classList.add('open');
+      document.body.classList.add('modal-open');
+    }
+    function closeSettings() {
+      const modal = document.getElementById('settings');
+      modal.classList.remove('open');
+      document.body.classList.remove('modal-open');
+      if (modalReturnFocus?.focus) modalReturnFocus.focus();
+      modalReturnFocus = null;
+    }
+    function bindSettings() {
+      const modal = document.getElementById('settings');
+      modal?.querySelector('.modal-cancel')?.addEventListener('click', closeSettings);
+      modal?.addEventListener('click', (e) => { if (e.target.id === 'settings') closeSettings(); });
+      modal?.querySelectorAll('[data-settings]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const a = btn.dataset.settings;
+          if (a === 'master') toast('主密码修改面板（占位）');
+          else if (a === 'export') toast('已生成加密备份 · keymgr-2026-06-24.bak');
+          else if (a === 'import') toast('选择加密备份文件以恢复');
+        });
+      });
+    }
+
+    /* ─── Confirm ──────────────────────────────────────────── */
+    let confirmHandler = null;
+    function openConfirm({ name, onOk }) {
+      const modal = document.getElementById('confirm');
+      document.getElementById('confirmName').textContent = name;
+      confirmHandler = onOk;
+      modalReturnFocus = document.activeElement;
+      modal.classList.add('open');
+      document.body.classList.add('modal-open');
+      setTimeout(() => modal.querySelector('[data-confirm="cancel"]')?.focus(), 50);
+    }
+    function closeConfirm() {
+      const modal = document.getElementById('confirm');
+      modal.classList.remove('open');
+      document.body.classList.remove('modal-open');
+      if (modalReturnFocus?.focus) modalReturnFocus.focus();
+      modalReturnFocus = null;
+      confirmHandler = null;
+    }
+    function bindConfirm() {
+      const modal = document.getElementById('confirm');
+      modal?.querySelector('[data-confirm="cancel"]')?.addEventListener('click', closeConfirm);
+      modal?.querySelector('[data-confirm="ok"]')?.addEventListener('click', () => {
+        const fn = confirmHandler;
+        closeConfirm();
+        if (typeof fn === 'function') fn();
+      });
+      modal?.addEventListener('click', (e) => { if (e.target.id === 'confirm') closeConfirm(); });
+    }
+
+    /* ─── Toast ────────────────────────────────────────────── */
+    let toastTimer = null;
+    function toast(message, kind) {
+      const el = document.getElementById('toast');
+      el.textContent = message;
+      el.classList.toggle('error', kind === 'error');
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+    }
+
+    /* ─── Keyboard shortcuts ───────────────────────────────── */
+    function bindShortcuts() {
+      document.addEventListener('keydown', (e) => {
+        // System tray: ⌘⇧Space / Ctrl+Shift+Space — toggle hover card
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === 'Space') {
+          e.preventDefault();
+          toggleSysTrayCard();
+          return;
+        }
+
+        // While tray card/menu open, don't fire other shortcuts
+        if (document.querySelector('.sys-tray-card.open, .sys-tray-menu.open')) return;
+        if (document.querySelector('.modal.open')) return;
+
+        const cmd = e.metaKey || e.ctrlKey;
+        if (cmd && !e.shiftKey && e.key.toLowerCase() === 'n') { e.preventDefault(); openModal(); return; }
+        if (cmd && !e.shiftKey && e.key.toLowerCase() === 'k') { e.preventDefault(); document.getElementById('search')?.focus(); return; }
+        if (cmd && e.key === ',') { e.preventDefault(); openSettings(); return; }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          const items = Array.from(document.querySelectorAll('.provider-item[data-cred]')).filter(el => el.offsetParent !== null);
+          if (!items.length) return;
+          const idx = items.findIndex(el => el.dataset.cred === currentId);
+          const next = e.key === 'ArrowDown'
+            ? items[Math.min(idx + 1, items.length - 1)]
+            : items[Math.max(idx - 1, 0)];
+          if (next) { e.preventDefault(); renderDetail(next.dataset.cred); }
+        }
+        if (e.key === 'Escape') {
+          document.querySelectorAll('.kv-row.editing').forEach(r => r.classList.remove('editing'));
+        }
+      });
+    }
+
+    /* ─── System tray (bottom-right icon + hover card + context menu) ─ */
+    // Data model extension: each credential MAY carry `pinned: true` and a `quota` summary
+    // for the tray. They are independent from the detail view.
+    // Pinned credentials appear in the tray icon's hover card and right-click menu.
+    // Format: { used: 70, total: 100, unit: 'USD', level: 'ok' | 'warn' | 'critical' }
+
+    function pinnedCredentials() {
+      return Object.entries(CREDENTIALS).filter(([_, c]) => c.pinned);
+    }
+    function worstLevel(items) {
+      if (items.some(c => c.quota?.level === 'critical')) return 'critical';
+      if (items.some(c => c.quota?.level === 'warn')) return 'warn';
+      return 'ok';
+    }
+    function quotaLabel(c) {
+      if (!c.quota) return '—';
+      const q = c.quota;
+      if (q.remaining != null && q.unit) return `${q.remaining} ${q.unit}`;
+      if (q.used != null && q.total != null) return `${q.used} / ${q.total}${q.unit ? ' ' + q.unit : ''}`;
+      return '—';
+    }
+
+    function renderSysTray() {
+      const items = pinnedCredentials();
+      const list = document.getElementById('sysTrayCardList');
+      const foot = document.getElementById('sysTrayCardFoot');
+      const dot = document.getElementById('sysTrayDot');
+      if (list) {
+        if (!items.length) {
+          list.innerHTML = '<li class="sys-tray-card-empty">没有 pinned 凭证<br><span style="opacity:.7;font-size:11px;">在凭证详情里开启「置顶」</span></li>';
+        } else {
+          list.innerHTML = items.map(([id, c]) => {
+            const lvl = c.quota?.level || 'ok';
+            return `<li data-cred="${id}">
+              <span class="stc-name">${escapeHtml(c.name)}</span>
+              <span class="stc-quota ${lvl}">${escapeHtml(quotaLabel(c))}</span>
+            </li>`;
+          }).join('');
+          // click to open main view on that credential
+          list.querySelectorAll('li[data-cred]').forEach(li => {
+            li.addEventListener('click', () => {
+              const id = li.dataset.cred;
+              hideSysTrayCard();
+              hideSysTrayMenu();
+              renderDetail(id);
+              renderSidebar();
+              currentId = id;
+            });
+          });
+        }
+      }
+      if (foot) {
+        foot.textContent = items.length ? `${items.length} PINNED` : 'EMPTY · 0 PINNED';
+      }
+      if (dot) {
+        dot.classList.remove('warn', 'critical', 'has');
+        if (items.length) {
+          dot.classList.add('has');
+          const lvl = worstLevel(items.map(([_, c]) => c));
+          if (lvl !== 'ok') dot.classList.add(lvl);
+        }
+      }
+    }
+
+    function showSysTrayCard() {
+      const card = document.getElementById('sysTrayCard');
+      if (!card) return;
+      card.hidden = false;
+      requestAnimationFrame(() => card.classList.add('open'));
+    }
+    function hideSysTrayCard() {
+      const card = document.getElementById('sysTrayCard');
+      if (!card) return;
+      card.classList.remove('open');
+      setTimeout(() => { card.hidden = true; }, 140);
+    }
+    function toggleSysTrayCard() {
+      const card = document.getElementById('sysTrayCard');
+      if (!card) return;
+      if (card.classList.contains('open')) hideSysTrayCard();
+      else { hideSysTrayMenu(); showSysTrayCard(); }
+    }
+
+    function showSysTrayMenu(x, y) {
+      const menu = document.getElementById('sysTrayMenu');
+      if (!menu) return;
+      const items = pinnedCredentials();
+      // Use the active credential for the quick-copy section if it has fields
+      const active = currentId ? CREDENTIALS[currentId] : null;
+      const sections = [];
+
+      if (active && active.fields?.length) {
+        sections.push('<li class="menu-eyebrow">快速复制 · ' + escapeHtml(active.name) + '</li>');
+        active.fields.forEach((f) => {
+          const preview = f.mask ? maskValue(f.v) : (f.v || '(空)');
+          sections.push(`<li class="menu-field" role="menuitem" data-copy-field="${escapeAttr(f.k)}">
+            <span class="field-key">${escapeHtml(f.k)}</span>
+            <span class="field-preview">${escapeHtml(preview)}</span>
+          </li>`);
+        });
+        sections.push('<li class="menu-divider" aria-hidden="true"></li>');
+      }
+
+      if (items.length) {
+        sections.push('<li class="menu-eyebrow">PINNED · ' + items.length + '</li>');
+        items.forEach(([id, c]) => {
+          const lvl = c.quota?.level || 'ok';
+          sections.push(`<li class="menu-item" role="menuitem" data-open-cred="${id}">
+            <span>${escapeHtml(c.name)}</span>
+            <span class="shortcut stc-quota ${lvl}">${escapeHtml(quotaLabel(c))}</span>
+          </li>`);
+        });
+        sections.push('<li class="menu-divider" aria-hidden="true"></li>');
+      }
+
+      sections.push('<li class="menu-item" role="menuitem" data-menu="open">打开主窗口</li>');
+      sections.push('<li class="menu-item" role="menuitem" data-menu="settings">设置…</li>');
+      sections.push('<li class="menu-item danger" role="menuitem" data-menu="quit">退出</li>');
+
+      menu.innerHTML = sections.join('');
+      menu.hidden = false;
+      // position
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const w = 240, h = menu.offsetHeight || 320;
+      let px = x, py = y;
+      if (px + w > vw - 8) px = vw - w - 8;
+      if (py + h > vh - 8) py = vh - h - 8;
+      menu.style.left = px + 'px';
+      menu.style.top = py + 'px';
+      requestAnimationFrame(() => menu.classList.add('open'));
+    }
+    function hideSysTrayMenu() {
+      const menu = document.getElementById('sysTrayMenu');
+      if (!menu) return;
+      menu.classList.remove('open');
+      setTimeout(() => { menu.hidden = true; menu.style.left = ''; menu.style.top = ''; }, 140);
+    }
+
+    function bindSysTray() {
+      const icon = document.getElementById('sysTray');
+      const card = document.getElementById('sysTrayCard');
+      const menu = document.getElementById('sysTrayMenu');
+
+      // Click toggles hover card
+      icon?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hideSysTrayMenu();
+        toggleSysTrayCard();
+      });
+
+      // Right-click opens context menu
+      icon?.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        hideSysTrayCard();
+        showSysTrayMenu(e.clientX, e.clientY);
+      });
+
+      // Click outside dismisses
+      document.addEventListener('mousedown', (e) => {
+        if (!card?.classList.contains('open') && !menu?.classList.contains('open')) return;
+        if (card && card.contains(e.target)) return;
+        if (menu && menu.contains(e.target)) return;
+        if (icon && icon.contains(e.target)) return;
+        hideSysTrayCard();
+        hideSysTrayMenu();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (card?.classList.contains('open')) hideSysTrayCard();
+          if (menu?.classList.contains('open')) hideSysTrayMenu();
+        }
+      });
+
+      // Menu actions
+      menu?.addEventListener('click', (e) => {
+        const field = e.target.closest('[data-copy-field]');
+        if (field) {
+          const active = CREDENTIALS[currentId];
+          if (!active) return;
+          const f = active.fields.find(x => x.k === field.dataset.copyField);
+          if (!f) return;
+          navigator.clipboard?.writeText(f.v || '').catch(() => {});
+          toast('✓ ' + f.k + ' 已复制');
+          hideSysTrayMenu();
+          return;
+        }
+        const openItem = e.target.closest('[data-open-cred]');
+        if (openItem) {
+          const id = openItem.dataset.openCred;
+          currentId = id;
+          renderDetail(id);
+          renderSidebar();
+          hideSysTrayMenu();
+          return;
+        }
+        const mi = e.target.closest('[data-menu]');
+        if (mi) {
+          const a = mi.dataset.menu;
+          hideSysTrayMenu();
+          if (a === 'open') {
+            document.querySelector('.window')?.scrollTo({ top: 0 });
+            toast('已回到主窗口');
+          } else if (a === 'settings') {
+            openSettings();
+          } else if (a === 'quit') {
+            if (confirm('退出 Key Manager？(mock)')) {
+              toast('已退出 · 托盘图标继续显示');
+            }
+          }
+        }
+      });
+    }
+
+    /* ─── Init ─────────────────────────────────────────────── */
+    function updateCount() {
+      const counter = document.getElementById('activeCount');
+      if (counter) counter.textContent = `${Object.keys(CREDENTIALS).length} CREDENTIALS`;
+    }
+    renderSidebar();
+    bindSidebarGroups();
+    bindSearch();
+    bindTitlebar();
+    bindModal();
+    bindAddKv();
+    bindSettings();
+    bindConfirm();
+    bindSysTray();
+    renderSysTray();
+    bindShortcuts();
+    updateCount();
+    renderDetail('deepseek');
+  </script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+TODO: Quota Display screenshot
+Placeholder for: docs/screenshots/quota.png
+Capture: QuotaBadge component showing various states (loading, data, error, level colors)
