@@ -110,7 +110,7 @@ export const ManualQuotaModal = React.memo(function ManualQuotaModal({
     mutationFn: async (snapshot: QuotaSnapshot) => {
       // Store in localStorage for persistence
       saveLastQuota(providerId, snapshot);
-      // Call setManualQuota IPC (V0.1: localStorage-only, V0.1.1+: real IPC)
+      // Call setManualQuota IPC (真实 IPC 调用,localStorage 仅预填上次输入值)
       await setManualQuota({ id: providerId, snapshot });
     },
     onSuccess: handleSaveSuccess,
@@ -175,7 +175,7 @@ export const ManualQuotaModal = React.memo(function ManualQuotaModal({
     <Modal
       open={isOpen}
       onClose={handleClose}
-      title={`手动输入额度 — ${providerName}`}
+      title={`手动输入额度 -- ${providerName}`}
       footer={
         <>
           <Button variant="ghost" onClick={handleClose} disabled={isSaving}>

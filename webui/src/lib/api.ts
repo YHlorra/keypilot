@@ -1,4 +1,4 @@
-// webui/src/lib/api.ts (Phase 2 Lane C — real IPC wiring)
+// webui/src/lib/api.ts (Phase 2 Lane C -- real IPC wiring)
 // All 12 IPC functions now use @tauri-apps/api/core::invoke (replaces Phase 2 Lane B1 mocks).
 // @see openspec/changes/v0.1-general-credentials/design.md §7 for Rust command signatures.
 
@@ -14,9 +14,11 @@ import type {
   UnpinProviderResponse,
   QuitAppResponse,
   SetManualQuotaRequest, SetManualQuotaResponse,
+  UsageRecordInput, UsageRecord, UsageFilter, UsageSummary,
+  ImportFormat, ImportResult, PricingEntry, PaginatedResponse,
 } from "@/types/api";
 
-// 12 IPC functions — real Tauri invoke wiring
+// 12 IPC functions -- real Tauri invoke wiring
 
 export async function listProviders(): Promise<ListProvidersResponse> {
   return invoke<ListProvidersResponse>("list_providers");
@@ -80,4 +82,34 @@ export async function quitApp(): Promise<QuitAppResponse> {
 
 export async function setManualQuota(req: SetManualQuotaRequest): Promise<SetManualQuotaResponse> {
   return invoke<SetManualQuotaResponse>("set_manual_quota", { req });
+}
+
+// === Token Usage IPC wrappers (REQ-TOKEN-002) ===
+
+export async function recordUsage(input: UsageRecordInput): Promise<UsageRecord> {
+  return invoke<UsageRecord>("record_usage", { req: input });
+}
+
+export async function listUsageRecords(
+  filter: UsageFilter,
+  page: number,
+  perPage: number
+): Promise<PaginatedResponse<UsageRecord>> {
+  return invoke<PaginatedResponse<UsageRecord>>("list_usage_records", { filter, page, per_page: perPage });
+}
+
+export async function getUsageSummary(filter: UsageFilter): Promise<UsageSummary> {
+  return invoke<UsageSummary>("get_usage_summary", { filter });
+}
+
+export async function importUsage(
+  content: string,
+  format: ImportFormat,
+  sourceHint?: string
+): Promise<ImportResult> {
+  return invoke<ImportResult>("import_usage", { content, format, source_hint: sourceHint });
+}
+
+export async function getPricing(): Promise<PricingEntry[]> {
+  return invoke<PricingEntry[]>("get_pricing");
 }
