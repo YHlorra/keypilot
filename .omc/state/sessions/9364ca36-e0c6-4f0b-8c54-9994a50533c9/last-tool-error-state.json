@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"git checkout main && git ls-files .claude/ progress.md session-handoff.md scripts/ 2>&1\",\"description\":\"Check if .claude/progress/session-handoff/scripts tracked on main\"}",
-  "error": "Exit code 1\nerror: Your local changes to the following files would be overwritten by checkout:\n\t.omc/state/hud-stdin-cache.json\nPlease commit your changes or stash them before you switch branches.\nAborting",
-  "timestamp": "2026-06-25T01:59:28.787Z",
-  "retry_count": 6
-}
