@@ -5,7 +5,7 @@ import { ProviderList } from "./ProviderList";
 import { AddCredentialModal } from "./AddCredentialModal";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useCategories } from "@/hooks/useCategories";
-import { useProviders } from "@/hooks/useProviders";
+import { useProviders, filterProviders } from "@/hooks/useProviders";
 import { deleteCategory, addCategory } from "@/lib/api";
 import type { Provider } from "@/types/api";
 
@@ -33,6 +33,7 @@ export function CategorySidebar({
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: "category" | "provider"; id: number; name: string } | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const toggleCategory = useCallback((categoryId: number) => {
     setExpandedCategories((prev) => {
@@ -82,6 +83,20 @@ export function CategorySidebar({
     [providers]
   );
 
+  const isSearching = searchQuery.trim() !== "";
+  // Unified shape: always Array<{category, providers}>, no union types.
+  const visibleGroups = categories.map((c) => ({
+    category: c,
+    providers: isSearching
+      ? filterProviders(getProvidersByCategory(c.id), searchQuery)
+      : getProvidersByCategory(c.id),
+  }));
+  const displayList = isSearching
+    ? visibleGroups.filter((g) => g.providers.length > 0)
+    : visibleGroups;
+  const displayEmpty = displayList.length === 0;
+  const displayMessage = isSearching ? "无匹配" : "暂无分类";
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -89,16 +104,30 @@ export function CategorySidebar({
         <h2 className="font-semibold text-sm">凭证管理</h2>
       </div>
 
+      {/* Search */}
+      <div className="px-4 py-2 border-b border-border">
+        <div className="relative">
+          <Icon name="search" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setSearchQuery("")}
+            placeholder="搜索凭证名 / 字段名..."
+            className="w-full h-8 pl-8 pr-3 rounded-md border border-input bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+      </div>
+
       {/* Categories */}
       <div className="flex-1 overflow-y-auto py-2">
-        {categories.length === 0 ? (
+        {displayEmpty ? (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-            <p>暂无分类</p>
+            <p>{displayMessage}</p>
           </div>
         ) : (
-          categories.map((category) => {
-            const isExpanded = expandedCategories.has(category.id);
-            const categoryProviders = getProvidersByCategory(category.id);
+          displayList.map(({ category, providers: categoryProviders }) => {
+            const isExpanded = isSearching || expandedCategories.has(category.id);
             const color = "#8e8e8e"; // Default color for categories
 
             return (

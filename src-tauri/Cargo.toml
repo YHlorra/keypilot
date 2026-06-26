@@ -4,14 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "keypilot"
+name = "keypilot_lib"
 crate-type = ["lib", "staticlib", "cdylib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "test"] }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tokio = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
@@ -27,3 +27,6 @@ once_cell = "1"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }

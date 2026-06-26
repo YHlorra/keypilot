@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 
 interface QuotaBadgeProps {
   providerId: number | null;
-  preset: string | null;
   className?: string;
+  onOpenManual?: () => void;
 }
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -33,18 +33,17 @@ function formatRelativeTime(timestamp: number | undefined): string {
   return `${Math.floor(diff / 86400)} 天前`;
 }
 
-export const QuotaBadge = React.memo(function QuotaBadge({ providerId, preset, className }: QuotaBadgeProps) {
+export const QuotaBadge = React.memo(function QuotaBadge({
+  providerId,
+  className,
+  onOpenManual,
+}: QuotaBadgeProps) {
   const { data, isLoading, isError, error, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["quota", providerId],
     queryFn: () => fetchQuota({ id: providerId! } as FetchQuotaRequest),
-    enabled: providerId !== null && preset !== "anthropic", // Anthropic 不支持 quota
-    staleTime: 5 * 60 * 1000, // 5 分钟
+    enabled: providerId !== null,
+    staleTime: 5 * 60 * 1000,
   });
-
-  // Anthropic 不显示 quota
-  if (preset === "anthropic") {
-    return null;
-  }
 
   if (!providerId) return null;
 
@@ -65,6 +64,16 @@ export const QuotaBadge = React.memo(function QuotaBadge({ providerId, preset, c
       >
         <span>—</span>
         <span className="text-xs">刷新失败</span>
+        {onOpenManual ? (
+          <button
+            type="button"
+            onClick={onOpenManual}
+            className="text-xs px-1.5 py-0.5 rounded border border-border hover:bg-accent transition-colors"
+            title="手动输入配额"
+          >
+            手动输入
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -91,6 +100,16 @@ export const QuotaBadge = React.memo(function QuotaBadge({ providerId, preset, c
       <span className="text-xs text-muted-foreground">
         {formatRelativeTime(dataUpdatedAt ? Math.floor(dataUpdatedAt / 1000) : undefined)}
       </span>
+      {onOpenManual ? (
+        <button
+          type="button"
+          onClick={onOpenManual}
+          className="text-xs px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
+          title="手动编辑配额"
+        >
+          编辑
+        </button>
+      ) : null}
     </div>
   );
 });

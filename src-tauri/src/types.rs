@@ -127,6 +127,8 @@ pub struct TokenUsageRecord {
     pub recorded_at: i64,
     pub session_id: Option<String>,
     pub request_id: Option<String>,
+    pub prompt_tokens: i64,
+    pub completion_tokens: i64,
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
@@ -188,4 +190,90 @@ pub struct TokenCounts {
     pub cache_read: i64,
     pub cache_creation: i64,
     pub reasoning: i64,
+}
+
+/// Per-dimension USD cost breakdown for a single usage record.
+/// Returned by `PricingService::calculate_token_usage_cost` and consumed
+/// by `TokenUsageService::record_usage` to populate the 5 cost fields on
+/// `TokenUsageRecord` plus the `cost_details` JSON.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenUsageCostBreakdown {
+    pub input_cost: f64,
+    pub output_cost: f64,
+    pub cache_read_cost: f64,
+    pub cache_creation_cost: f64,
+    pub reasoning_cost: f64,
+    pub total_cost: f64,
+    pub currency: String,
+    /// Set to `Some(model)` when the model is not in pricing.json.
+    /// All numeric fields are 0 in that case.
+    pub pricing_missing_for: Option<String>,
+}
+
+// --- TokenUsageService (Stage B) DTOs ---
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsageRecordInput {
+    pub agent_type: String,
+    pub model: String,
+    pub provider_name: String,
+    pub occurred_at: i64,
+    pub session_id: Option<String>,
+    pub request_id: Option<String>,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_input_tokens: i64,
+    pub cache_creation_input_tokens: i64,
+    pub reasoning_tokens: i64,
+    pub usage_details: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UsageFilter {
+    pub date_from: Option<i64>,
+    pub date_to: Option<i64>,
+    pub agent_type: Option<String>,
+    pub model: Option<String>,
+    pub provider_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsageSummaryAgentPair {
+    pub agent_type: String,
+    pub model: String,
+    pub request_count: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub total_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DailySeries {
+    pub date: String,
+    pub request_count: i64,
+    pub total_tokens: i64,
+    pub total_cost: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsageSummary {
+    pub total_tokens: i64,
+    pub total_cost: f64,
+    pub total_requests: i64,
+    pub agent_pairs: Vec<UsageSummaryAgentPair>,
+    pub daily_series: Vec<DailySeries>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportResult {
+    pub imported: u32,
+    pub skipped: u32,
+    pub errors: Vec<ImportError>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportError {
+    pub line: u32,
+    pub message: String,
 }

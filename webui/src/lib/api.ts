@@ -79,13 +79,5 @@ export async function quitApp(): Promise<QuitAppResponse> {
 }
 
 export async function setManualQuota(req: SetManualQuotaRequest): Promise<SetManualQuotaResponse> {
-  // TODO V0.1.1: switch to real IPC once backend adds set_manual_quota command
-  // For V0.1: localStorage-only (manual quota never hits backend)
-  try {
-    const key = `keypilot_manual_quota_${req.id}`;
-    localStorage.setItem(key, JSON.stringify(req.snapshot));
-  } catch {
-    // Silently ignore storage errors
-  }
-  return Promise.resolve();
+  return invoke<SetManualQuotaResponse>("set_manual_quota", { req });
 }
