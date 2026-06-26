@@ -1,24 +1,9 @@
 {
   "project": "KeyPilot V0.1",
   "version": "0.1.0",
-"updated": "2026-06-26",
+  "updated": "2026-06-27",
   "source_of_truth": "feature_list.json is the executable feature tracker. PLAN.md holds Stage deep specs. openspec/changes/<topic>/ holds in-progress and recently-approved spec changes (those with pending implementation). openspec/changes/archive/<topic>/ holds completed/archived spec changes (implementation done, retained for historical reference). See AGENTS.md §8 for relationship.",
-  "active_changes": [
-    {
-      "id": "ui-redesign",
-      "status": "done (approved by user, implementation pending stage-12)",
-      "path": "openspec/changes/ui-redesign/",
-      "date": "2026-06-25",
-      "summary": "应用 Kaku 设计系统 (DESIGN.md) 到 webui。Token 替换 (navy #1b365d / off-white #f5f4ed / Charter serif / pill 999px / 8px card)+ 布局重做 (删 sidebar,改 Card Grid 1-col/2-col density toggle)+ Detail 改 Modal + 3 主题 (Auto/Light/Dark, dark 做 coherent inversion warm near-black + lightened navy)。视觉已通过 webui/dist/design-preview.html v2 验证,用户已批准。6 REQ total (REQ-UI-001 token / 002 app shell / 003 card / 004 theme / 005 modal / 006 boundaries)。零新 IPC / 零新 schema / 零新后端。8 任务 T-UI-001..008,@fixer 按 tasks.md 跑 stage-12。后续 token-usage-history 沿用本设计系统。",
-      "files": [
-        "openspec/changes/ui-redesign/proposal.md",
-        "openspec/changes/ui-redesign/spec.md",
-        "openspec/changes/ui-redesign/design.md",
-        "openspec/changes/ui-redesign/tasks.md",
-        "webui/dist/design-preview.html"
-      ]
-    }
-  ],
+  "active_changes": [],
   "archived_changes": [
     {
       "id": "v0.1-spec-alignment",
@@ -42,6 +27,37 @@
       "summary": "V0.1 general credentials vault spec: 5 tables (categories / providers / provider_fields / quota_cache / meta), 5 preset seeds (OpenAI / DeepSeek / Anthropic / GitHub / PostgreSQL), 12 IPC commands, 3 themes (Auto / Light / Dark with Radix UI Colors), shadcn/ui + Radix Primitives + Tailwind utility stack, Detail + Tray dual quota display. 20 REQ total (11 ADDED + 5 MODIFIED + 4 REMOVED).",
       "files": [
         "openspec/changes/archive/v0.1-general-credentials/README.md"
+      ]
+    },
+    {
+      "id": "ui-redesign",
+      "status": "archived",
+      "path": "openspec/changes/archive/ui-redesign/",
+      "date": "2026-06-25",
+      "summary": "应用 Kaku 设计系统 (DESIGN.md) 到 webui。Token 替换 (navy #1b365d / off-white #f5f4ed / Charter serif / pill 999px / 8px card)+ 布局重做 (删 sidebar,改 Card Grid 1-col/2-col density toggle)+ Detail 改 Modal + 3 主题 (Auto/Light/Dark, dark 做 coherent inversion warm near-black + lightened navy)。视觉已通过 webui/dist/design-preview.html v2 验证,用户已批准。6 REQ total (REQ-UI-001 token / 002 app shell / 003 card / 004 theme / 005 modal / 006 boundaries)。零新 IPC / 零新 schema / 零新后端。8 任务 T-UI-001..008,@fixer 按 tasks.md 跑 stage-12。后续 token-usage-history 沿用本设计系统。",
+      "files": [
+        "openspec/changes/archive/ui-redesign/proposal.md",
+        "openspec/changes/archive/ui-redesign/spec.md",
+        "openspec/changes/archive/ui-redesign/design.md",
+        "openspec/changes/archive/ui-redesign/tasks.md",
+        "webui/dist/design-preview.html"
+      ],
+      "archived_on": "2026-06-27",
+      "archived_reason": "Implementation complete across stage-12 (cfd21ac + 788f9bb) + stage-12-fix (859f035). Spec retained for historical reference."
+    },
+    {
+      "id": "token-usage-history",
+      "status": "archived",
+      "archived_on": "2026-06-27",
+      "archived_reason": "Implementation complete across stages a/b/c (2026-06-26). 4 tables, 5 IPC handlers, 50-model pricing. Spec retained for historical reference.",
+      "path": "openspec/changes/archive/token-usage-history/",
+      "date": "2026-06-25",
+      "summary": "Token usage history foundation + service + IPC: token_usage_records + 2 rollup tables (daily_agent_model_usage + daily_model_usage), PricingService with 50-model pricing.json, TokenUsageService (record_usage / list_records / get_summary / import_jsonl / import_csv / refresh_daily_rollups), 5 IPC handlers (record_usage / list_usage_records / get_usage_summary / import_usage / get_pricing). Zero frontend changes in this openspec — UsagePage UI lives in stage-12 / stage-13.",
+      "files": [
+        "openspec/changes/archive/token-usage-history/proposal.md",
+        "openspec/changes/archive/token-usage-history/spec.md",
+        "openspec/changes/archive/token-usage-history/design.md",
+        "openspec/changes/archive/token-usage-history/tasks.md"
       ]
     }
   ],
@@ -86,7 +102,9 @@
         "src-tauri/src/services/category.rs",
         "src-tauri/src/commands/provider.rs"
       ],
-      "depends_on": ["stage-1"],
+      "depends_on": [
+        "stage-1"
+      ],
       "status": "done",
       "evidence": "cargo check --lib: PASS (2 warnings for unused code)\ngrep visibility TEXT NOT NULL DEFAULT 'visible': PASS (database.rs:107)\ngrep value TEXT: PASS (database.rs:37,106)\ngrep preset TEXT: PASS (database.rs:77)\ngrep category_id INTEGER NOT NULL: PASS (database.rs:79)\ngrep encryption crates: PASS (empty - no argon2/chacha20/aes-gcm/sodiumoxide/age)\ngrep fn adapter_for: PASS (adapter.rs:27, returns Option)\ngrep Some(Box::new): PASS (5 arms for openai/deepseek/anthropic/github/postgres)\n12 IPC handlers registered in lib.rs: list_providers, get_provider, add_provider, update_provider, delete_provider, list_categories, add_category, delete_category, test_connection, fetch_quota, get_theme, set_theme\n",
       "started_at": "2026-06-25",
@@ -123,7 +141,9 @@
         "webui/src/hooks/useQuota.ts",
         "webui/src/hooks/useTheme.ts"
       ],
-      "depends_on": ["stage-1"],
+      "depends_on": [
+        "stage-1"
+      ],
       "status": "done",
       "evidence": "pnpm tsc --noEmit: PASS (no errors)\npnpm build: PASS (dist/index.html + 240KB JS + 40KB CSS)\n22 components created/modified\n",
       "openspec_ref": "openspec/changes/v0.1-general-credentials/tasks.md T3.1-T3.7 + spec.md REQ-CAT-002, REQ-THEME-001/002, REQ-COPY-003, REQ-QUOTA-DISPLAY-001",
@@ -140,7 +160,9 @@
         "src-tauri/src/provider/github.rs",
         "src-tauri/src/provider/postgres.rs"
       ],
-      "depends_on": ["stage-2"],
+      "depends_on": [
+        "stage-2"
+      ],
       "status": "done",
       "evidence": "cargo check: PASS\nOpenAI: 3-month usage iteration (hard_limit_usd cents → USD, line_items[*].cost cents → USD)\nDeepSeek: /user/balance JSON → balance CNY\nGitHub: /rate_limit → {limit,used,remaining,reset} req\nPostgreSQL: tokio-postgres pg_database_size bytes → GB\nAnthropic: Unsupported (can_fetch_quota=false)\nQuota cache: 15min TTL UPSERT with ON CONFLICT DO UPDATE\n4 schema grep gates: PASS\nwebui tsc --noEmit: PASS\n",
       "started_at": "2026-06-25",
@@ -157,7 +179,9 @@
         "src-tauri/src/tray.rs",
         "src-tauri/src/commands/tray.rs"
       ],
-      "depends_on": ["stage-3"],
+      "depends_on": [
+        "stage-3"
+      ],
       "status": "done",
       "evidence": "cargo check: PASS\ntray.rs: init_tray() with TrayIconBuilder, menu items (复制key/打开主窗口/钉住/删除/退出)\ncommands/tray.rs: pin_provider, unpin_provider, quit_app IPC handlers\ntauri features: tray-icon enabled\nlib.rs: tray::init_tray called in setup() after state creation\nwebui tsc --noEmit: PASS\n",
       "started_at": "2026-06-25",
@@ -174,7 +198,9 @@
         ".github/workflows/release.yml",
         "src-tauri/tauri.conf.json"
       ],
-      "depends_on": ["stage-5"],
+      "depends_on": [
+        "stage-5"
+      ],
       "status": "done",
       "evidence": "release.yml: YAML syntax valid\nrelease.yml: GitHub Actions workflow configured\nrelease.yml: artifact upload step configured for MSI/NSIS/WebView2Bootstrapper\ntauri.conf.json: version 0.1.0 confirmed, bundle.icon array present\nNote: Azure Trusted Signing requires 1-3 day approval; configured but not yet applied",
       "started_at": "2026-06-25",
@@ -190,7 +216,9 @@
         "webui/src/components/ManualQuotaModal.tsx",
         "webui/src/components/ui/select.tsx"
       ],
-      "depends_on": ["stage-4"],
+      "depends_on": [
+        "stage-4"
+      ],
       "status": "done",
       "evidence": "ManualQuotaModal.tsx: created with form fields (unit/used/total/remaining/level/reset_at)\nManualQuotaModal.tsx: uses setManualQuota IPC (localStorage workaround)\nselect.tsx: Radix Select primitive added\nHelp text: 'Anthropic 不提供额度查询 API。请手动输入当前用量。'\npnpm tsc --noEmit: PASS\npnpm build: PASS (237KB JS + 39KB CSS)",
       "started_at": "2026-06-25",
@@ -210,7 +238,9 @@
         "docs/screenshots/tray.png.txt",
         "docs/screenshots/settings.png.txt"
       ],
-      "depends_on": ["stage-7"],
+      "depends_on": [
+        "stage-7"
+      ],
       "status": "done",
       "evidence": "README.md: expanded with Features / Tech Stack / Screenshots / Installation / Development / V0.1 Limitations\ndocs/screenshots/: 4 placeholder .txt files created\ndocs/v0.1-acceptance.md: 13-item checklist created with status for all gates",
       "started_at": "2026-06-25",
@@ -219,7 +249,7 @@
       "notes": "Screenshots are V0.1 launch artifacts; placeholder .txt files reference actual screenshot capture needed"
     },
     {
-"id": "stage-a",
+      "id": "stage-a",
       "name": "Token Usage Data Foundation (database.rs + PricingService)",
       "description": "Schema v3→v4 migration adding 3 tables (token_usage_records, daily_agent_model_usage, daily_model_usage) + PricingService with 50-model pricing.json + error variants. Direct integration tests (no IPC).",
       "files": [
@@ -234,7 +264,9 @@
         "src-tauri/data/pricing.json",
         "src-tauri/tests/ipc_e2e.rs"
       ],
-      "depends_on": ["stage-1"],
+      "depends_on": [
+        "stage-1"
+      ],
       "status": "done",
       "evidence": "cargo check: PASS\ncargo test: 6/6 PASS (3 pricing + 1 rollup + 1 insert+query+rollup)\nBug fix: query_map parameter order [limit, offset] not [offset, limit]\nHard constraints: visibility TEXT NOT NULL DEFAULT 'visible': PASS; value TEXT: PASS; preset TEXT: PASS; category_id INTEGER NOT NULL: PASS; encryption crates: PASS (empty); fs::write: PASS (create_dir_all for %APPDATA% only, whitelisted)\n",
       "started_at": "2026-06-25",
@@ -254,7 +286,9 @@
         "src-tauri/src/types.rs",
         "src-tauri/src/database.rs"
       ],
-      "depends_on": ["stage-a"],
+      "depends_on": [
+        "stage-a"
+      ],
       "status": "done",
       "evidence": "cargo check --manifest-path src-tauri/Cargo.toml --lib: PASS\ncargo test --manifest-path src-tauri/Cargo.toml --lib: 20/20 PASS (15 token_usage + 5 adapter)\n  - record_usage_happy_path: PASS\n  - record_usage_duplicate: PASS\n  - cost_calculation_known_model: PASS (gpt-4o 1M+1M = $12.50; per-dim: prompt=2.50, completion=10.00, cache_read=0, cache_creation=0, reasoning=0; cost_details JSON has all 5 fields)\n  - cost_calculation_unknown_model: PASS (all 5 dims = 0; cost_details has pricing_missing_for)\n  - cost_calculation_with_cache_read: PASS (gpt-4o 1M cache_read = $1.25)\n  - cost_calculation_with_cache_creation: PASS (gpt-4o 1M cache_creation = $2.50)\n  - list_records_filtered_by_date: PASS\n  - list_records_filtered_by_agent: PASS\n  - get_summary_aggregates_correctly: PASS (rollup sync via database.rs::insert_token_usage tx.commit + INSERT OR REPLACE COALESCE upsert)\n  - import_jsonl_claude_format: PASS\n  - import_jsonl_codex_format: PASS\n  - import_jsonl_dedup: PASS (imported=1, skipped=1)\n  - import_csv_basic: PASS\n  - import_csv_bad_header: PASS (TokenUsageInvalidFormat)\n  - refresh_daily_rollups_recomputes: PASS (ops tool for corruption recovery, not hot-path)\nHard constraints:\n  - grep 'use tauri' services/token_usage.rs: 0 matches\n  - grep 'tx.commit' services/token_usage.rs: 1 match (refresh_daily_rollups); database.rs: 2 matches (insert_token_usage + refresh)\n  - All fallible fns return Result<T, AppError>\n  - No fs::write in services/\nA1 fix: TokenUsageCostBreakdown struct in types.rs; PricingService.calculate_token_usage_cost now returns Result<TokenUsageCostBreakdown, AppError> with per-dim costs (input/output/cache_read/cache_creation/reasoning) and pricing_missing_for flag. record_usage stores all 5 cost fields on TokenUsageRecord and emits full breakdown in cost_details JSON (currency + 5 dims + total + optional pricing_missing_for).",
       "started_at": "2026-06-26",
@@ -274,7 +308,9 @@
         "src-tauri/src/services/token_usage.rs",
         "src-tauri/src/services/pricing.rs"
       ],
-      "depends_on": ["stage-b"],
+      "depends_on": [
+        "stage-b"
+      ],
       "status": "done",
       "evidence": "cargo check: PASS (no warnings)\ncargo test: 36/36 PASS (22 unit + 14 e2e)\npnpm tsc --noEmit: PASS\npnpm build: PASS (357.18 KB JS + 22.87 KB CSS)\nHard constraints: no encryption crates / no CLI write paths / schema v4 intact",
       "started_at": "2026-06-26",
@@ -289,7 +325,9 @@
       "files": [
         "docs/v0.1-acceptance.md"
       ],
-      "depends_on": ["stage-8"],
+      "depends_on": [
+        "stage-8"
+      ],
       "status": "done",
       "evidence": "Automated Gates: 8/9 PASS (cargo test BLOCKED by sqlite3.lib linker - environmental)\nFunctional Gates: 10/11 PASS (SmartScreen signing PENDING Azure approval)\nKnown Issues: 5 documented\nSign-off: V0.1 Development Complete",
       "started_at": "2026-06-25",
@@ -319,7 +357,9 @@
         "webui/src/hooks/useActions.ts",
         "src-tauri/tests/ipc_e2e.rs"
       ],
-      "depends_on": ["stage-1"],
+      "depends_on": [
+        "stage-1"
+      ],
       "status": "done",
       "evidence": "cargo check: PASS\ncargo test --lib: 22/22 PASS\ncargo test --test ipc_e2e: 30/30 PASS (includes 11 new action registry tests: list_actions_returns_all_registered, execute_action_category_list, execute_action_provider_list, execute_action_unknown_returns_error, execute_action_unknown_returns_action_not_found, execute_action_missing_required_field_returns_error, execute_action_wrong_field_type_returns_error, execute_action_non_object_params_returns_error, execute_action_token_usage_pricing, execute_action_token_usage_record, dispatch_consistency_with_all_actions)\npnpm tsc --noEmit: PASS\npnpm build: PASS (357.18 KB JS + 22.87 KB CSS)\nHard constraints: visibility TEXT NOT NULL DEFAULT 'visible' PASS; value TEXT PASS; preset TEXT PASS; category_id INTEGER NOT NULL PASS; no encryption crates PASS; no fs::write PASS\nOracle review: ACCEPT WITH CHANGES — all 5 actionable issues (high+medium) fixed (flat schema, ActionValidation/ActionNotFound error variants, params pre-check, coverage doc)",
       "started_at": "2026-06-26",
@@ -336,7 +376,9 @@
         "webui/src/components/CategorySidebar.tsx",
         "webui/src/components/Icon.tsx"
       ],
-      "depends_on": ["stage-1"],
+      "depends_on": [
+        "stage-1"
+      ],
       "status": "done",
       "evidence": "pnpm tsc --noEmit: EXIT 0\n用户手动验收通过 (2026-06-25)\n侧记: AddCredentialModal.tsx 类型/服务两处 placeholder option 同步加 hidden 属性(同 session 修的非搜索 bug)",
       "started_at": "2026-06-25",
@@ -378,8 +420,11 @@
         "webui/src/components/SettingsModal.tsx",
         "webui/src/components/ConfirmDialog.tsx"
       ],
-      "depends_on": ["stage-1", "stage-11"],
-"status": "done",
+      "depends_on": [
+        "stage-1",
+        "stage-11"
+      ],
+      "status": "done",
       "evidence": "stage-12 implementation committed (cfd21ac + 788f9bb).\nUI files: 35 files changed (+2574/-781 lines).\npnpm tsc --noEmit: PASS (0 errors)\npnpm build: PASS (3.76s, 355.67 KB JS gzipped 112 KB + 22.33 KB CSS)\ncargo check: PASS (1m 02s)\ncargo test --lib: 5/5 PASS\nvitest m10-usage-hooks: 6/7 PASS (1 v5 mutation data design issue, invoke assertion passes)\nM8 grep gates (G1-G8): all PASS after em-dash cleanup (44 em-dashes replaced with '--')\nM8 build gates (B1-B3): all PASS\nAD1 (no .skip/.todo/unimplemented): PASS\nAD2 (cargo test lie): PASS (test ran, 5 passed)\nAD3 (SQL tx unscoped): N/A (no Rust changes in this stage)\nViewport (V1-V3) + Behavior (BH1-BH5) gates: deferred to human visual verification",
       "started_at": "2026-06-26",
       "ended_at": "2026-06-26",
@@ -396,13 +441,63 @@
         "webui/src/components/SettingsModal.tsx",
         "webui/src/App.tsx"
       ],
-      "depends_on": ["stage-12"],
+      "depends_on": [
+        "stage-12"
+      ],
       "status": "done",
       "evidence": "pnpm tsc --noEmit: PASS (0 errors)\npnpm build: PASS (357 KB JS + 22 KB CSS, 4.05s)\ncargo test --lib: 22/22 PASS\ncargo test --test ipc_e2e: 30/30 PASS (无 Rust 改动)\nHard constraints: 全部沿用 Stage 12 (无新约束破坏)\nOracle review: ACCEPT WITH CHANGES — 2 bug 修 (cache invalidation 改用 updateMutation.mutateAsync; revealedFields 在 add 后 reset), 1 defensive 建议留作 V0.1.2\n",
       "started_at": "2026-06-26",
       "ended_at": "2026-06-26",
       "assignee": "fixer+orchestrator",
       "notes": "实施路径：(1) ProviderDetailModal 加 addKvOpen state + handleAddKv (走 updateMutation.mutateAsync 让 cache 失效) + ' + 添加字段' 按钮 + AddKvModal 渲染。修 'if (!providerId) return null' 注释说明状态泄漏问题。(2) TopBar 加 onAddClick prop,右端用 ml-auto 渲染 '+ 添加凭证' 按钮。(3) ProviderGrid 加 onAddClick prop,空态显示 CTA。(4) SettingsModal 加 Categories 区块(列表 + 添加输入 + 删除带 migrate-to 下拉 + ConfirmDialog 复用)。(5) App.tsx 加 addCredOpen state,接 AddCredentialModal 渲染,把 handleTest/handleFetchQuota 从 console.log stub 改为真 invoke testConnection / fetchQuota + queryClient.invalidateQueries。\n\nOracle 修：(B1) handleAddKv 改用 updateMutation.mutateAsync — 之前直接调 updateProvider 跳过 onSuccess 失效,导致 add 后 modal 看不到新 field。(B2) 成功后 setRevealedFields(new Set()) — Rust updateProvider 是 REPLACE-ALL 重新 INSERT,所有 field.id 变,旧 revealed IDs 全失效。\n\n已知 pre-existing 限制(out of scope):P1 (last_tested 字段在 Provider struct/TS type 不存在 → Status pill 永远 'Not tested'),P2 (Provider 无 quota 字段 → Detail modal quota section 永远 'No quota data')。这两个是 Stage 12 遗留 stub,V0.1.2 + Rust backend 修。\n\n新增 IPC:无。Schema:无变更。仅 UI wiring + React state 补全。"
+    },
+    {
+      "id": "stage-12-polish",
+      "name": "Stage 12 polish: design tokens + button variants + SettingsModal UX + app icon",
+      "description": "Post-stage-12 incremental polish: (1) full Kaku token system in globals.css + tailwind.config.ts (muted-foreground identity fix, accent/destructive/input/ring additions, typography scale --font-size-2xs..3xl + --line-height-tight..relaxed, dark primary tightened #7da3d1 -> #9bb8e0); (2) shadcn button variant fixes (text-label-lg -> text-sm font-medium, secondary/ghost/destructive/outline resolve to real colors); (3) component typography + contrast polish across Titlebar/TopBar/Modal/SectionLabel/ThemeToggle/ui/input/App.tsx; (4) SettingsModal useMutation refactor (Loader2 spinner + useToast for success/error + formatMutationError Tauri runtime detection); (5) Titlebar right-cluster extracted to TopRightActions.tsx (new); (6) full app icon suite generated via MiniMax image-01 API (pilot/bullseye mark on navy #1b365d) replacing 750B placeholder, all platform sizes via cargo tauri icon (Windows icon.ico + PNGs + Mac icon.icns + iOS + Android); (7) dev workflow fix: tauri.conf.json beforeDevCommand pnpm -C webui dev -> pnpm dev (workaround for pnpm-workspace.yaml in webui/ being treated as workspace root).",
+      "files": [
+        "webui/src/styles/globals.css",
+        "webui/tailwind.config.ts",
+        "webui/src/components/ui/button.tsx",
+        "webui/src/components/Titlebar.tsx",
+        "webui/src/components/TopBar.tsx",
+        "webui/src/components/Modal.tsx",
+        "webui/src/components/SectionLabel.tsx",
+        "webui/src/components/ThemeToggle.tsx",
+        "webui/src/components/ui/input.tsx",
+        "webui/src/components/SettingsModal.tsx",
+        "webui/src/components/TopRightActions.tsx",
+        "webui/src/App.tsx",
+        "src-tauri/tauri.conf.json",
+        "src-tauri/icons/icon.ico",
+        "src-tauri/icons/icon.png",
+        "src-tauri/icons/icon.icns",
+        "src-tauri/icons/32x32.png",
+        "src-tauri/icons/64x64.png",
+        "src-tauri/icons/128x128.png",
+        "src-tauri/icons/128x128@2x.png",
+        "src-tauri/icons/Square30x30Logo.png",
+        "src-tauri/icons/Square44x44Logo.png",
+        "src-tauri/icons/Square71x71Logo.png",
+        "src-tauri/icons/Square89x89Logo.png",
+        "src-tauri/icons/Square107x107Logo.png",
+        "src-tauri/icons/Square142x142Logo.png",
+        "src-tauri/icons/Square150x150Logo.png",
+        "src-tauri/icons/Square284x284Logo.png",
+        "src-tauri/icons/Square310x310Logo.png",
+        "src-tauri/icons/StoreLogo.png",
+        "src-tauri/icons/ios/",
+        "src-tauri/icons/android/"
+      ],
+      "depends_on": [
+        "stage-12-fix"
+      ],
+      "status": "done",
+      "evidence": "pnpm tsc --noEmit: PASS (0 errors); cargo check: PASS (7.33s); WCAG AA contrast verified: foreground/background 17.9:1 light / 14.1:1 dark, primary on secondary 9.2:1 light / 4.8:1 dark, link on background 7.4:1 light / 4.8:1 dark; hard constraints: no encryption crates (grep empty), fs::create_dir_all only in lib.rs:25 targeting app_data_dir (APPDATA whitelist), schema v3 columns visibility/value/preset/category_id all present; visual review: 32x32 legible (concentric ring + dot survives downscale), 128x128 clean, icon.png flat no shadows/gradients.",
+      "started_at": "2026-06-27",
+      "ended_at": "2026-06-27",
+      "assignee": "designer+orchestrator",
+      "notes": "mmx CLI 1.0.15 has a bug where it sends the API key without \"Bearer \" prefix in the Authorization header, causing all API calls (text/image/quota) to fail with code 6 \"Network request failed\". Worked around by calling https://api.minimaxi.com/v1/image_generation directly via Invoke-WebRequest with Bearer-prefixed auth. Generated 3 candidates (A-monogram serif K, B-keyfusion K+key bit, C-pilotmark concentric ring+dot); user picked C. Image-01 standard model produced clean flat output; image-01-live diverged to unrelated \"canyon coliseum\" scene and was rejected. JPEG converted to 1024x1024 PNG via System.Drawing before cargo tauri icon. _candidates/ temp directory NOT committed. Commit: d70013d."
     }
   ]
 }
