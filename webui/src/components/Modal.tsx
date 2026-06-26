@@ -19,10 +19,11 @@ export const Modal = React.memo(function Modal({ open, onClose, children, title,
         <Dialog.Content
           className={cn(
             "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
-            "w-full max-w-3xl rounded-sm border border-border bg-background",
+            "w-full max-w-3xl rounded-sm border border-border shadow-[0_8px_24px_rgba(0,0,0,0.18)]",
             "focus:outline-none",
             "max-h-[90vh] flex flex-col"
           )}
+          style={{ backgroundColor: "var(--color-surface-elevated)" }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">

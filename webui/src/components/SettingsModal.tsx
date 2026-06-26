@@ -1,6 +1,7 @@
 import * as React from "react";
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState, useCallback } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import { Modal } from "./Modal";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -9,10 +10,27 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { useCategories } from "@/hooks/useCategories";
 import { useProviders } from "@/hooks/useProviders";
 import { addCategory, deleteCategory } from "@/lib/api";
+import { useToast } from "./Icon";
 
 interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
+}
+
+/** Detect Tauri runtime -- in plain browser dev (vite), invoke() throws. */
+function isTauriRuntime(): boolean {
+  return typeof window !== "undefined" && "__TAURI__" in window;
+}
+
+/** Format a mutation error so users see a friendly message, not a JS internals leak. */
+function formatMutationError(e: unknown, action: string): string {
+  if (!isTauriRuntime()) {
+    return "无法连接桌面运行时,请在 KeyPilot 应用内操作";
+  }
+  if (e instanceof Error && e.message) {
+    return `${action}失败: ${e.message}`;
+  }
+  return `${action}失败`;
 }
 
 export const SettingsModal = React.memo(function SettingsModal({ open, onClose }: SettingsModalProps) {
@@ -21,40 +39,54 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
   const [migrateTo, setMigrateTo] = useState<number>(0);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
-  const { data: categories = [], refetch } = useCategories();
+  const { data: categories = [] } = useCategories();
   const { data: providers = [] } = useProviders();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
 
-  const handleAddCategory = async () => {
-    if (!newCategoryName.trim()) return;
-    try {
-      await addCategory({ name: newCategoryName.trim() });
-      await refetch();
+  const addMutation = useMutation({
+    mutationFn: (name: string) => addCategory({ name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      showToast("分类已添加", "success");
       setNewCategoryName("");
-    } catch (e) {
-      console.error("add category failed", e);
-    }
-  };
+    },
+    onError: (e) => {
+      showToast(formatMutationError(e, "添加"), "error");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: ({ id, migrateTo }: { id: number; migrateTo: number }) =>
+      deleteCategory({ id, migrate_to: migrateTo }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["providers"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      showToast("分类已删除", "success");
+      setConfirmDeleteOpen(false);
+      setDeleteCategoryFor(null);
+    },
+    onError: (e) => {
+      showToast(formatMutationError(e, "删除"), "error");
+    },
+  });
+
+  const handleAddCategory = useCallback(() => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    addMutation.mutate(name);
+  }, [newCategoryName, addMutation]);
 
   const handleDeleteClick = (id: number) => {
     setDeleteCategoryFor(id);
-    // Default migrate target: first other category
     const others = categories.filter((c) => c.id !== id);
     setMigrateTo(others[0]?.id ?? 0);
     setConfirmDeleteOpen(true);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = () => {
     if (deleteCategoryFor === null) return;
-    try {
-      await deleteCategory({ id: deleteCategoryFor, migrate_to: migrateTo });
-      await queryClient.invalidateQueries({ queryKey: ["providers"] });
-      await refetch();
-      setConfirmDeleteOpen(false);
-      setDeleteCategoryFor(null);
-    } catch (e) {
-      console.error("delete category failed", e);
-    }
+    deleteMutation.mutate({ id: deleteCategoryFor, migrateTo });
   };
 
   const handleMigrateTargetChange = (id: number) => {
@@ -64,13 +96,16 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
   // Providers count per category
   const providersInCategory = (id: number) => providers.filter((p) => p.category_id === id).length;
 
+  const isAdding = addMutation.isPending;
+  const isDeleting = deleteMutation.isPending;
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       title="设置"
       footer={
-        <Button variant="ghost" onClick={onClose}>
+        <Button variant="outline" onClick={onClose}>
           关闭
         </Button>
       }
@@ -86,10 +121,13 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
         <div>
           <h3 className="text-sm font-medium mb-3">分类</h3>
           <div className="space-y-2">
+            {categories.length === 0 && (
+              <p className="text-xs text-muted-foreground py-2">暂无分类</p>
+            )}
             {categories.map((cat) => {
               const count = providersInCategory(cat.id);
               return (
-                <div key={cat.id} className="flex items-center justify-between">
+                <div key={cat.id} className="flex items-center justify-between py-1">
                   <span className="text-sm">
                     {cat.name}
                     {cat.is_default && (
@@ -100,31 +138,49 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
                     )}
                   </span>
                   {!cat.is_default && (
-                    <button
-                      type="button"
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       onClick={() => handleDeleteClick(cat.id)}
-                      className="text-xs text-danger hover:underline"
+                      disabled={isDeleting}
+                      className="text-danger hover:text-danger"
                     >
                       删除
-                    </button>
+                    </Button>
                   )}
                 </div>
               );
             })}
           </div>
+
           {/* Add category input */}
           <div className="flex items-center gap-2 mt-3">
             <Input
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
               placeholder="新分类名称"
-              className="flex-1 h-8 text-sm"
+              className="flex-1 h-9 text-sm"
+              disabled={isAdding}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleAddCategory();
+                if (e.key === "Enter" && !isAdding) handleAddCategory();
               }}
+              data-testid="add-category-input"
             />
-            <Button size="sm" variant="ghost" onClick={handleAddCategory}>
-              添加
+            <Button
+              size="sm"
+              variant="default"
+              onClick={handleAddCategory}
+              disabled={isAdding || !newCategoryName.trim()}
+              data-testid="add-category-btn"
+            >
+              {isAdding ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                  添加中
+                </>
+              ) : (
+                "添加"
+              )}
             </Button>
           </div>
         </div>
@@ -150,7 +206,7 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
       {/* Delete category confirm dialog */}
       <ConfirmDialog
         open={confirmDeleteOpen}
-        onClose={() => setConfirmDeleteOpen(false)}
+        onClose={() => !isDeleting && setConfirmDeleteOpen(false)}
         onConfirm={handleConfirmDelete}
         title="删除分类"
         message={
@@ -160,7 +216,9 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
               <select
                 value={migrateTo}
                 onChange={(e) => handleMigrateTargetChange(Number(e.target.value))}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                disabled={isDeleting}
+                className="flex h-9 w-full rounded-sm border border-border px-3 py-1 text-sm"
+                style={{ backgroundColor: "var(--color-surface)" }}
               >
                 {categories
                   .filter((c) => c.id !== deleteCategoryFor)
@@ -175,7 +233,7 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
             "确定要删除此分类吗？"
           )
         }
-        confirmText="删除"
+        confirmText={isDeleting ? "删除中…" : "删除"}
         variant="destructive"
       />
     </Modal>

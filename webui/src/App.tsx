@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Titlebar } from "./components/Titlebar";
 import { TopBar } from "./components/TopBar";
+import { TopRightActions } from "./components/TopRightActions";
 import { ProviderGrid } from "./components/ProviderGrid";
 import { SectionLabel } from "./components/SectionLabel";
 import { ProviderDetailModal } from "./components/ProviderDetailModal";
@@ -85,7 +86,16 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
-      <Titlebar onSettingsClick={() => setSettingsOpen(true)} />
+      <Titlebar
+        rightActions={
+          <TopRightActions
+            onSettingsClick={() => setSettingsOpen(true)}
+            onTokenUsageClick={() => setCurrentPage("usage")}
+            onAddClick={() => setAddCredOpen(true)}
+            isOnUsagePage={currentPage === "usage"}
+          />
+        }
+      />
 
       <TopBar
         search={search}
@@ -97,11 +107,10 @@ export default function App() {
         currentPage={currentPage}
         onPageChange={setCurrentPage}
         categories={categories}
-        onAddClick={() => setAddCredOpen(true)}
       />
 
       {currentPage === "credentials" && (
-        <main className="flex-1 overflow-y-auto pt-[104px]">
+        <main className="flex-1 overflow-y-auto pt-[108px]">
           {categoryFilter !== "all" && (
             <SectionLabel>
               {categories.find((c) => c.id === categoryFilter)?.name ?? ""}
@@ -116,7 +125,7 @@ export default function App() {
         </main>
       )}
       {currentPage === "usage" && (
-        <main className="flex-1 overflow-y-auto pt-[104px]">
+        <main className="flex-1 overflow-y-auto pt-[108px]">
           <UsagePage />
         </main>
       )}
