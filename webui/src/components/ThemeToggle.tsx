@@ -31,7 +31,12 @@ function nextTheme(theme: Theme): Theme {
   return CYCLE[(idx + 1) % CYCLE.length];
 }
 
-export const ThemeToggle = React.memo(function ThemeToggle() {
+interface ThemeToggleProps {
+  /** When true, render as a bare icon button sized to fit inside a toolbar pill. */
+  bare?: boolean;
+}
+
+export const ThemeToggle = React.memo(function ThemeToggle({ bare = false }: ThemeToggleProps = {}) {
   const { theme, isLoading, setTheme } = useTheme();
   const [activeTheme, setActiveTheme] = useState<Theme>(theme ?? "dark");
 
@@ -75,7 +80,12 @@ export const ThemeToggle = React.memo(function ThemeToggle() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center w-9 h-9">
+      <div
+        className={cn(
+          "inline-flex items-center justify-center",
+          bare ? "h-8 w-8" : "h-9 w-9"
+        )}
+      >
         <span className="text-muted-foreground text-sm">...</span>
       </div>
     );
@@ -88,8 +98,11 @@ export const ThemeToggle = React.memo(function ThemeToggle() {
       title={`Theme: ${LABELS[activeTheme]} -- click to change`}
       aria-label={`Theme: ${LABELS[activeTheme]} -- click to change`}
       className={cn(
-        "inline-flex items-center justify-center rounded-md border border-border bg-background hover:bg-muted transition-colors",
-        "p-2"
+        "inline-flex items-center justify-center transition-colors duration-150",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]",
+        bare
+          ? "h-8 w-8 rounded-pill text-[var(--color-muted)] hover:text-[var(--color-neutral)] hover:bg-[var(--color-surface-sunken)] focus-visible:ring-offset-1"
+          : "rounded-md border border-border bg-background hover:bg-muted p-2"
       )}
     >
       {ICONS[activeTheme]}

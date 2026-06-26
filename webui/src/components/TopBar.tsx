@@ -1,7 +1,6 @@
 import { Input } from "./ui/input";
 import { ChipGroup } from "./ChipGroup";
 import { DensityToggle } from "./DensityToggle";
-import { Button } from "./ui/button";
 
 export interface TopBarProps {
   search: string;
@@ -13,7 +12,6 @@ export interface TopBarProps {
   currentPage: "credentials" | "usage";
   onPageChange: (v: "credentials" | "usage") => void;
   categories: Array<{ id: number; name: string }>;
-  onAddClick: () => void;
 }
 
 const PAGE_OPTIONS: { value: "credentials" | "usage"; label: string }[] = [
@@ -31,7 +29,6 @@ export const TopBar = ({
   currentPage,
   onPageChange,
   categories,
-  onAddClick,
 }: TopBarProps) => {
   const CATEGORY_OPTIONS = [
     { value: "all", label: "All" },
@@ -40,8 +37,8 @@ export const TopBar = ({
 
   return (
     <div
-      className="fixed top-[44px] left-0 right-0 z-40 flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 border-b border-border bg-card"
-      style={{ minHeight: 60 }}
+      className="fixed left-0 right-0 z-40 flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 border-b border-border bg-card"
+      style={{ top: 48, minHeight: 60 }}
     >
       {/* Search input - 360px wide on desktop */}
       <div className="w-full sm:w-[360px] shrink-0">
@@ -54,8 +51,8 @@ export const TopBar = ({
         />
       </div>
 
-      {/* ChipGroup + DensityToggle */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Right cluster: page nav + category filter + density */}
+      <div className="flex flex-wrap items-center gap-2 ml-auto">
         {/* Page nav chips -- visually distinct, slightly larger */}
         <div className="inline-flex items-center rounded-pill border border-border bg-muted p-0.5 gap-0.5">
           {PAGE_OPTIONS.map((opt) => (
@@ -80,13 +77,6 @@ export const TopBar = ({
           options={CATEGORY_OPTIONS}
         />
         <DensityToggle value={density} onChange={onDensityChange} />
-      </div>
-
-      {/* Add credential button */}
-      <div className="ml-auto">
-        <Button size="sm" onClick={onAddClick} data-testid="add-credential-btn">
-          + 添加凭证
-        </Button>
       </div>
     </div>
   );

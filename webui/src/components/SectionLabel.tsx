@@ -8,11 +8,11 @@ export const SectionLabel = ({ children }: SectionLabelProps) => {
   return (
     <div
       className={cn(
-        "px-7 pt-6 pb-2",
-        "text-xs font-normal uppercase tracking-[0.06em]",
+        "px-7 pt-6 pb-2 font-serif",
         "text-[var(--color-primary)]",
-        "font-serif"
+        "font-semibold uppercase"
       )}
+      style={{ fontSize: "var(--font-size-xs)", letterSpacing: "var(--tracking-wider)" }}
     >
       {children}
     </div>
