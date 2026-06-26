@@ -384,6 +384,25 @@
       "started_at": "2026-06-26",
       "ended_at": "2026-06-26",
       "notes": "用户已批准设计 (webui/dist/design-preview.html v2 + openspec/changes/ui-redesign/)。8 任务 T-UI-001..008。**关键决策**：(1) Charter 字体 Google Fonts + system fallback (Charter→Georgia→Palatino→Times New Roman);(2) Density toggle 状态 localStorage `keypilot.density` 持久化,默认 '1';(3) Modal 沿用 Radix Dialog (focus trap / Esc / overlay click 行为现成);(4) Drag handle 仅 affordance,本期不接 dnd 库,后续 V0.X 接 @dnd-kit;(5) 删 CategorySidebar + ProviderList + ProviderDetail 三个旧组件,新组件为 ProviderCard + ProviderGrid + ProviderDetailModal;(6) Auto 主题 = matchMedia resolver,无独立 data-theme='auto' 规则;(7) ProviderCard 接受 onClick + onRefresh(分离刷新与打开,避免事件冒泡)。V0.3 token-usage-history 沿用本 stage 的设计系统。**实测 build 体积**: 355.67 KB JS (gzipped 112 KB) + 22.33 KB CSS — 比 wave 0 +20KB JS (估算范围高,因多 swipper 组件),CSS 略增 3 KB。**Stage-12 审查补丁 (2026-06-25)**:H-1..H-5 + M-1..M-16 + L-1..L-6/L-8 已合并入 execution-plan.md / design.md / tasks.md,详见 openspec/changes/ui-redesign/execution-plan.md §3 / §6 / §7 / §10 / §11 / §13。L-7 (spec.md REQ-UI-004.4 localStorage vs DB 漂移) 不在 stage-12 scope,开独立 spec amendment PR。**Wave 拆分实施 (2026-06-26, commit cfd21ac + 788f9bb)**:Wave 0 (M1/M2/M9 foundation) 在 788f9bb;Wave 1-4 (M3+M5+M10+M4+M6+M11a-c+M12a-b+M7+M13+M8) 在 cfd21ac。lanes/worktree 隔离:worktree ui-update 基于 main 3094e54。"
+    },
+    {
+      "id": "stage-12-fix",
+      "name": "V0.1.1 入口补全 + ProviderDetailModal 修复",
+      "description": "Stage 12 (UI redesign) 删了 CategorySidebar + ProviderList + ProviderDetail 但未补回 新建凭证 / 新建分类 / 添加字段 三个入口。ProviderDetailModal 也有 `if (!providerId) return null` + `open={true}` 写死,导致内部 state 在不同 provider 之间泄漏。本 stage 把所有入口补回 + 修 modal 状态泄漏 + 修 handleTest/handleFetchQuota 之前是 console.log stub,接到 Tauri IPC。",
+      "files": [
+        "webui/src/components/ProviderDetailModal.tsx",
+        "webui/src/components/TopBar.tsx",
+        "webui/src/components/ProviderGrid.tsx",
+        "webui/src/components/SettingsModal.tsx",
+        "webui/src/App.tsx"
+      ],
+      "depends_on": ["stage-12"],
+      "status": "done",
+      "evidence": "pnpm tsc --noEmit: PASS (0 errors)\npnpm build: PASS (357 KB JS + 22 KB CSS, 4.05s)\ncargo test --lib: 22/22 PASS\ncargo test --test ipc_e2e: 30/30 PASS (无 Rust 改动)\nHard constraints: 全部沿用 Stage 12 (无新约束破坏)\nOracle review: ACCEPT WITH CHANGES — 2 bug 修 (cache invalidation 改用 updateMutation.mutateAsync; revealedFields 在 add 后 reset), 1 defensive 建议留作 V0.1.2\n",
+      "started_at": "2026-06-26",
+      "ended_at": "2026-06-26",
+      "assignee": "fixer+orchestrator",
+      "notes": "实施路径：(1) ProviderDetailModal 加 addKvOpen state + handleAddKv (走 updateMutation.mutateAsync 让 cache 失效) + ' + 添加字段' 按钮 + AddKvModal 渲染。修 'if (!providerId) return null' 注释说明状态泄漏问题。(2) TopBar 加 onAddClick prop,右端用 ml-auto 渲染 '+ 添加凭证' 按钮。(3) ProviderGrid 加 onAddClick prop,空态显示 CTA。(4) SettingsModal 加 Categories 区块(列表 + 添加输入 + 删除带 migrate-to 下拉 + ConfirmDialog 复用)。(5) App.tsx 加 addCredOpen state,接 AddCredentialModal 渲染,把 handleTest/handleFetchQuota 从 console.log stub 改为真 invoke testConnection / fetchQuota + queryClient.invalidateQueries。\n\nOracle 修：(B1) handleAddKv 改用 updateMutation.mutateAsync — 之前直接调 updateProvider 跳过 onSuccess 失效,导致 add 后 modal 看不到新 field。(B2) 成功后 setRevealedFields(new Set()) — Rust updateProvider 是 REPLACE-ALL 重新 INSERT,所有 field.id 变,旧 revealed IDs 全失效。\n\n已知 pre-existing 限制(out of scope):P1 (last_tested 字段在 Provider struct/TS type 不存在 → Status pill 永远 'Not tested'),P2 (Provider 无 quota 字段 → Detail modal quota section 永远 'No quota data')。这两个是 Stage 12 遗留 stub,V0.1.2 + Rust backend 修。\n\n新增 IPC:无。Schema:无变更。仅 UI wiring + React state 补全。"
     }
   ]
 }
