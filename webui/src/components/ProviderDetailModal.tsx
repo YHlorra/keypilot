@@ -8,8 +8,9 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon, useToast, ProviderIcon } from "./Icon";
+import { AddKvModal } from "./AddKvModal";
 import { getProvider, updateProvider, deleteProvider } from "@/lib/api";
-import type { GetProviderRequest, UpdateProviderRequest } from "@/types/api";
+import type { GetProviderRequest, UpdateProviderRequest, Visibility } from "@/types/api";
 
 interface ProviderDetailModalProps {
   providerId: number | null;
@@ -37,6 +38,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   const [editMode, setEditMode] = useState<EditMode>("view");
   const [editName, setEditName] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [addKvOpen, setAddKvOpen] = useState(false);
   const [revealedFields, setRevealedFields] = useState<Set<number>>(new Set());
 
   // Fetch provider data
@@ -129,6 +131,42 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
     });
   }, [showToast]);
 
+  // Add a new field via AddKvModal -- persist via updateProvider.
+  // Reuse updateMutation so onSuccess invalidates ["provider", id] + ["providers"].
+  // The Rust updateProvider is REPLACE-ALL, so we must send every existing field
+  // back. New field IDs are auto-assigned on re-INSERT, so clear revealedFields
+  // (keyed by old field.id) to avoid stale reveals.
+  const handleAddKv = useCallback(
+    async (key: string, value: string, visibility: Visibility) => {
+      if (!provider) return;
+      const nextFields = [
+        ...provider.fields.map((f) => ({
+          key: f.key,
+          value: f.value,
+          visibility: f.visibility,
+          sort_index: f.sort_index,
+        })),
+        { key, value, visibility, sort_index: provider.fields.length },
+      ];
+      try {
+        await updateMutation.mutateAsync({
+          id: provider.id,
+          fields: nextFields,
+        });
+        setRevealedFields(new Set());
+        showToast("字段已添加", "success");
+        setAddKvOpen(false);
+      } catch {
+        showToast("添加失败", "error");
+      }
+    },
+    [provider, showToast, updateMutation]
+  );
+
+  // Hard guard: never render the Modal subtree when no provider is selected.
+  // (Previously `open={true}` was hard-coded, which let stale query state from
+  // a previous selection bleed into the next open. Now the modal truly closes
+  // when providerId goes back to null.)
   if (!providerId) return null;
 
   if (isLoading) {
@@ -343,6 +381,15 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                   );
                 })
               )}
+              {/* Add field button */}
+              <button
+                type="button"
+                data-testid="add-field-btn"
+                onClick={() => setAddKvOpen(true)}
+                className="mt-2 text-sm text-primary hover:underline"
+              >
+                + 添加字段
+              </button>
             </div>
           </div>
         </div>
@@ -357,6 +404,13 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
         message={`确定要删除 "${provider.name}" 吗？此操作无法撤销。`}
         confirmText="删除"
         variant="destructive"
+      />
+
+      {/* Add field modal */}
+      <AddKvModal
+        open={addKvOpen}
+        onClose={() => setAddKvOpen(false)}
+        onAdd={handleAddKv}
       />
     </>
   );

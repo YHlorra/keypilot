@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ProviderCard } from "./ProviderCard";
+import { Button } from "./ui/button";
 import type { Provider } from "@/types/api";
 import { useProviders } from "@/hooks/useProviders";
 import { useQueryClient } from "@tanstack/react-query";
@@ -11,6 +12,7 @@ interface ProviderGridProps {
   selectedId?: number | null;
   onSelectProvider: (id: number) => void;
   onRefreshProvider?: (id: number) => void;
+  onAddClick?: () => void;
   // M6-passed but not used by new grid (density read from DOM, search/categoryFilter applied upstream)
   density?: "1" | "2";
   search?: string;
@@ -38,6 +40,7 @@ export const ProviderGrid = ({
   selectedId,
   onSelectProvider,
   onRefreshProvider,
+  onAddClick,
 }: ProviderGridProps) => {
   const { isLoading, isError, refetch } = useProviders();
   const queryClient = useQueryClient();
@@ -115,6 +118,11 @@ export const ProviderGrid = ({
           >
             Add your first credential to get started
           </p>
+          {onAddClick && (
+            <Button size="sm" onClick={onAddClick} className="mt-3">
+              + 添加凭证
+            </Button>
+          )}
         </div>
       </div>
     );

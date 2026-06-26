@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Titlebar } from "./components/Titlebar";
 import { TopBar } from "./components/TopBar";
 import { ProviderGrid } from "./components/ProviderGrid";
 import { SectionLabel } from "./components/SectionLabel";
 import { ProviderDetailModal } from "./components/ProviderDetailModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { AddCredentialModal } from "./components/AddCredentialModal";
 import { useTheme } from "./hooks/useTheme";
 import { useProviders } from "./hooks/useProviders";
 import { useCategories } from "./hooks/useCategories";
+import { testConnection, fetchQuota } from "@/lib/api";
 import UsagePage from "./pages/UsagePage";
 import type { Provider } from "./types/api";
 
@@ -42,6 +45,9 @@ export default function App() {
   const [search, setSearch] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState<"credentials" | "usage">("credentials");
+  const [addCredOpen, setAddCredOpen] = useState(false);
+
+  const queryClient = useQueryClient();
 
   // M-12 CRITICAL: theme effect runs BEFORE density effect to avoid flash
   useTheme(); // writes data-theme attribute to <html>
@@ -53,12 +59,23 @@ export default function App() {
   }, [density]);
 
   // Handlers
-  const handleTest = (id: number) => {
-    console.log("test", id);
+  const handleTest = async (id: number) => {
+    try {
+      await testConnection({ id });
+      queryClient.invalidateQueries({ queryKey: ["provider", id] });
+      queryClient.invalidateQueries({ queryKey: ["providers"] });
+    } catch (e) {
+      console.error("test connection failed", e);
+    }
   };
 
-  const handleFetchQuota = (id: number) => {
-    console.log("fetch quota", id);
+  const handleFetchQuota = async (id: number) => {
+    try {
+      await fetchQuota({ id });
+      queryClient.invalidateQueries({ queryKey: ["provider", id] });
+    } catch (e) {
+      console.error("fetch quota failed", e);
+    }
   };
 
   // Filtered provider list for ProviderGrid
@@ -80,6 +97,7 @@ export default function App() {
         currentPage={currentPage}
         onPageChange={setCurrentPage}
         categories={categories}
+        onAddClick={() => setAddCredOpen(true)}
       />
 
       {currentPage === "credentials" && (
@@ -93,6 +111,7 @@ export default function App() {
             density={density}
             providers={filteredProviders}
             onSelectProvider={(id) => setActiveProviderId(id)}
+            onAddClick={() => setAddCredOpen(true)}
           />
         </main>
       )}
@@ -110,6 +129,12 @@ export default function App() {
       />
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      <AddCredentialModal
+        open={addCredOpen}
+        onClose={() => setAddCredOpen(false)}
+        defaultCategoryId={categoryFilter !== "all" ? categoryFilter : undefined}
+      />
     </div>
   );
 }
