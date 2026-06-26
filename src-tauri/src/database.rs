@@ -547,6 +547,13 @@ impl Database {
         Ok(rows)
     }
 
+    /// Delete all preset (is_preset=1) providers. Used for one-time cleanup.
+    /// Returns the number of rows deleted.
+    pub fn delete_preset_providers(&self) -> Result<usize> {
+        let n = self.conn.execute("DELETE FROM providers WHERE is_preset = 1", [])?;
+        Ok(n)
+    }
+
     pub fn get_model_usage_summary(&self, date: &str) -> Result<Vec<DailyModelUsage>, AppError> {
         let mut stmt = self.conn.prepare(
             "SELECT date, model, provider, request_count, input_tokens, output_tokens, total_tokens, total_cost
