@@ -1,7 +1,7 @@
 {
   "project": "KeyPilot V0.1",
   "version": "0.1.0",
-  "updated": "2026-06-25",
+"updated": "2026-06-26",
   "source_of_truth": "feature_list.json is the executable feature tracker. PLAN.md holds Stage deep specs. openspec/changes/<topic>/ holds in-progress and recently-approved spec changes (those with pending implementation). openspec/changes/archive/<topic>/ holds completed/archived spec changes (implementation done, retained for historical reference). See AGENTS.md §8 for relationship.",
   "active_changes": [
     {
@@ -219,7 +219,7 @@
       "notes": "Screenshots are V0.1 launch artifacts; placeholder .txt files reference actual screenshot capture needed"
     },
     {
-      "id": "stage-a",
+"id": "stage-a",
       "name": "Token Usage Data Foundation (database.rs + PricingService)",
       "description": "Schema v3→v4 migration adding 3 tables (token_usage_records, daily_agent_model_usage, daily_model_usage) + PricingService with 50-model pricing.json + error variants. Direct integration tests (no IPC).",
       "files": [
@@ -349,9 +349,11 @@
         "webui/src/components/ConfirmDialog.tsx"
       ],
       "depends_on": ["stage-1", "stage-11"],
-      "status": "planned",
-      "evidence": "",
-      "notes": "用户已批准设计 (webui/dist/design-preview.html v2 + openspec/changes/ui-redesign/)。8 任务 T-UI-001..008。**关键决策**：(1) Charter 字体 Google Fonts + system fallback (Charter→Georgia→Palatino→Times New Roman);(2) Density toggle 状态 localStorage `keypilot.density` 持久化,默认 '1';(3) Modal 沿用 Radix Dialog (focus trap / Esc / overlay click 行为现成);(4) Drag handle 仅 affordance,本期不接 dnd 库,后续 V0.X 接 @dnd-kit;(5) 删 CategorySidebar + ProviderList + ProviderDetail 三个旧组件,新组件为 ProviderCard + ProviderGrid + ProviderDetailModal;(6) Auto 主题 = matchMedia resolver,无独立 data-theme='auto' 规则;(7) ProviderCard 接受 onClick + onRefresh(分离刷新与打开,避免事件冒泡)。V0.3 token-usage-history 沿用本 stage 的设计系统。**预期 build 体积 +5KB CSS / +2KB JS (估算,待 stage-12 完成后实测 — M-4)**。**Stage-12 审查补丁 (2026-06-25)**:H-1..H-5 + M-1..M-16 + L-1..L-6/L-8 已合并入 execution-plan.md / design.md / tasks.md,详见 openspec/changes/ui-redesign/execution-plan.md §3 / §6 / §7 / §10 / §11 / §13。L-7 (spec.md REQ-UI-004.4 localStorage vs DB 漂移) 不在 stage-12 scope,开独立 spec amendment PR。"
+"status": "done",
+      "evidence": "stage-12 implementation committed (cfd21ac + 788f9bb).\nUI files: 35 files changed (+2574/-781 lines).\npnpm tsc --noEmit: PASS (0 errors)\npnpm build: PASS (3.76s, 355.67 KB JS gzipped 112 KB + 22.33 KB CSS)\ncargo check: PASS (1m 02s)\ncargo test --lib: 5/5 PASS\nvitest m10-usage-hooks: 6/7 PASS (1 v5 mutation data design issue, invoke assertion passes)\nM8 grep gates (G1-G8): all PASS after em-dash cleanup (44 em-dashes replaced with '--')\nM8 build gates (B1-B3): all PASS\nAD1 (no .skip/.todo/unimplemented): PASS\nAD2 (cargo test lie): PASS (test ran, 5 passed)\nAD3 (SQL tx unscoped): N/A (no Rust changes in this stage)\nViewport (V1-V3) + Behavior (BH1-BH5) gates: deferred to human visual verification",
+      "started_at": "2026-06-26",
+      "ended_at": "2026-06-26",
+      "notes": "用户已批准设计 (webui/dist/design-preview.html v2 + openspec/changes/ui-redesign/)。8 任务 T-UI-001..008。**关键决策**：(1) Charter 字体 Google Fonts + system fallback (Charter→Georgia→Palatino→Times New Roman);(2) Density toggle 状态 localStorage `keypilot.density` 持久化,默认 '1';(3) Modal 沿用 Radix Dialog (focus trap / Esc / overlay click 行为现成);(4) Drag handle 仅 affordance,本期不接 dnd 库,后续 V0.X 接 @dnd-kit;(5) 删 CategorySidebar + ProviderList + ProviderDetail 三个旧组件,新组件为 ProviderCard + ProviderGrid + ProviderDetailModal;(6) Auto 主题 = matchMedia resolver,无独立 data-theme='auto' 规则;(7) ProviderCard 接受 onClick + onRefresh(分离刷新与打开,避免事件冒泡)。V0.3 token-usage-history 沿用本 stage 的设计系统。**实测 build 体积**: 355.67 KB JS (gzipped 112 KB) + 22.33 KB CSS — 比 wave 0 +20KB JS (估算范围高,因多 swipper 组件),CSS 略增 3 KB。**Stage-12 审查补丁 (2026-06-25)**:H-1..H-5 + M-1..M-16 + L-1..L-6/L-8 已合并入 execution-plan.md / design.md / tasks.md,详见 openspec/changes/ui-redesign/execution-plan.md §3 / §6 / §7 / §10 / §11 / §13。L-7 (spec.md REQ-UI-004.4 localStorage vs DB 漂移) 不在 stage-12 scope,开独立 spec amendment PR。**Wave 拆分实施 (2026-06-26, commit cfd21ac + 788f9bb)**:Wave 0 (M1/M2/M9 foundation) 在 788f9bb;Wave 1-4 (M3+M5+M10+M4+M6+M11a-c+M12a-b+M7+M13+M8) 在 cfd21ac。lanes/worktree 隔离:worktree ui-update 基于 main 3094e54。"
     }
   ]
 }
