@@ -26,6 +26,8 @@ pub fn run() {
             let db_path = app_dir.join("keypilot.db");
             let db = Database::open(&db_path)?;
             db.setup_schema()?;
+            db.migrate()?;
+            db.seed_preset_providers()?;
 
             let state = AppState::new(db);
             app.manage(state);
