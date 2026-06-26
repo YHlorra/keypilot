@@ -41,7 +41,7 @@ export const ThemeToggle = React.memo(function ThemeToggle() {
     if (theme) setActiveTheme(theme);
   }, [theme]);
 
-  // Auto mode listener — REQ-UI-004.3
+  // Auto mode listener -- REQ-UI-004.3
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (e: MediaQueryListEvent | MediaQueryList) => {

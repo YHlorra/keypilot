@@ -1,4 +1,4 @@
-// webui/src/lib/api.ts (Phase 2 Lane C — real IPC wiring)
+// webui/src/lib/api.ts (Phase 2 Lane C -- real IPC wiring)
 // All 12 IPC functions now use @tauri-apps/api/core::invoke (replaces Phase 2 Lane B1 mocks).
 // @see openspec/changes/v0.1-general-credentials/design.md §7 for Rust command signatures.
 
@@ -18,7 +18,7 @@ import type {
   ImportFormat, ImportResult, PricingEntry, PaginatedResponse,
 } from "@/types/api";
 
-// 12 IPC functions — real Tauri invoke wiring
+// 12 IPC functions -- real Tauri invoke wiring
 
 export async function listProviders(): Promise<ListProvidersResponse> {
   return invoke<ListProvidersResponse>("list_providers");
