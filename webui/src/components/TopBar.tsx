@@ -5,12 +5,13 @@ import { DensityToggle } from "./DensityToggle";
 export interface TopBarProps {
   search: string;
   onSearchChange: (v: string) => void;
-  categoryFilter: string;
-  onCategoryChange: (v: string) => void;
+  categoryFilter: number | "all";
+  onCategoryChange: (v: number | "all") => void;
   density: "1" | "2";
   onDensityChange: (v: "1" | "2") => void;
   currentPage: "credentials" | "usage";
   onPageChange: (v: "credentials" | "usage") => void;
+  categories: Array<{ id: number; name: string }>;
 }
 
 const PAGE_OPTIONS: { value: "credentials" | "usage"; label: string }[] = [
@@ -27,7 +28,13 @@ export const TopBar = ({
   onDensityChange,
   currentPage,
   onPageChange,
+  categories,
 }: TopBarProps) => {
+  const CATEGORY_OPTIONS = [
+    { value: "all", label: "All" },
+    ...categories.map((c) => ({ value: String(c.id), label: c.name })),
+  ];
+
   return (
     <div
       className="fixed top-[44px] left-0 right-0 z-40 flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 border-b border-border bg-card"
@@ -63,8 +70,12 @@ export const TopBar = ({
             </button>
           ))}
         </div>
-        {/* Category filter chips (existing) */}
-        <ChipGroup value={categoryFilter} onChange={onCategoryChange} />
+        {/* Category filter chips */}
+        <ChipGroup
+          value={categoryFilter === "all" ? "all" : String(categoryFilter)}
+          onChange={(v) => onCategoryChange(v === "all" ? "all" : Number(v))}
+          options={CATEGORY_OPTIONS}
+        />
         <DensityToggle value={density} onChange={onDensityChange} />
       </div>
     </div>
