@@ -20,6 +20,8 @@
   --color-link: #1d4ed8;
   --color-success: #46a758;
   --color-error: #b42318;
+  --color-foreground: #141413;
+  --color-muted-foreground: #6b6b65;
 
   /* Font tokens -- REQ-UI-001.2 */
   --font-serif: "Charter", Georgia, Palatino, "Times New Roman", serif;
@@ -52,6 +54,8 @@
   --color-link: #7da3d1;
   --color-success: #7ad27d;
   --color-error: #e87a72;
+  --color-foreground: #ece9df;
+  --color-muted-foreground: #8a8780;
 }
 
 /* Auto theme: resolved via JS matchMedia, no independent token rules */

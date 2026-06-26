@@ -7,18 +7,29 @@ import { ProviderDetailModal } from "./components/ProviderDetailModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { useTheme } from "./hooks/useTheme";
 import { useProviders } from "./hooks/useProviders";
+import { useCategories } from "./hooks/useCategories";
 import UsagePage from "./pages/UsagePage";
 import type { Provider } from "./types/api";
 
-function filterProviders(providers: Provider[], search: string): Provider[] {
-  if (!search.trim()) return providers;
-  const q = search.toLowerCase();
-  return providers.filter(
-    (p) =>
-      p.name.toLowerCase().includes(q) ||
-      (p.preset && p.preset.toLowerCase().includes(q)) ||
-      (p.notes && p.notes.toLowerCase().includes(q))
-  );
+function filterProviders(
+  providers: Provider[],
+  search: string,
+  categoryFilter: number | "all"
+): Provider[] {
+  let result = providers;
+  if (categoryFilter !== "all") {
+    result = result.filter((p) => p.category_id === categoryFilter);
+  }
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    result = result.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.preset && p.preset.toLowerCase().includes(q)) ||
+        (p.notes && p.notes.toLowerCase().includes(q))
+    );
+  }
+  return result;
 }
 
 export default function App() {
@@ -27,7 +38,7 @@ export default function App() {
     () => (localStorage.getItem("keypilot.density") as "1" | "2") ?? "1"
   );
   const [activeProviderId, setActiveProviderId] = useState<number | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<number | "all">("all");
   const [search, setSearch] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState<"credentials" | "usage">("credentials");
@@ -52,7 +63,8 @@ export default function App() {
 
   // Filtered provider list for ProviderGrid
   const { data: allProviders = [] } = useProviders();
-  const filteredProviders = filterProviders(allProviders, search);
+  const { data: categories = [] } = useCategories();
+  const filteredProviders = filterProviders(allProviders, search, categoryFilter);
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
@@ -67,17 +79,18 @@ export default function App() {
         onDensityChange={setDensity}
         currentPage={currentPage}
         onPageChange={setCurrentPage}
+        categories={categories}
       />
 
       {currentPage === "credentials" && (
         <main className="flex-1 overflow-y-auto pt-[104px]">
           {categoryFilter !== "all" && (
-            <SectionLabel>{categoryFilter.toUpperCase()}</SectionLabel>
+            <SectionLabel>
+              {categories.find((c) => c.id === categoryFilter)?.name ?? ""}
+            </SectionLabel>
           )}
           <ProviderGrid
             density={density}
-            search={search}
-            categoryFilter={categoryFilter}
             providers={filteredProviders}
             onSelectProvider={(id) => setActiveProviderId(id)}
           />

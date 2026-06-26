@@ -34,6 +34,8 @@ const config: Config = {
         // new Kaku tokens
         link: "var(--color-link)",
         success: "var(--color-success)",
+        muted: "var(--color-muted)",
+        "muted-foreground": "var(--color-muted-foreground)",
       },
     },
   },

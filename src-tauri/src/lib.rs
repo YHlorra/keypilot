@@ -27,7 +27,13 @@ pub fn run() {
             let db = Database::open(&db_path)?;
             db.setup_schema()?;
             db.migrate()?;
-            db.seed_preset_providers()?;
+            // One-time cleanup: remove seeded preset providers so app starts empty per user feedback (2026-06-26).
+            // Safe to run on every startup -- only deletes is_preset=1 rows.
+            match db.delete_preset_providers() {
+                Ok(n) if n > 0 => eprintln!("Removed {} preset provider(s) from previous startup", n),
+                Ok(_) => {},
+                Err(e) => eprintln!("Failed to clean preset providers: {}", e),
+            }
 
             let state = AppState::new(db);
             app.manage(state);
