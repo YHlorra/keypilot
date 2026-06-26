@@ -263,6 +263,26 @@
       "notes": "Methods are sync (not async) — rusqlite + std::sync::Mutex are blocking. Tauri IPC layer (Stage C) wraps with spawn_blocking if needed. No Cargo.toml changes — FNV-1a hash inlined to avoid sha2 dep. Stage A INSERT bug fixed in this stage: added prompt_tokens/completion_tokens fields to TokenUsageRecord, updated both INSERT params and list_token_usage_records SELECT to read correct columns. Rollup sync (PLAN §3.1) lives at the DB layer in insert_token_usage (tx.commit + INSERT OR REPLACE COALESCE), not in the service record_usage — service just delegates. refresh_daily_rollups is a belt-and-suspenders ops tool for corruption recovery / future nightly sweep. record_usage signature is record_usage(id: &str, input: UsageRecordInput) — A2: extra id param is deliberate so imports (deterministic_id on 5-tuple) feed the same id to record_usage → unique constraint fires → TokenUsageDuplicate → counted as skipped. Plan §3.1 signature mismatch resolved in favor of Stage C IPC contract clarity."
     },
     {
+      "id": "stage-c",
+      "name": "Token Usage IPC layer (5 handlers)",
+      "description": "commands/token_usage.rs — 5 Tauri IPC handlers bridging frontend API contract to Stage B service layer. Handlers: record_usage / list_usage_records / get_usage_summary / import_usage / get_pricing. IPC DTOs mirror webui/src/types/api.ts. Conversion layer handles ISO<->epoch, provider->provider_name, usage_details JSON serialization, and PricingEntry per-1M->per-token conversion. Added provider field to UsageSummaryAgentPair + updated get_summary SQL GROUP BY. Added PricingService::all_entries().",
+      "files": [
+        "src-tauri/src/commands/token_usage.rs",
+        "src-tauri/src/commands/mod.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/types.rs",
+        "src-tauri/src/services/token_usage.rs",
+        "src-tauri/src/services/pricing.rs"
+      ],
+      "depends_on": ["stage-b"],
+      "status": "done",
+      "evidence": "cargo check: PASS (no warnings)\ncargo test: 36/36 PASS (22 unit + 14 e2e)\npnpm tsc --noEmit: PASS\npnpm build: PASS (357.18 KB JS + 22.87 KB CSS)\nHard constraints: no encryption crates / no CLI write paths / schema v4 intact",
+      "started_at": "2026-06-26",
+      "ended_at": "2026-06-26",
+      "assignee": "fixer",
+      "notes": "Frontend (stage-13) already built UsagePage + hooks + API wrappers. This stage closes the loop by adding the missing backend IPC handlers. Type mismatch between frontend DTOs and Rust DTOs resolved via IPC-layer conversion (no changes to frontend types or core Rust DTOs). get_summary query updated to include provider in SELECT/GROUP BY to match frontend AgentPair contract."
+    },
+    {
       "id": "stage-9",
       "name": "V0.1 验收 (13 项清单)",
       "description": "V0.1 acceptance test suite — 13 项手动验收清单。",
@@ -289,13 +309,23 @@
         "src-tauri/src/actions/system.rs",
         "src-tauri/src/commands/action.rs",
         "src-tauri/src/lib.rs",
+        "src-tauri/src/services/provider.rs",
+        "src-tauri/src/services/category.rs",
+        "src-tauri/src/commands/provider.rs",
+        "src-tauri/src/commands/quota.rs",
+        "src-tauri/src/commands/token_usage.rs",
+        "src-tauri/src/commands/mod.rs",
         "webui/src/lib/action-registry.ts",
-        "webui/src/hooks/useActions.ts"
+        "webui/src/hooks/useActions.ts",
+        "src-tauri/tests/ipc_e2e.rs"
       ],
       "depends_on": ["stage-1"],
-      "status": "planned",
-      "evidence": "",
-      "notes": "设计决策：(1) 保留现有 12 IPC 不变，新增通用 IPC 专供 Agent；(2) execute_action 用 serde_json::Value 动态传参，内部严格校验；(3) 前端 mirror action-registry.ts 保持单一真相源；(4) V0.1 不做 MCP server 管理，只暴露可调用接口；(5) Agent 填参策略：description + input_schema 轻量推断，不自动填 defaults；(6) Workflow 编排留到后续阶段。"
+      "status": "done",
+      "evidence": "cargo check: PASS\ncargo test --lib: 22/22 PASS\ncargo test --test ipc_e2e: 30/30 PASS (includes 11 new action registry tests: list_actions_returns_all_registered, execute_action_category_list, execute_action_provider_list, execute_action_unknown_returns_error, execute_action_unknown_returns_action_not_found, execute_action_missing_required_field_returns_error, execute_action_wrong_field_type_returns_error, execute_action_non_object_params_returns_error, execute_action_token_usage_pricing, execute_action_token_usage_record, dispatch_consistency_with_all_actions)\npnpm tsc --noEmit: PASS\npnpm build: PASS (357.18 KB JS + 22.87 KB CSS)\nHard constraints: visibility TEXT NOT NULL DEFAULT 'visible' PASS; value TEXT PASS; preset TEXT PASS; category_id INTEGER NOT NULL PASS; no encryption crates PASS; no fs::write PASS\nOracle review: ACCEPT WITH CHANGES — all 5 actionable issues (high+medium) fixed (flat schema, ActionValidation/ActionNotFound error variants, params pre-check, coverage doc)",
+      "started_at": "2026-06-26",
+      "ended_at": "2026-06-26",
+      "assignee": "fixer+orchestrator",
+      "notes": "实现路径：(1) 给所有 services/ + commands/ 加 *_by_state(&AppState) helper，原 tauri::State 版本 delegate，避免双重实现。(2) actions/ 5 个 domain module + 1 个 mod.rs central dispatch，用 serde_json::Value 动态传参，serde_json::from_value 反序列化成 typed request。(3) commands/action.rs 2 个 IPC: list_actions / execute_action。(4) 前端 mirror action-registry.ts + useActions.ts hook（useActionList / useExecuteAction / useAction lookup）。18 actions total: 6 provider + 3 category + 1 quota + 3 system + 5 token_usage。execute_action 极简校验：只检查 required field 存在 + 类型 + 非 object params，schema 完整校验留 V0.2。新增 AppError::ActionValidation / ActionNotFound 变体 + 对应 IPC 错误码 ACTION_VALIDATION / ACTION_NOT_FOUND，前端 types/api.ts 同步更新。Coverage note 注释记录 3 个有意不暴露的 typed IPC（tray.pin/unpin + quota.set_manual）。Deepwork progress: .slim/deepwork/stage-10-action-registry.md。"
     },
     {
       "id": "stage-11",

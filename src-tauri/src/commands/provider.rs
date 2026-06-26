@@ -75,6 +75,13 @@ pub async fn test_connection(
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<(), AppError> {
+    test_connection_by_state(&state, id).await
+}
+
+pub async fn test_connection_by_state(
+    state: &AppState,
+    id: i64,
+) -> Result<(), AppError> {
     let db = state.db.clone();
 
     let join_result = tauri::async_runtime::spawn_blocking(move || {
@@ -126,6 +133,10 @@ pub async fn test_connection(
 pub async fn get_theme(
     state: tauri::State<'_, AppState>,
 ) -> Result<Theme, AppError> {
+    get_theme_by_state(&state).await
+}
+
+pub async fn get_theme_by_state(state: &AppState) -> Result<Theme, AppError> {
     let db = state.db.clone();
 
     let join_result = tauri::async_runtime::spawn_blocking(move || {
@@ -151,6 +162,10 @@ pub async fn set_theme(
     state: tauri::State<'_, AppState>,
     theme: Theme,
 ) -> Result<(), AppError> {
+    set_theme_by_state(&state, theme).await
+}
+
+pub async fn set_theme_by_state(state: &AppState, theme: Theme) -> Result<(), AppError> {
     let db = state.db.clone();
     let theme_str = theme.as_str().to_string();
 

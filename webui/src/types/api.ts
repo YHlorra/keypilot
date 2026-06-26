@@ -58,7 +58,7 @@ export interface QuotaSnapshot {
   reset_at?: number;                   // unix epoch seconds, optional
 }
 
-// === AppError (mirrors src-tauri/src/error.rs -- 11 codes) ===
+// === AppError (mirrors src-tauri/src/error.rs -- 15 codes) ===
 export type AppErrorCode =
   | 'DATABASE'
   | 'IO'
@@ -70,7 +70,12 @@ export type AppErrorCode =
   | 'CATEGORY_IS_DEFAULT'
   | 'PROVIDER_CANNOT_TEST'
   | 'PROVIDER_QUOTA_UNSUPPORTED'
-  | 'HTTP';
+  | 'HTTP'
+  | 'TOKEN_USAGE_INVALID_FORMAT'
+  | 'TOKEN_USAGE_DUPLICATE'
+  | 'TOKEN_USAGE_PRICING_NOT_FOUND'
+  | 'ACTION_VALIDATION'
+  | 'ACTION_NOT_FOUND';
 
 export interface AppError {
   code: AppErrorCode;                  // literal union for exhaustiveness checks

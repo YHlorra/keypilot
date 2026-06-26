@@ -19,6 +19,11 @@ use keypilot_lib::commands::provider::{
     list_categories, add_category, delete_category, test_connection, get_theme, set_theme,
 };
 use keypilot_lib::commands::quota::{fetch_quota, set_manual_quota, SetManualQuotaRequest};
+use keypilot_lib::commands::token_usage::{
+    record_usage, list_usage_records, get_usage_summary, import_usage, get_pricing,
+    RecordUsageRequest, ListUsageRecordsRequest, UsageFilterIpc, UsageRecordInputIpc,
+    TokenBreakdownIpc,
+};
 use keypilot_lib::types::{Theme, QuotaSnapshot, Visibility};
 use serde::de::DeserializeOwned;
 use tauri::State;
@@ -26,6 +31,7 @@ use tauri::State;
 fn build_test_state() -> AppState {
     let db = Database::open_in_memory().expect("Failed to open in-memory DB");
     db.setup_schema().expect("Failed to setup schema");
+    db.migrate().expect("Failed to migrate schema");
     db.seed_preset_providers().expect("Failed to seed presets");
     AppState::new(db)
 }
@@ -310,8 +316,366 @@ fn e2e_test_connection_does_not_panic() {
         let err_val = serde_json::to_value(&e).unwrap();
         assert!(
             err_val.get("code").is_some(),
-            "Expected AppError with code field, got {:?}",
-            err_val
+            "Expected AppError with code field, got {:?}", err_val
         );
     }
+}
+
+// ============== Stage C — Token Usage IPC E2E ==============
+
+#[test]
+fn e2e_record_usage_happy_path() {
+    let state = build_test_state();
+    let req = RecordUsageRequest {
+        req: UsageRecordInputIpc {
+            occurred_at: "2026-06-26T10:00:00Z".into(),
+            finished_at: None,
+            latency_ms: Some(1200),
+            provider: "openai".into(),
+            model: "gpt-4o".into(),
+            agent_type: Some("claude-code".into()),
+            user_id: None,
+            session_id: Some("sess-1".into()),
+            observation_type: None,
+            status: None,
+            error_code: None,
+            cache_hit: None,
+            usage_details: TokenBreakdownIpc {
+                input: Some(1000),
+                output: Some(500),
+                cache_read: Some(200),
+                cache_creation: None,
+                reasoning: None,
+            },
+            cost_details: None,
+            pricing_version: None,
+            messages: None,
+            response: None,
+            tags: None,
+        },
+    };
+    let response = call_ok("record_usage", block_on(record_usage(as_state(&state), req)));
+    assert!(!response.id.is_empty());
+    assert_eq!(response.provider, "openai");
+    assert_eq!(response.model, "gpt-4o");
+    assert_eq!(response.agent_type, "claude-code");
+    assert_eq!(response.total_tokens, 1700);
+}
+
+#[test]
+fn e2e_list_usage_records_pagination() {
+    let state = build_test_state();
+    // Insert 3 records
+    for i in 0..3u64 {
+        let req = RecordUsageRequest {
+            req: UsageRecordInputIpc {
+                occurred_at: format!("2026-06-26T10:0{}:00Z", i),
+                finished_at: None,
+                latency_ms: None,
+                provider: "openai".into(),
+                model: "gpt-4o".into(),
+                agent_type: Some("claude-code".into()),
+                user_id: None,
+                session_id: None,
+                observation_type: None,
+                status: None,
+                error_code: None,
+                cache_hit: None,
+                usage_details: TokenBreakdownIpc {
+                    input: Some(100),
+                    output: Some(50),
+                    cache_read: None,
+                    cache_creation: None,
+                    reasoning: None,
+                },
+                cost_details: None,
+                pricing_version: None,
+                messages: None,
+                response: None,
+                tags: None,
+            },
+        };
+        let rec = call_ok("record_usage", block_on(record_usage(as_state(&state), req)));
+        assert!(!rec.id.is_empty());
+    }
+
+    let list_req = ListUsageRecordsRequest {
+        filter: UsageFilterIpc::default(),
+        page: 1,
+        per_page: 10,
+    };
+    let response = call_ok("list_usage_records", block_on(list_usage_records(as_state(&state), list_req)));
+    assert_eq!(response.total, 3);
+    assert_eq!(response.page, 1);
+    assert_eq!(response.per_page, 10);
+    assert_eq!(response.items.len(), 3);
+}
+
+#[test]
+fn e2e_get_usage_summary_aggregates() {
+    let state = build_test_state();
+    let req = RecordUsageRequest {
+        req: UsageRecordInputIpc {
+            occurred_at: "2026-06-26T10:00:00Z".into(),
+            finished_at: None,
+            latency_ms: None,
+            provider: "openai".into(),
+            model: "gpt-4o".into(),
+            agent_type: Some("claude-code".into()),
+            user_id: None,
+            session_id: None,
+            observation_type: None,
+            status: None,
+            error_code: None,
+            cache_hit: None,
+            usage_details: TokenBreakdownIpc {
+                input: Some(1000),
+                output: Some(500),
+                cache_read: None,
+                cache_creation: None,
+                reasoning: None,
+            },
+            cost_details: None,
+            pricing_version: None,
+            messages: None,
+            response: None,
+            tags: None,
+        },
+    };
+    let rec = call_ok("record_usage", block_on(record_usage(as_state(&state), req)));
+    assert!(!rec.id.is_empty());
+
+    let summary = call_ok("get_usage_summary", block_on(get_usage_summary(as_state(&state), UsageFilterIpc::default())));
+    assert_eq!(summary.total_requests, 1);
+    assert_eq!(summary.total_tokens, 1500);
+    assert_eq!(summary.agent_pairs.len(), 1);
+    assert_eq!(summary.agent_pairs[0].agent_type, "claude-code");
+    assert_eq!(summary.agent_pairs[0].model, "gpt-4o");
+    assert_eq!(summary.agent_pairs[0].provider, "openai");
+}
+
+#[test]
+fn e2e_import_usage_jsonl_dedup() {
+    let state = build_test_state();
+    let jsonl = r#"{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000,"usage":{"input_tokens":100,"output_tokens":50}}
+{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000,"usage":{"input_tokens":100,"output_tokens":50}}
+"#;
+    let result = call_ok("import_usage", block_on(import_usage(as_state(&state), jsonl.into(), "jsonl".into(), None)));
+    assert_eq!(result.imported, 1);
+    assert_eq!(result.skipped, 1);
+    assert!(result.errors.is_empty());
+}
+
+#[test]
+fn e2e_get_pricing_returns_entries() {
+    let state = build_test_state();
+    let entries = call_ok("get_pricing", block_on(get_pricing(as_state(&state))));
+    assert!(!entries.is_empty(), "Expected pricing entries");
+    let gpt4o = entries.iter().find(|e| e.model == "gpt-4o");
+    assert!(gpt4o.is_some(), "Expected gpt-4o in pricing table");
+    let entry = gpt4o.unwrap();
+    assert!(entry.input_cost_per_token > 0.0);
+    assert!(entry.output_cost_per_token > 0.0);
+}
+
+// === Action Registry e2e tests (Stage 10) ===
+
+use keypilot_lib::actions::{self, ActionDef};
+use keypilot_lib::commands::action::{list_actions, execute_action, ExecuteActionRequest};
+use serde_json::json;
+
+#[test]
+fn e2e_list_actions_returns_all_registered() {
+    let actions: Vec<ActionDef> = list_actions();
+    // 6 provider + 3 category + 1 quota + 3 system + 5 token_usage = 18 actions
+    assert!(actions.len() >= 18, "Expected >= 18 actions, got {}", actions.len());
+
+    // Verify each action has the required fields
+    for a in &actions {
+        assert!(!a.id.is_empty());
+        assert!(!a.name.is_empty());
+        assert!(!a.description.is_empty());
+        assert!(!a.category.is_empty());
+        assert!(a.input_schema.is_object());
+        assert!(a.output_schema.is_object() || a.output_schema.is_array());
+    }
+
+    // Spot-check specific actions exist
+    let ids: Vec<&str> = actions.iter().map(|a| a.id.as_str()).collect();
+    assert!(ids.contains(&"provider.list"));
+    assert!(ids.contains(&"provider.add"));
+    assert!(ids.contains(&"category.list"));
+    assert!(ids.contains(&"quota.fetch"));
+    assert!(ids.contains(&"system.get_theme"));
+    assert!(ids.contains(&"token_usage.record"));
+    assert!(ids.contains(&"token_usage.summary"));
+    assert!(ids.contains(&"token_usage.pricing"));
+}
+
+#[test]
+fn e2e_execute_action_category_list() {
+    let state = build_test_state();
+    let req = ExecuteActionRequest {
+        action_id: "category.list".into(),
+        params: Some(json!({})),
+    };
+    let result = call_ok("execute_action category.list", block_on(execute_action(as_state(&state), req)));
+    // Default category seed: 1 category
+    let arr = result.as_array().expect("Expected array result");
+    assert!(!arr.is_empty(), "Expected at least 1 category");
+}
+
+#[test]
+fn e2e_execute_action_provider_list() {
+    let state = build_test_state();
+    let req = ExecuteActionRequest {
+        action_id: "provider.list".into(),
+        params: Some(json!({})),
+    };
+    let result = call_ok("execute_action provider.list", block_on(execute_action(as_state(&state), req)));
+    let arr = result.as_array().expect("Expected array result");
+    assert!(arr.len() >= 5, "Expected >= 5 preset providers, got {}", arr.len());
+}
+
+#[test]
+fn e2e_execute_action_unknown_returns_error() {
+    let state = build_test_state();
+    let req = ExecuteActionRequest {
+        action_id: "nonexistent.action".into(),
+        params: Some(json!({})),
+    };
+    let result = block_on(execute_action(as_state(&state), req));
+    assert!(result.is_err(), "Expected error for unknown action");
+    let err = result.unwrap_err();
+    let msg = format!("{:?}", err);
+    assert!(msg.contains("ActionNotFound"), "Expected ActionNotFound variant, got: {}", msg);
+    assert!(msg.contains("nonexistent.action"), "Expected action id in error, got: {}", msg);
+}
+
+#[test]
+fn e2e_execute_action_missing_required_field_returns_error() {
+    let state = build_test_state();
+    // provider.get requires "id" field
+    let req = ExecuteActionRequest {
+        action_id: "provider.get".into(),
+        params: Some(json!({})),
+    };
+    let result = block_on(execute_action(as_state(&state), req));
+    assert!(result.is_err(), "Expected error for missing required field");
+    let err = result.unwrap_err();
+    let json = serde_json::to_value(&err).expect("Failed to serialize error");
+    assert_eq!(
+        json.get("code").and_then(|v| v.as_str()),
+        Some("ACTION_VALIDATION"),
+        "Expected ACTION_VALIDATION code, got: {}",
+        json
+    );
+}
+
+#[test]
+fn e2e_execute_action_wrong_field_type_returns_error() {
+    let state = build_test_state();
+    // provider.get expects "id" as integer; pass as string
+    let req = ExecuteActionRequest {
+        action_id: "provider.get".into(),
+        params: Some(json!({ "id": "not-an-int" })),
+    };
+    let result = block_on(execute_action(as_state(&state), req));
+    assert!(result.is_err(), "Expected error for wrong field type");
+    let err = result.unwrap_err();
+    let json = serde_json::to_value(&err).expect("Failed to serialize error");
+    // serde fails to deserialize "not-an-int" as i64 → SERDE code
+    let code = json.get("code").and_then(|v| v.as_str());
+    assert!(
+        code == Some("SERDE") || code == Some("ACTION_VALIDATION"),
+        "Expected SERDE or ACTION_VALIDATION code, got: {}",
+        json
+    );
+}
+
+#[test]
+fn e2e_execute_action_non_object_params_returns_error() {
+    let state = build_test_state();
+    // params must be a JSON object (or null), not a string/number/array
+    let req = ExecuteActionRequest {
+        action_id: "provider.list".into(),
+        params: Some(json!("not-an-object")),
+    };
+    let result = block_on(execute_action(as_state(&state), req));
+    assert!(result.is_err(), "Expected error for non-object params");
+    let err = result.unwrap_err();
+    let json = serde_json::to_value(&err).expect("Failed to serialize error");
+    assert_eq!(
+        json.get("code").and_then(|v| v.as_str()),
+        Some("ACTION_VALIDATION"),
+        "Expected ACTION_VALIDATION code, got: {}",
+        json
+    );
+}
+
+#[test]
+fn e2e_execute_action_unknown_returns_action_not_found() {
+    let state = build_test_state();
+    let req = ExecuteActionRequest {
+        action_id: "nonexistent.action".into(),
+        params: Some(json!({})),
+    };
+    let result = block_on(execute_action(as_state(&state), req));
+    assert!(result.is_err(), "Expected error for unknown action");
+    let err = result.unwrap_err();
+    // Serialize the error to JSON to verify the code field is set correctly.
+    let json = serde_json::to_value(&err).expect("Failed to serialize error");
+    assert_eq!(
+        json.get("code").and_then(|v| v.as_str()),
+        Some("ACTION_NOT_FOUND"),
+        "Expected ACTION_NOT_FOUND code, got: {}",
+        json
+    );
+}
+
+#[test]
+fn e2e_execute_action_token_usage_pricing() {
+    let state = build_test_state();
+    let req = ExecuteActionRequest {
+        action_id: "token_usage.pricing".into(),
+        params: Some(json!({})),
+    };
+    let result = call_ok("execute_action token_usage.pricing", block_on(execute_action(as_state(&state), req)));
+    let arr = result.as_array().expect("Expected array result");
+    assert!(!arr.is_empty(), "Expected pricing entries");
+}
+
+#[test]
+fn e2e_execute_action_token_usage_record() {
+    let state = build_test_state();
+    let req = ExecuteActionRequest {
+        action_id: "token_usage.record".into(),
+        params: Some(json!({
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "provider": "openai",
+            "model": "gpt-4o",
+            "agent_type": "claude-code",
+            "usage_details": {
+                "input": 100,
+                "output": 50
+            }
+        })),
+    };
+    let result = call_ok("execute_action token_usage.record", block_on(execute_action(as_state(&state), req)));
+    assert!(result.get("id").is_some(), "Expected id in result");
+    assert_eq!(result.get("provider").and_then(|v| v.as_str()), Some("openai"));
+    assert_eq!(result.get("model").and_then(|v| v.as_str()), Some("gpt-4o"));
+}
+
+#[test]
+fn e2e_dispatch_consistency_with_all_actions() {
+    // all_actions() from the module and list_actions() IPC should return the same set.
+    let from_module = actions::all_actions();
+    let from_ipc = list_actions();
+    assert_eq!(from_module.len(), from_ipc.len());
+    let mut module_ids: Vec<String> = from_module.iter().map(|a| a.id.clone()).collect();
+    let mut ipc_ids: Vec<String> = from_ipc.iter().map(|a| a.id.clone()).collect();
+    module_ids.sort();
+    ipc_ids.sort();
+    assert_eq!(module_ids, ipc_ids);
 }

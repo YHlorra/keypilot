@@ -316,21 +316,22 @@ impl TokenUsageService {
             .map_err(AppError::Database)?;
 
         let mut pair_stmt = conn.prepare(&format!(
-            "SELECT agent_type, model, SUM(request_count), SUM(input_tokens), SUM(output_tokens),
+            "SELECT agent_type, model, provider, SUM(request_count), SUM(input_tokens), SUM(output_tokens),
              SUM(total_tokens), SUM(total_cost)
              FROM daily_agent_model_usage{date_clause}
-             GROUP BY agent_type, model ORDER BY SUM(total_tokens) DESC LIMIT 10"
+             GROUP BY agent_type, model, provider ORDER BY SUM(total_tokens) DESC LIMIT 10"
         )).map_err(AppError::Database)?;
         let pair_rows = pair_stmt
             .query_map(rusqlite::params_from_iter(date_params.iter()), |row| {
                 Ok(UsageSummaryAgentPair {
                     agent_type: row.get(0)?,
                     model: row.get(1)?,
-                    request_count: row.get::<_, i64>(2)?,
-                    input_tokens: row.get::<_, i64>(3)?,
-                    output_tokens: row.get::<_, i64>(4)?,
-                    total_tokens: row.get::<_, i64>(5)?,
-                    total_cost: row.get::<_, f64>(6)?,
+                    provider: row.get(2)?,
+                    request_count: row.get::<_, i64>(3)?,
+                    input_tokens: row.get::<_, i64>(4)?,
+                    output_tokens: row.get::<_, i64>(5)?,
+                    total_tokens: row.get::<_, i64>(6)?,
+                    total_cost: row.get::<_, f64>(7)?,
                 })
             })
             .map_err(AppError::Database)?

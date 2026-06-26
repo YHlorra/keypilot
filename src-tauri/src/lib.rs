@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod database;
 pub mod error;
 pub mod store;
@@ -80,6 +81,14 @@ pub fn run() {
     commands::tray::pin_provider,
     commands::tray::unpin_provider,
     commands::tray::quit_app,
+    commands::token_usage::record_usage,
+    commands::token_usage::list_usage_records,
+    commands::token_usage::get_usage_summary,
+    commands::token_usage::import_usage,
+    commands::token_usage::get_pricing,
+    // Action Registry (Stage 10)
+    commands::action::list_actions,
+    commands::action::execute_action,
 ])
         .run(tauri::generate_context!())
         .expect("failed to run tauri app");

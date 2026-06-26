@@ -26,6 +26,10 @@ fn row_to_category(row: &rusqlite::Row) -> Result<Category, rusqlite::Error> {
 }
 
 pub async fn list_categories(state: tauri::State<'_, AppState>) -> Result<Vec<Category>, AppError> {
+    list_categories_by_state(&state).await
+}
+
+pub async fn list_categories_by_state(state: &AppState) -> Result<Vec<Category>, AppError> {
     let db = state.db.clone();
     let categories = tauri::async_runtime::spawn_blocking(move || {
         let guard = db.lock().unwrap();
@@ -44,6 +48,10 @@ pub async fn add_category(
     state: tauri::State<'_, AppState>,
     req: AddCategoryRequest,
 ) -> Result<Category, AppError> {
+    add_category_by_state(&state, req).await
+}
+
+pub async fn add_category_by_state(state: &AppState, req: AddCategoryRequest) -> Result<Category, AppError> {
     let db = state.db.clone();
     let now = chrono::Utc::now().timestamp();
 
@@ -73,6 +81,10 @@ pub async fn delete_category(
     state: tauri::State<'_, AppState>,
     req: DeleteCategoryRequest,
 ) -> Result<(), AppError> {
+    delete_category_by_state(&state, req).await
+}
+
+pub async fn delete_category_by_state(state: &AppState, req: DeleteCategoryRequest) -> Result<(), AppError> {
     let db = state.db.clone();
 
     tauri::async_runtime::spawn_blocking(move || {
