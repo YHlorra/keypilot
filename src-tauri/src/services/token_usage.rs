@@ -185,22 +185,7 @@ impl TokenUsageService {
                 input.cache_read_input_tokens,
                 input.cache_creation_input_tokens,
                 input.reasoning_tokens,
-            );
-
-        let (total_cost, cost_details) = match cost {
-            Ok(c) => (
-                c,
-                Some(serde_json::json!({
-                    "currency": "USD",
-                    "total": c,
-                }).to_string()),
-            ),
-            Err(AppError::TokenUsagePricingNotFound(model)) => (
-                0.0,
-                Some(serde_json::json!({ "currency": "USD", "total": 0.0, "pricing_missing_for": model }).to_string()),
-            ),
-            Err(e) => return Err(e),
-        };
+            )?;
 
         let total_tokens = input.input_tokens
             + input.output_tokens
@@ -209,12 +194,20 @@ impl TokenUsageService {
             + input.reasoning_tokens;
 
         let usage_details_json = input.usage_details.clone().unwrap_or_else(|| "{}".into());
-        let prompt_cost = if input.input_tokens > 0 && total_cost > 0.0 {
-            total_cost * (input.input_tokens as f64 / (input.input_tokens + input.output_tokens).max(1) as f64)
-        } else {
-            0.0
-        };
-        let completion_cost = total_cost - prompt_cost;
+
+        let mut cost_json = serde_json::json!({
+            "currency": cost.currency,
+            "input": cost.input_cost,
+            "output": cost.output_cost,
+            "cache_read": cost.cache_read_cost,
+            "cache_creation": cost.cache_creation_cost,
+            "reasoning": cost.reasoning_cost,
+            "total": cost.total_cost,
+        });
+        if let Some(missing) = cost.pricing_missing_for.as_ref() {
+            cost_json["pricing_missing_for"] = serde_json::Value::String(missing.clone());
+        }
+        let cost_details = Some(cost_json.to_string());
 
         let record = TokenUsageRecord {
             id: id.to_string(),
@@ -233,13 +226,13 @@ impl TokenUsageService {
             cache_read_input_tokens: input.cache_read_input_tokens,
             cache_creation_input_tokens: input.cache_creation_input_tokens,
             reasoning_tokens: input.reasoning_tokens,
-            prompt_cost,
-            completion_cost,
-            cache_read_cost: 0.0,
-            cache_creation_cost: 0.0,
-            reasoning_cost: 0.0,
-            total_cost,
-            currency: "USD".into(),
+            prompt_cost: cost.input_cost,
+            completion_cost: cost.output_cost,
+            cache_read_cost: cost.cache_read_cost,
+            cache_creation_cost: cost.cache_creation_cost,
+            reasoning_cost: cost.reasoning_cost,
+            total_cost: cost.total_cost,
+            currency: cost.currency.clone(),
             pricing_version: Some(self.pricing.version().to_string()),
             usage_details: Some(usage_details_json),
             cost_details,
@@ -720,11 +713,27 @@ mod tests {
     #[test]
     fn cost_calculation_known_model() {
         let svc = make_service();
-        // gpt-4o: input $2.50/1M, output $10.00/1M
+        // gpt-4o: input $2.50/1M, output $10.00/1M, cache_read $1.25/1M, cache_creation $2.50/1M
         let input = make_input("gpt-4o", 1_000_000, 1_000_000, 1700000000);
         let rec = svc.record_usage("rec-cost", input).unwrap();
         // expected: 2.50 + 10.00 = 12.50
         assert!((rec.total_cost - 12.50).abs() < 0.001);
+        assert!((rec.prompt_cost - 2.50).abs() < 0.001);
+        assert!((rec.completion_cost - 10.00).abs() < 0.001);
+        assert!((rec.cache_read_cost - 0.0).abs() < 0.001);
+        assert!((rec.cache_creation_cost - 0.0).abs() < 0.001);
+        assert!((rec.reasoning_cost - 0.0).abs() < 0.001);
+        // cost_details JSON has all 5 dimensions + currency + total
+        let details: serde_json::Value =
+            serde_json::from_str(&rec.cost_details.unwrap()).unwrap();
+        assert_eq!(details["currency"], "USD");
+        assert_eq!(details["input"], 2.50);
+        assert_eq!(details["output"], 10.00);
+        assert_eq!(details["cache_read"], 0.0);
+        assert_eq!(details["cache_creation"], 0.0);
+        assert_eq!(details["reasoning"], 0.0);
+        assert_eq!(details["total"], 12.50);
+        assert!(details.get("pricing_missing_for").is_none());
     }
 
     #[test]
@@ -732,9 +741,52 @@ mod tests {
         let svc = make_service();
         let input = make_input("unknown-model-xyz", 1000, 500, 1700000000);
         let rec = svc.record_usage("rec-unknown", input).unwrap();
-        // total_cost should be 0 when pricing missing, but cost_details still emitted
+        // All per-dim costs 0, total 0, cost_details still emitted with pricing_missing_for
+        assert_eq!(rec.prompt_cost, 0.0);
+        assert_eq!(rec.completion_cost, 0.0);
+        assert_eq!(rec.cache_read_cost, 0.0);
+        assert_eq!(rec.cache_creation_cost, 0.0);
+        assert_eq!(rec.reasoning_cost, 0.0);
         assert_eq!(rec.total_cost, 0.0);
-        assert!(rec.cost_details.unwrap().contains("pricing_missing_for"));
+        let details: serde_json::Value =
+            serde_json::from_str(&rec.cost_details.unwrap()).unwrap();
+        assert_eq!(details["pricing_missing_for"], "unknown-model-xyz");
+        assert_eq!(details["input"], 0.0);
+        assert_eq!(details["total"], 0.0);
+    }
+
+    #[test]
+    fn cost_calculation_with_cache_read() {
+        let svc = make_service();
+        // gpt-4o: cache_read $1.25/1M; 1M cache_read tokens = $1.25
+        let mut input = make_input("gpt-4o", 0, 0, 1700000000);
+        input.cache_read_input_tokens = 1_000_000;
+        let rec = svc.record_usage("rec-cache-read", input).unwrap();
+        assert!((rec.cache_read_cost - 1.25).abs() < 0.001);
+        assert!((rec.total_cost - 1.25).abs() < 0.001);
+        assert_eq!(rec.prompt_cost, 0.0);
+        assert_eq!(rec.completion_cost, 0.0);
+        assert_eq!(rec.cache_creation_cost, 0.0);
+        let details: serde_json::Value =
+            serde_json::from_str(&rec.cost_details.unwrap()).unwrap();
+        assert_eq!(details["cache_read"], 1.25);
+        assert_eq!(details["total"], 1.25);
+    }
+
+    #[test]
+    fn cost_calculation_with_cache_creation() {
+        let svc = make_service();
+        // gpt-4o: cache_creation $2.50/1M; 1M cache_creation tokens = $2.50
+        let mut input = make_input("gpt-4o", 0, 0, 1700000000);
+        input.cache_creation_input_tokens = 1_000_000;
+        let rec = svc.record_usage("rec-cache-create", input).unwrap();
+        assert!((rec.cache_creation_cost - 2.50).abs() < 0.001);
+        assert!((rec.total_cost - 2.50).abs() < 0.001);
+        assert_eq!(rec.cache_read_cost, 0.0);
+        let details: serde_json::Value =
+            serde_json::from_str(&rec.cost_details.unwrap()).unwrap();
+        assert_eq!(details["cache_creation"], 2.50);
+        assert_eq!(details["total"], 2.50);
     }
 
     #[test]
