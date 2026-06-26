@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use crate::types::{PricingEntry, TokenCounts};
+use crate::types::{PricingEntry, TokenCounts, TokenUsageCostBreakdown};
 use crate::error::AppError;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -65,17 +65,50 @@ impl PricingService {
         cache_read_tokens: i64,
         cache_creation_tokens: i64,
         reasoning_tokens: i64,
-    ) -> Result<f64, AppError> {
-        let entry = self.lookup(model).ok_or_else(|| {
-            AppError::TokenUsagePricingNotFound(model.to_string())
-        })?;
-        let counts = TokenCounts {
-            input: input_tokens,
-            output: output_tokens,
-            cache_read: cache_read_tokens,
-            cache_creation: cache_creation_tokens,
-            reasoning: reasoning_tokens,
+    ) -> Result<TokenUsageCostBreakdown, AppError> {
+        let Some(entry) = self.lookup(model) else {
+            return Ok(TokenUsageCostBreakdown {
+                input_cost: 0.0,
+                output_cost: 0.0,
+                cache_read_cost: 0.0,
+                cache_creation_cost: 0.0,
+                reasoning_cost: 0.0,
+                total_cost: 0.0,
+                currency: "USD".into(),
+                pricing_missing_for: Some(model.to_string()),
+            });
         };
-        Ok(self.calculate_cost(&entry, &counts))
+        let input_cost = entry
+            .input_price_per_1m
+            .map(|r| r * input_tokens as f64 / 1_000_000.0)
+            .unwrap_or(0.0);
+        let output_cost = entry
+            .output_price_per_1m
+            .map(|r| r * output_tokens as f64 / 1_000_000.0)
+            .unwrap_or(0.0);
+        let cache_read_cost = entry
+            .cache_read_price_per_1m
+            .map(|r| r * cache_read_tokens as f64 / 1_000_000.0)
+            .unwrap_or(0.0);
+        let cache_creation_cost = entry
+            .cache_creation_price_per_1m
+            .map(|r| r * cache_creation_tokens as f64 / 1_000_000.0)
+            .unwrap_or(0.0);
+        let reasoning_cost = entry
+            .reasoning_price_per_1m
+            .map(|r| r * reasoning_tokens as f64 / 1_000_000.0)
+            .unwrap_or(0.0);
+        let total_cost =
+            input_cost + output_cost + cache_read_cost + cache_creation_cost + reasoning_cost;
+        Ok(TokenUsageCostBreakdown {
+            input_cost,
+            output_cost,
+            cache_read_cost,
+            cache_creation_cost,
+            reasoning_cost,
+            total_cost,
+            currency: "USD".into(),
+            pricing_missing_for: None,
+        })
     }
 }

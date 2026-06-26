@@ -192,6 +192,24 @@ pub struct TokenCounts {
     pub reasoning: i64,
 }
 
+/// Per-dimension USD cost breakdown for a single usage record.
+/// Returned by `PricingService::calculate_token_usage_cost` and consumed
+/// by `TokenUsageService::record_usage` to populate the 5 cost fields on
+/// `TokenUsageRecord` plus the `cost_details` JSON.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenUsageCostBreakdown {
+    pub input_cost: f64,
+    pub output_cost: f64,
+    pub cache_read_cost: f64,
+    pub cache_creation_cost: f64,
+    pub reasoning_cost: f64,
+    pub total_cost: f64,
+    pub currency: String,
+    /// Set to `Some(model)` when the model is not in pricing.json.
+    /// All numeric fields are 0 in that case.
+    pub pricing_missing_for: Option<String>,
+}
+
 // --- TokenUsageService (Stage B) DTOs ---
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
