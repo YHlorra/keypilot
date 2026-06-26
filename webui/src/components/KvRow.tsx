@@ -100,7 +100,7 @@ export const KvRow = React.memo(function KvRow({ field, onUpdate, onDelete }: Kv
             className="w-full h-8 px-2 rounded border border-input bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
           />
         ) : (
-          <span className="text-sm font-mono text-foreground">{field.key}</span>
+          <span className="text-sm font-mono" style={{ color: "var(--color-primary)" }}>{field.key}</span>
         )}
       </div>
 
@@ -158,7 +158,7 @@ export const KvRow = React.memo(function KvRow({ field, onUpdate, onDelete }: Kv
               className="p-1 rounded hover:bg-accent"
               title="编辑"
             >
-              <span className="text-xs">✏️</span>
+              <Icon name="pencil" className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"

@@ -1,42 +1,41 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: ["class"],
+  darkMode: ["selector", "[data-theme='dark']"],
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
-      // AGENTS.md §3.4: shadcn tokens MUST override to Radix Colors (not Tailwind defaults)
-      colors: {
-        // Chrome (Radix gray + iris accent)
-        background: "var(--color-background)",
-        foreground: "var(--color-foreground)",
-        card: "var(--color-card)",
-        cardForeground: "var(--color-card-foreground)",
-        popover: "var(--color-popover)",
-        popoverForeground: "var(--color-popover-foreground)",
-        primary: "var(--color-primary)",
-        primaryForeground: "var(--color-primary-foreground)",
-        secondary: "var(--color-secondary)",
-        secondaryForeground: "var(--color-secondary-foreground)",
-        muted: "var(--color-muted)",
-        mutedForeground: "var(--color-muted-foreground)",
-        accent: "var(--color-accent)",
-        accentForeground: "var(--color-accent-foreground)",
-        destructive: "var(--color-destructive)",
-        destructiveForeground: "var(--color-destructive-foreground)",
-        border: "var(--color-border)",
-        input: "var(--color-input)",
-        ring: "var(--color-ring)",
-        // Status colors (Radix grass / amber / red / ruby)
-        success: "var(--color-success)",
-        warning: "var(--color-warning)",
-        danger: "var(--color-danger)",
-        critical: "var(--color-critical)",
+      fontFamily: {
+        serif: ["var(--font-serif)"],
+        sans: ["var(--font-sans)"],
+        mono: ["var(--font-mono)"],
+      },
+      spacing: {
+        "space-xs": "var(--spacing-xs)",
+        "space-sm": "var(--spacing-sm)",
+        "space-md": "var(--spacing-md)",
+        "space-lg": "var(--spacing-lg)",
+        "space-xl": "var(--spacing-xl)",
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        sm: "var(--radius-sm)",
+        pill: "var(--radius-pill)",
+      },
+      colors: {
+        // Kaku tokens (shadcn naming retained, values switched)
+        background: "var(--color-background)",
+        foreground: "var(--color-foreground)",
+        card: "var(--color-surface)",
+        cardForeground: "var(--color-on-surface)",
+        primary: "var(--color-primary)",
+        primaryForeground: "var(--color-secondary)",
+        border: "var(--color-border)",
+        ring: "var(--color-primary)",
+        // new Kaku tokens
+        link: "var(--color-link)",
+        success: "var(--color-success)",
+        muted: "var(--color-muted)",
+        "muted-foreground": "var(--color-muted-foreground)",
       },
     },
   },

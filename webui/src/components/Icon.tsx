@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createContext, useContext, useState, useCallback } from "react";
-import { Eye, EyeOff, Copy, Trash2, Plus, RefreshCw, Check, X, Loader2, Search } from "lucide-react";
+import { Eye, EyeOff, Copy, Trash2, Plus, RefreshCw, Check, X, Loader2, Search, Pencil, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Provider preset colors (Option A: teal/indigo/orange/gray/cyan)
@@ -38,6 +38,8 @@ export const Icon = React.memo(function Icon({ name, className, color }: IconPro
     x: <X className={cn("w-4 h-4", className)} style={{ color }} />,
     loader: <Loader2 className={cn("w-4 h-4 animate-spin", className)} style={{ color }} />,
     search: <Search className={cn("w-4 h-4", className)} style={{ color }} />,
+    pencil: <Pencil className={cn("w-4 h-4", className)} style={{ color }} />,
+    keyRound: <KeyRound className={cn("w-4 h-4", className)} style={{ color }} />,
   };
 
   return <>{iconMap[name] || null}</>;
