@@ -1,9 +1,9 @@
 use crate::error::AppError;
 use crate::store::AppState;
 use crate::types::{Provider, ProviderField, Visibility};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AddProviderRequest {
     pub name: String,
     pub preset: Option<String>,
@@ -15,7 +15,7 @@ pub struct AddProviderRequest {
     pub fields: Option<Vec<AddProviderFieldRequest>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AddProviderFieldRequest {
     pub key: String,
     pub value: String,
@@ -23,7 +23,7 @@ pub struct AddProviderFieldRequest {
     pub sort_index: i64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateProviderRequest {
     pub id: i64,
     pub name: Option<String>,
@@ -35,7 +35,7 @@ pub struct UpdateProviderRequest {
     pub fields: Option<Vec<UpdateProviderFieldRequest>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateProviderFieldRequest {
     pub key: String,
     pub value: String,
@@ -189,10 +189,15 @@ pub async fn update_provider(
     let now = chrono::Utc::now().timestamp();
 
     let provider = tauri::async_runtime::spawn_blocking(move || {
-        let guard = db.lock().unwrap();
+        let mut guard = db.lock().unwrap();
+
+        // Wrap all writes in a transaction so a failure between the fields
+        // DELETE and the new INSERTs rolls back instead of leaving the
+        // provider with zero fields. Read-back happens after commit.
+        let tx = guard.conn.transaction()?;
 
         // Check provider exists
-        let exists: bool = guard.conn.query_row(
+        let exists: bool = tx.query_row(
             "SELECT 1 FROM providers WHERE id = ?1",
             [req.id],
             |_| Ok(true),
@@ -239,20 +244,20 @@ pub async fn update_provider(
                 "UPDATE providers SET {} WHERE id = ?",
                 updates.join(", ")
             );
-            guard.conn.execute(&sql, rusqlite::params_from_iter(params.iter()))?;
+            tx.execute(&sql, rusqlite::params_from_iter(params.iter()))?;
         }
 
         // Replace all fields if provided
         if let Some(fields) = &req.fields {
             // Delete existing fields
-            guard.conn.execute(
+            tx.execute(
                 "DELETE FROM provider_fields WHERE provider_id = ?1",
                 [req.id],
             )?;
 
             // Insert new fields
             for field in fields {
-                guard.conn.execute(
+                tx.execute(
                     "INSERT INTO provider_fields (provider_id, key, value, visibility, sort_index,
                                                   created_at, updated_at)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
@@ -268,6 +273,9 @@ pub async fn update_provider(
             }
         }
 
+        tx.commit()?;
+
+        // Read-back outside the transaction (SELECTs only).
         let mut stmt = guard.conn.prepare(
             "SELECT id, name, preset, is_preset, category_id, pinned, notes, icon, icon_color,
                     sort_index, created_at, updated_at FROM providers WHERE id = ?1"

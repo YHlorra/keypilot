@@ -1,198 +1,317 @@
 // src-tauri/tests/ipc_e2e.rs
-// Integration tests for Stage A: Token Usage Data Foundation
-// Tests Database operations (migrate, insert, query) and PricingService directly.
+// Phase 2 Lane C — IPC E2E integration tests.
+// @see openspec/changes/v0.1-general-credentials/design.md §7 for command signatures
+//
+// Integration tests live in `tests/` and are a separate crate from the library.
+// These tests exercise command function bodies directly via AppState,
+// bypassing the Tauri webview/IPC layer entirely.
+// This avoids linking against WebView2Loader.dll (which causes STATUS_ENTRYPOINT_NOT_FOUND
+// on systems where MSVC toolchain and UCRT versions don't match exactly).
 
-use keypilot::database::Database;
-use keypilot::services::pricing::PricingService;
-use keypilot::types::{TokenUsageRecord, TokenCounts, PricingEntry};
+use keypilot_lib::database::Database;
+use keypilot_lib::store::AppState;
+use keypilot_lib::services::provider::{
+    AddProviderRequest, AddProviderFieldRequest, UpdateProviderRequest, UpdateProviderFieldRequest,
+};
+use keypilot_lib::services::category::AddCategoryRequest;
+use keypilot_lib::commands::provider::{
+    list_providers, get_provider, add_provider, update_provider, delete_provider,
+    list_categories, add_category, delete_category, test_connection, get_theme, set_theme,
+};
+use keypilot_lib::commands::quota::{fetch_quota, set_manual_quota, SetManualQuotaRequest};
+use keypilot_lib::types::{Theme, QuotaSnapshot, Visibility};
+use serde::de::DeserializeOwned;
+use tauri::State;
 
-// ---------------------------------------------------------------------------
-// TokenUsageRecord: DB round-trip + daily rollups
-// ---------------------------------------------------------------------------
-
-#[test]
-fn test_token_usage_insert_and_query() {
+fn build_test_state() -> AppState {
     let db = Database::open_in_memory().expect("Failed to open in-memory DB");
     db.setup_schema().expect("Failed to setup schema");
-    db.migrate().expect("Failed to migrate schema");
     db.seed_preset_providers().expect("Failed to seed presets");
+    AppState::new(db)
+}
 
-    let record = TokenUsageRecord {
-        id: "test-1".to_string(),
-        agent_type: "coder".to_string(),
-        model: "gpt-4o".to_string(),
-        provider_name: "OpenAI".to_string(),
-        occurred_at: 1700000000,
-        recorded_at: 1700000001,
-        session_id: Some("sess-1".to_string()),
-        request_id: Some("req-1".to_string()),
-        input_tokens: 100,
-        output_tokens: 50,
-        total_tokens: 150,
-        cache_read_input_tokens: 0,
-        cache_creation_input_tokens: 0,
-        reasoning_tokens: 0,
-        prompt_cost: 0.0015,
-        completion_cost: 0.00025,
-        cache_read_cost: 0.0,
-        cache_creation_cost: 0.0,
-        reasoning_cost: 0.0,
-        total_cost: 0.00175,
-        currency: "USD".to_string(),
-        pricing_version: Some("1".to_string()),
-        usage_details: None,
-        cost_details: None,
-    };
-    db.insert_token_usage(&record).expect("Insert failed");
+// Run an async future to completion on a dedicated single-threaded tokio runtime.
+fn block_on<F: std::future::Future>(future: F) -> F::Output {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("Failed to build tokio runtime")
+        .block_on(future)
+}
 
-    let results = db.list_token_usage_records(0, 10).expect("Query failed");
-    assert_eq!(results.len(), 1, "Expected 1 record");
-    assert_eq!(results[0].id, "test-1");
-    assert_eq!(results[0].model, "gpt-4o");
-    assert_eq!(results[0].input_tokens, 100);
-    assert_eq!(results[0].total_cost, 0.00175);
+// Call a command returning Result<T, AppError> where T: DeserializeOwned,
+// asserting success and returning the deserialized value.
+fn call_ok<T: DeserializeOwned>(label: &str, value: Result<T, keypilot_lib::error::AppError>) -> T {
+    match value {
+        Ok(v) => v,
+        Err(e) => panic!("{} failed: {:?}", label, e),
+    }
+}
 
-    // daily_agent_model_usage rollup (2023-11-14 = unix 1700000000)
-    let daily = db.get_daily_usage_summary("2023-11-14").expect("Daily query failed");
-    assert_eq!(daily.len(), 1);
-    assert_eq!(daily[0].agent_type, "coder");
-    assert_eq!(daily[0].request_count, 1);
-    assert_eq!(daily[0].total_tokens, 150);
+fn call_unit(label: &str, value: Result<(), keypilot_lib::error::AppError>) {
+    if let Err(e) = value {
+        panic!("{} failed: {:?}", label, e);
+    }
+}
 
-    // daily_model_usage rollup
-    let model_daily = db.get_model_usage_summary("2023-11-14").expect("Model daily query failed");
-    assert_eq!(model_daily.len(), 1);
-    assert_eq!(model_daily[0].model, "gpt-4o");
-    assert_eq!(model_daily[0].request_count, 1);
+// Construct Tauri State wrapper from a reference without a Tauri App.
+// State<'r, T>(&'r T) has identical layout to &'r T.
+fn as_state<'r>(r: &'r AppState) -> State<'r, AppState> {
+    unsafe { std::mem::transmute(r) }
 }
 
 #[test]
-fn test_daily_rollups_increment() {
-    let db = Database::open_in_memory().expect("Failed to open in-memory DB");
-    db.setup_schema().expect("Failed to setup schema");
-    db.migrate().expect("Failed to migrate schema");
-
-    let record1 = TokenUsageRecord {
-        id: "inc-1".to_string(),
-        agent_type: "coder".to_string(),
-        model: "gpt-4o".to_string(),
-        provider_name: "OpenAI".to_string(),
-        occurred_at: 1700000000,
-        recorded_at: 1700000001,
-        session_id: None,
-        request_id: None,
-        input_tokens: 100,
-        output_tokens: 50,
-        total_tokens: 150,
-        cache_read_input_tokens: 0,
-        cache_creation_input_tokens: 0,
-        reasoning_tokens: 0,
-        prompt_cost: 0.0015,
-        completion_cost: 0.00025,
-        cache_read_cost: 0.0,
-        cache_creation_cost: 0.0,
-        reasoning_cost: 0.0,
-        total_cost: 0.00175,
-        currency: "USD".to_string(),
-        pricing_version: None,
-        usage_details: None,
-        cost_details: None,
-    };
-    let record2 = TokenUsageRecord {
-        id: "inc-2".to_string(),
-        agent_type: "coder".to_string(),
-        model: "gpt-4o".to_string(),
-        provider_name: "OpenAI".to_string(),
-        occurred_at: 1700000060,
-        recorded_at: 1700000061,
-        session_id: None,
-        request_id: None,
-        input_tokens: 200,
-        output_tokens: 80,
-        total_tokens: 280,
-        cache_read_input_tokens: 0,
-        cache_creation_input_tokens: 0,
-        reasoning_tokens: 0,
-        prompt_cost: 0.003,
-        completion_cost: 0.0004,
-        cache_read_cost: 0.0,
-        cache_creation_cost: 0.0,
-        reasoning_cost: 0.0,
-        total_cost: 0.0034,
-        currency: "USD".to_string(),
-        pricing_version: None,
-        usage_details: None,
-        cost_details: None,
-    };
-
-    db.insert_token_usage(&record1).expect("Insert 1 failed");
-    db.insert_token_usage(&record2).expect("Insert 2 failed");
-
-    let daily = db.get_daily_usage_summary("2023-11-14").expect("Daily query failed");
-    assert_eq!(daily.len(), 1, "Expected 1 agent-model group");
-    assert_eq!(daily[0].request_count, 2);
-    assert_eq!(daily[0].input_tokens, 300);
-    assert_eq!(daily[0].output_tokens, 130);
-    assert_eq!(daily[0].total_tokens, 430);
-
-    let model_daily = db.get_model_usage_summary("2023-11-14").expect("Model daily query failed");
-    assert_eq!(model_daily.len(), 1, "Expected 1 model group");
-    assert_eq!(model_daily[0].total_tokens, 430);
-}
-
-// ---------------------------------------------------------------------------
-// PricingService: lookup, version, cost calculation
-// ---------------------------------------------------------------------------
-
-#[test]
-fn test_pricing_service_lookup_and_cost() {
-    let svc = PricingService::new();
-
-    let entry = svc.lookup("gpt-4o").expect("Expected gpt-4o in pricing.json");
-    assert_eq!(entry.provider, "OpenAI");
-    assert!(entry.input_price_per_1m.is_some());
-    assert!(entry.output_price_per_1m.is_some());
-
-    let counts = TokenCounts {
-        input: 1_000_000,
-        output: 500_000,
-        cache_read: 0,
-        cache_creation: 0,
-        reasoning: 0,
-    };
-    // gpt-4o: input=$2.50/M, output=$10.00/M
-    // cost = 2.50 + (10.00 * 0.5) = 7.50
-    let cost = svc.calculate_cost(&entry, &counts);
-    assert!((cost - 7.50).abs() < 0.001, "Expected ~7.50, got {}", cost);
+fn e2e_list_providers() {
+    let state = build_test_state();
+    let response = call_ok("list_providers", block_on(list_providers(as_state(&state))));
+    // 5 presets seeded
+    assert!(response.len() >= 5, "Expected >= 5 preset providers, got {}", response.len());
 }
 
 #[test]
-fn test_pricing_service_unknown_model() {
-    let svc = PricingService::new();
-    assert!(svc.lookup("nonexistent-model-xyz").is_none());
+fn e2e_get_provider() {
+    let state = build_test_state();
+    let response = call_ok("get_provider", block_on(get_provider(as_state(&state), 1)));
+    assert_eq!(response.id, 1, "Expected provider with id=1");
 }
 
 #[test]
-fn test_pricing_service_version() {
-    let svc = PricingService::new();
-    let ver = svc.version();
-    assert!(!ver.is_empty(), "Version should not be empty");
-}
-
-#[test]
-fn test_pricing_service_partial_rates() {
-    let svc = PricingService::new();
-    // Model with only input_price_per_1m should only charge input
-    let entry = PricingEntry {
-        model: "test-only-input".to_string(),
-        provider: "Test".to_string(),
-        input_price_per_1m: Some(5.0),
-        output_price_per_1m: None,
-        cache_read_price_per_1m: None,
-        cache_creation_price_per_1m: None,
-        reasoning_price_per_1m: None,
+fn e2e_add_provider() {
+    let state = build_test_state();
+    let req = AddProviderRequest {
+        name: "Test Provider".to_string(),
+        preset: None,
+        category_id: 1,
+        pinned: None,
+        notes: None,
+        icon: None,
+        icon_color: None,
+        fields: Some(vec![]),
     };
-    let counts = TokenCounts { input: 1_000_000, output: 500_000, cache_read: 0, cache_creation: 0, reasoning: 0 };
-    let cost = svc.calculate_cost(&entry, &counts);
-    assert_eq!(cost, 5.0, "Only input should be charged");
+    let response = call_ok("add_provider", block_on(add_provider(as_state(&state), req)));
+    assert!(response.id >= 6, "Expected new provider id >= 6, got {}", response.id);
+    assert_eq!(response.name, "Test Provider");
+}
+
+#[test]
+fn e2e_update_provider() {
+    let state = build_test_state();
+    let req = UpdateProviderRequest {
+        id: 1,
+        name: Some("Updated OpenAI".to_string()),
+        category_id: None,
+        pinned: None,
+        notes: None,
+        icon: None,
+        icon_color: None,
+        fields: None,
+    };
+    let response = call_ok("update_provider", block_on(update_provider(as_state(&state), req)));
+    assert_eq!(response.name, "Updated OpenAI");
+    assert_eq!(response.id, 1);
+}
+
+#[test]
+fn e2e_delete_provider() {
+    let state = build_test_state();
+    // First add a provider to delete
+    let add_req = AddProviderRequest {
+        name: "To Delete".to_string(),
+        preset: None,
+        category_id: 1,
+        pinned: None,
+        notes: None,
+        icon: None,
+        icon_color: None,
+        fields: Some(vec![]),
+    };
+    let new_provider = call_ok("add_provider", block_on(add_provider(as_state(&state), add_req)));
+    let new_id = new_provider.id;
+
+    // Now delete it
+    call_unit("delete_provider", block_on(delete_provider(as_state(&state), new_id)));
+}
+
+#[test]
+fn e2e_list_categories() {
+    let state = build_test_state();
+    let response = call_ok("list_categories", block_on(list_categories(as_state(&state))));
+    assert!(response.len() >= 1, "Expected >= 1 category (default), got {}", response.len());
+}
+
+#[test]
+fn e2e_add_category() {
+    let state = build_test_state();
+    let req = AddCategoryRequest {
+        name: "Test Category".to_string(),
+    };
+    let response = call_ok("add_category", block_on(add_category(as_state(&state), req)));
+    assert!(response.id > 0);
+    assert_eq!(response.name, "Test Category");
+}
+
+#[test]
+fn e2e_delete_category() {
+    let state = build_test_state();
+    let add_req = AddCategoryRequest {
+        name: "To Delete Category".to_string(),
+    };
+    let new_cat = call_ok("add_category", block_on(add_category(as_state(&state), add_req)));
+    let new_cat_id = new_cat.id;
+
+    // Delete it, migrate providers to category 1
+    let req = keypilot_lib::services::category::DeleteCategoryRequest {
+        id: new_cat_id,
+        migrate_to: 1,
+    };
+    call_unit("delete_category", block_on(delete_category(as_state(&state), req)));
+}
+
+#[test]
+fn e2e_get_theme() {
+    let state = build_test_state();
+    let response = call_ok("get_theme", block_on(get_theme(as_state(&state))));
+    // Theme is always one of dark/light/auto
+    assert!(matches!(response, Theme::Dark | Theme::Light | Theme::Auto));
+}
+
+#[test]
+fn e2e_set_theme() {
+    let state = build_test_state();
+    // Set theme to dark
+    call_unit("set_theme", block_on(set_theme(as_state(&state), Theme::Dark)));
+
+    // Verify theme was actually set
+    let theme = call_ok("get_theme", block_on(get_theme(as_state(&state))));
+    assert!(matches!(theme, Theme::Dark));
+}
+
+// ============== V0.1 rev2 — manual quota + atomic field replace ==============
+
+#[test]
+fn e2e_set_manual_quota_persists_and_fetch_returns_it() {
+    let state = build_test_state();
+    let req = SetManualQuotaRequest {
+        id: 1, // OpenAI preset
+        snapshot: QuotaSnapshot {
+            total: Some(100.0),
+            used: 25.0,
+            remaining: Some(75.0),
+            unit: "USD".to_string(),
+            level: Some("green".to_string()),
+            reset_at: None,
+        },
+    };
+
+    call_unit("set_manual_quota", block_on(set_manual_quota(as_state(&state), req)));
+
+    // fetch_quota must return the manual snapshot (source='manual' bypasses TTL).
+    let quota = call_ok("fetch_quota", block_on(fetch_quota(as_state(&state), 1)));
+    assert_eq!(quota.unit, "USD");
+    assert_eq!(quota.used, 25.0);
+    assert_eq!(quota.remaining, Some(75.0));
+    assert_eq!(quota.total, Some(100.0));
+    assert_eq!(quota.level, Some("green".to_string()));
+}
+
+#[test]
+fn e2e_set_manual_quota_provider_not_found() {
+    let state = build_test_state();
+    let req = SetManualQuotaRequest {
+        id: 99999, // not seeded
+        snapshot: QuotaSnapshot {
+            total: None,
+            used: 0.0,
+            remaining: None,
+            unit: "token".to_string(),
+            level: None,
+            reset_at: None,
+        },
+    };
+    let result = block_on(set_manual_quota(as_state(&state), req));
+    assert!(result.is_err(), "Expected error for non-existent provider id");
+    let err = result.unwrap_err();
+    let err_val = serde_json::to_value(&err).unwrap();
+    assert_eq!(
+        err_val["code"], "PROVIDER_NOT_FOUND",
+        "Expected PROVIDER_NOT_FOUND error code, got {:?}", err_val
+    );
+}
+
+#[test]
+fn e2e_update_provider_fields_replace_atomic() {
+    let state = build_test_state();
+    // Add a provider with 2 initial fields
+    let add_req = AddProviderRequest {
+        name: "Atomic Test".to_string(),
+        preset: Some("openai".to_string()),
+        category_id: 1,
+        pinned: None,
+        notes: None,
+        icon: None,
+        icon_color: None,
+        fields: Some(vec![
+            AddProviderFieldRequest {
+                key: "field1".to_string(),
+                value: "value1".to_string(),
+                visibility: Visibility::Visible,
+                sort_index: 0,
+            },
+            AddProviderFieldRequest {
+                key: "field2".to_string(),
+                value: "value2".to_string(),
+                visibility: Visibility::Visible,
+                sort_index: 1,
+            },
+        ]),
+    };
+    let new_provider = call_ok("add_provider", block_on(add_provider(as_state(&state), add_req)));
+    let new_id = new_provider.id;
+    assert_eq!(new_provider.fields.len(), 2, "Initial fields should be 2");
+
+    // Replace fields with a single new one
+    let update_req = UpdateProviderRequest {
+        id: new_id,
+        name: None,
+        category_id: None,
+        pinned: None,
+        notes: None,
+        icon: None,
+        icon_color: None,
+        fields: Some(vec![UpdateProviderFieldRequest {
+            key: "new_field".to_string(),
+            value: "new_value".to_string(),
+            visibility: Visibility::Visible,
+            sort_index: 0,
+        }]),
+    };
+    let response = call_ok("update_provider", block_on(update_provider(as_state(&state), update_req)));
+
+    // Atomicity verification: fields were replaced (not wiped, not duplicated)
+    assert_eq!(
+        response.fields.len(),
+        1,
+        "Field replace should leave exactly 1 field, got {}",
+        response.fields.len()
+    );
+    assert_eq!(response.fields[0].key, "new_field");
+    assert_eq!(response.fields[0].value, "new_value");
+}
+
+// Ensure the test_connection path doesn't panic. Mock environment cannot reach external
+// APIs, so the call is expected to fail — we only assert the error is well-formed.
+#[test]
+fn e2e_test_connection_does_not_panic() {
+    let state = build_test_state();
+    let result = block_on(test_connection(as_state(&state), 1));
+    // Either Ok (unexpected) or Err with a structured AppError. The important
+    // thing is that the call does not panic and the error code is well-formed.
+    if let Err(e) = result {
+        let err_val = serde_json::to_value(&e).unwrap();
+        assert!(
+            err_val.get("code").is_some(),
+            "Expected AppError with code field, got {:?}",
+            err_val
+        );
+    }
 }

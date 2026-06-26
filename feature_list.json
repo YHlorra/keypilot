@@ -2,32 +2,46 @@
   "project": "KeyPilot V0.1",
   "version": "0.1.0",
   "updated": "2026-06-25",
-  "source_of_truth": "feature_list.json is the executable feature tracker. PLAN.md holds Stage deep specs. openspec/changes/<topic>/ holds approved spec changes. See AGENTS.md §8 for relationship.",
+  "source_of_truth": "feature_list.json is the executable feature tracker. PLAN.md holds Stage deep specs. openspec/changes/<topic>/ holds in-progress and recently-approved spec changes (those with pending implementation). openspec/changes/archive/<topic>/ holds completed/archived spec changes (implementation done, retained for historical reference). See AGENTS.md §8 for relationship.",
   "active_changes": [
     {
-      "id": "v0.1-spec-alignment",
-      "status": "done (superseded by v0.1-general-credentials for product scope)",
-      "path": "openspec/changes/v0.1-spec-alignment/",
-      "date": "2026-06-24",
-      "summary": "11 个 V0.1 spec 决策锁死 (ProviderKind 3 + Custom / OpenAI quota 抄 openai-balance / DeepSeek quota 抄 cc-switch / Anthropic quota Unsupported / validate_key 三态 / Provider 重复允许 / 3 个 preset seed + is_preset flag / schema v1→v2 migration)。Stage 1-4 实施可直接引用 tasks.md。",
+      "id": "ui-redesign",
+      "status": "done (approved by user, implementation pending stage-12)",
+      "path": "openspec/changes/ui-redesign/",
+      "date": "2026-06-25",
+      "summary": "应用 Kaku 设计系统 (DESIGN.md) 到 webui。Token 替换 (navy #1b365d / off-white #f5f4ed / Charter serif / pill 999px / 8px card)+ 布局重做 (删 sidebar,改 Card Grid 1-col/2-col density toggle)+ Detail 改 Modal + 3 主题 (Auto/Light/Dark, dark 做 coherent inversion warm near-black + lightened navy)。视觉已通过 webui/dist/design-preview.html v2 验证,用户已批准。6 REQ total (REQ-UI-001 token / 002 app shell / 003 card / 004 theme / 005 modal / 006 boundaries)。零新 IPC / 零新 schema / 零新后端。8 任务 T-UI-001..008,@fixer 按 tasks.md 跑 stage-12。后续 token-usage-history 沿用本设计系统。",
       "files": [
-        "openspec/changes/v0.1-spec-alignment/proposal.md",
-        "openspec/changes/v0.1-spec-alignment/spec.md",
-        "openspec/changes/v0.1-spec-alignment/design.md",
-        "openspec/changes/v0.1-spec-alignment/tasks.md"
+        "openspec/changes/ui-redesign/proposal.md",
+        "openspec/changes/ui-redesign/spec.md",
+        "openspec/changes/ui-redesign/design.md",
+        "openspec/changes/ui-redesign/tasks.md",
+        "webui/dist/design-preview.html"
+      ]
+    }
+  ],
+  "archived_changes": [
+    {
+      "id": "v0.1-spec-alignment",
+      "status": "archived",
+      "archived_on": "2026-06-25",
+      "archived_reason": "Superseded by v0.1-general-credentials on 2026-06-24. Retained for historical reference.",
+      "path": "openspec/changes/archive/v0.1-spec-alignment/",
+      "date": "2026-06-24",
+      "summary": "11 V0.1 spec decisions locked (ProviderKind 3 + Custom / OpenAI quota from openai-balance / DeepSeek quota from cc-switch / Anthropic quota Unsupported / validate_key three-state / Provider duplicates allowed / 3 preset seed + is_preset flag / schema v1 to v2 migration). Stages 1-4 implementation referenced tasks.md.",
+      "files": [
+        "openspec/changes/archive/v0.1-spec-alignment/README.md"
       ]
     },
     {
       "id": "v0.1-general-credentials",
-      "status": "done",
-      "path": "openspec/changes/v0.1-general-credentials/",
+      "status": "archived",
+      "archived_on": "2026-06-25",
+      "archived_reason": "Implementation complete across stages 1-9; V0.1 released 2026-06-25 (stage-9 sign-off). Spec retained for historical reference.",
+      "path": "openspec/changes/archive/v0.1-general-credentials/",
       "date": "2026-06-24",
-      "summary": "扩 V0.1 spec 到通用凭证库(AI + DB + Dev)。新增 categories 表 + provider_fields 任意 KV + visibility 二态(visible/masked,V0.1 不加密)+ 5 preset seed (OpenAI/DeepSeek/Anthropic/GitHub/PostgreSQL) + 3 themes (Dark/Light/Auto 基于 Radix UI Colors) + Stage 3 栈 (shadcn/ui + Radix Primitives + Tailwind utility) + Detail+Tray 双 quota 显示。20 REQ total (11 ADDED + 5 MODIFIED + 4 REMOVED)。Stage 1-4 实施引用此 change。",
+      "summary": "V0.1 general credentials vault spec: 5 tables (categories / providers / provider_fields / quota_cache / meta), 5 preset seeds (OpenAI / DeepSeek / Anthropic / GitHub / PostgreSQL), 12 IPC commands, 3 themes (Auto / Light / Dark with Radix UI Colors), shadcn/ui + Radix Primitives + Tailwind utility stack, Detail + Tray dual quota display. 20 REQ total (11 ADDED + 5 MODIFIED + 4 REMOVED).",
       "files": [
-        "openspec/changes/v0.1-general-credentials/proposal.md",
-        "openspec/changes/v0.1-general-credentials/spec.md",
-        "openspec/changes/v0.1-general-credentials/design.md",
-        "openspec/changes/v0.1-general-credentials/tasks.md"
+        "openspec/changes/archive/v0.1-general-credentials/README.md"
       ]
     }
   ],
@@ -35,7 +49,7 @@
     {
       "id": "stage-1",
       "name": "Tauri 2 脚手架 + SQLite 数据层 (schema v3)",
-      "description": "10 文件:Cargo.toml / tauri.conf.json / build.rs / main.rs / lib.rs / capabilities/default.json / database.rs / store.rs / error.rs / types.rs。SQLite schema v3 — categories + providers + provider_fields + quota_cache + meta(5 张表)。provider_fields.value 全部明文,visibility 二态 visible/masked。5 preset seed (OpenAI/DeepSeek/Anthropic/GitHub/PostgreSQL) + default category 凭证。DROP + 重建(V0.1 未发布,无用户数据兼容负担)。不开 crypto.rs。",
+      "description": "10 文件:Cargo.toml / tauri.conf.json / build.rs / main.rs / lib.rs / capabilities/default.json / database.rs / store.rs / error.rs / types.rs。SQLite schema v3 — categories + providers + provider_fields + quota_cache + meta(5 张表)。provider_fields.value 全部明文,visibility 二态 visible/masked。V0.1 启动后完全空白,不自动 seed preset provider;用户手动创建所有凭证。",
       "files": [
         "src-tauri/Cargo.toml",
         "src-tauri/tauri.conf.json",
@@ -50,11 +64,11 @@
       ],
       "depends_on": [],
       "status": "done",
-      "evidence": "cargo check: PASS (warnings only for unused code in Stage 1 scaffold)\ngrep visibility TEXT NOT NULL DEFAULT 'visible': PASS (database.rs:107)\ngrep value TEXT: PASS (database.rs:37,106)\ngrep preset TEXT: PASS (database.rs:77)\ngrep category_id INTEGER NOT NULL: PASS (database.rs:79)\ngrep encryption crates: PASS (empty - no argon2/chacha20/aes-gcm/sodiumoxide/age)\nfs::write check: PASS (no fs::write in src-tauri/src/)\n",
+      "evidence": "cargo check: PASS (warnings only for unused code in Stage 1 scaffold)\ngrep visibility TEXT NOT NULL DEFAULT 'visible': PASS (database.rs:107)\ngrep value TEXT: PASS (database.rs:37,106)\rep preset TEXT: PASS (database.rs:77)\ngrep category_id INTEGER NOT NULL: PASS (database.rs:79)\ngrep encryption crates: PASS (empty - no argon2/chacha20/aes-gcm/sodiumoxide/age)\nfs::write check: PASS (no fs::write in src-tauri/src/)\nseed_preset_providers NOT called on startup: PASS (lib.rs)\n",
       "started_at": "2026-06-24",
-      "ended_at": "2026-06-24",
+      "ended_at": "2026-06-25",
       "assignee": "fixer",
-      "notes": "Spec 锁于 openspec/changes/v0.1-general-credentials/ (proposal + spec + design + tasks, ~52KB)。**rev 2 修正**:(a) Cargo.toml 已删 aes-gcm/base64/rand (deepwork rev 2 漂移),(b) tauri.conf.json 已设 withGlobalTauri=false, (c) openspec/design.md §6 adapter_for 改 returns Option, (d) 12 IPC 命令计数锁定, (e) openspec/tasks.md T2.6 描述同步。Stage 1 实施文件由 @fixer 按 tasks.md T1.1-T1.9 跑。修 tauri.conf.json 2 处(bundle.icon 占位 + frontendDist ../webui/src → ../webui/dist,label=main 已设)。Cargo.toml 新增 async-trait(无加密 crate,grep 验证)。schema 5 表全建,seed 5 preset。category_id FK + preset TEXT 列 + visibility 二态。无加密代码路径(用户决策 '不加密',V0.2 RFC 评估)。**Phase 1 实施记录(2026-06-24)**: 10 文件 create/modify。cargo check PASS(10 warnings 全 unused code,expected)。6 grep gates 全 PASS。AppState 实际是 Arc<Mutex<Database>>(spec 原 Arc<Database> 因 rusqlite::Connection 非 Sync 改,design.md §5 + tasks.md T1.5 已加 rev 2 注释)。frontendDist 改 ../webui/dist + 创建 webui/dist/index.html 占位(Phase 1.5 重建)。**Phase 1.5 紧接**:webui/{package.json, tsconfig.json, src/types/api.ts} 在 stage-3 文件清单中已包含 types/api.ts,补加 package.json + tsconfig.json。"
+      "notes": "Spec 锁于 openspec/changes/v0.1-general-credentials/ (proposal + spec + design + tasks, ~52KB)。**rev 2 修正**:(a) Cargo.toml 已删 aes-gcm/base64/rand (deepwork rev 2 漂移),(b) tauri.conf.json 已设 withGlobalTauri=false, (c) openspec/design.md §6 adapter_for 改 returns Option, (d) 12 IPC 命令计数锁定, (e) openspec/tasks.md T2.6 描述同步。Stage 1 实施文件由 @fixer 按 tasks.md T1.1-T1.9 跑。修 tauri.conf.json 2 处(bundle.icon 占位 + frontendDist ../webui/src → ../webui/dist,label=main 已设)。Cargo.toml 新增 async-trait(无加密 crate,grep 验证)。schema 5 表全建,seed 5 preset。category_id FK + preset TEXT 列 + visibility 二态。无加密代码路径(用户决策 '不加密',V0.2 RFC 评估)。**Phase 1 实施记录(2026-06-24)**: 10 文件 create/modify。cargo check PASS(10 warnings 全 unused code,expected)。6 grep gates 全 PASS。AppState 实际是 Arc<Mutex<Database>>(spec 原 Arc<Database> 因 rusqlite::Connection 非 Sync 改,design.md §5 + tasks.md T1.5 已加 rev 2 注释)。frontendDist 改 ../webui/dist + 创建 webui/dist/index.html 占位(Phase 1.5 重建)。**Phase 1.5 紧接**:webui/{package.json, tsconfig.json, src/types/api.ts} 在 stage-3 文件清单中已包含 types/api.ts,补加 package.json + tsconfig.json。**Session 9 修正**:启动后完全空白,不自动 seed preset provider。"
     },
     {
       "id": "stage-2",
@@ -79,7 +93,7 @@
       "ended_at": "2026-06-25",
       "assignee": "fixer",
       "notes": "**rev 2 修正**:与 stage-3 并行(都 depends_on stage-1)。前提:Phase 1.5 完成 webui/src/types/api.ts(在 stage-2 启动前已落)。rev 2 修正:adapter_for returns Option(不开 panic),T2.6 async runtime 用 tauri::async_runtime::spawn(spawn_blocking for SQLite)。",
-      "openspec_ref": "openspec/changes/v0.1-general-credentials/tasks.md T2.1-T2.7 + spec.md REQ-PROV-007/008/009, REQ-QUOTA-004/005/006""
+      "openspec_ref": "openspec/changes/v0.1-general-credentials/tasks.md T2.1-T2.7 + spec.md REQ-PROV-007/008/009, REQ-QUOTA-004/005/006"
     },
     {
       "id": "stage-3",
@@ -110,8 +124,8 @@
         "webui/src/hooks/useTheme.ts"
       ],
       "depends_on": ["stage-1"],
-      "status": "not-started",
-      "evidence": "",
+      "status": "done",
+      "evidence": "pnpm tsc --noEmit: PASS (no errors)\npnpm build: PASS (dist/index.html + 240KB JS + 40KB CSS)\n22 components created/modified\n",
       "openspec_ref": "openspec/changes/v0.1-general-credentials/tasks.md T3.1-T3.7 + spec.md REQ-CAT-002, REQ-THEME-001/002, REQ-COPY-003, REQ-QUOTA-DISPLAY-001",
       "notes": "**rev 2 修正**:stage-3 与 stage-2 并行(原 depends_on=stage-2 已改 stage-1)。前提是 Phase 1.5 完成 webui/src/types/api.ts 锁契约。Phase 1.5 是 stage-3 的子步,在 stage-2 启动前完成(3 文件:package.json + tsconfig.json + types/api.ts,`pnpm tsc --noEmit` 验证)。stage-2 与 stage-3 各自独立可合并,2 lane 并行。集成点:Phase 2C webui/src/lib/api.ts swap mock → real invoke,src-tauri/tests/ipc_e2e.rs 跑 12 IPC。**Phase 1.5 ✅ Done (2026-06-24)**: lib.rs dirs::data_dir → app.path().app_data_dir,dirs crate removed,webui scaffold + pnpm install + tsc --noEmit PASS。"
     },
@@ -230,6 +244,25 @@
       "openspec_ref": "openspec/changes/token-usage-history/tasks.md T5.1 + T5.3"
     },
     {
+      "id": "stage-b",
+      "name": "TokenUsageService — pure Rust business layer",
+      "description": "services/token_usage.rs — TokenUsageService holding Arc<Mutex<Database>> + Arc<PricingService>. 6 sync methods: record_usage / list_records / get_summary / import_jsonl / import_csv / refresh_daily_rollups. 8 DTOs in types.rs (UsageRecordInput / UsageFilter / UsageSummary / UsageSummaryAgentPair / DailySeries / ImportResult / ImportError / TokenUsageCostBreakdown). Fixed Stage A INSERT bug (prompt_tokens/completion_tokens columns now read from TokenUsageRecord fields). A1 fix: per-dimension cost split (input/output/cache_read/cache_creation/reasoning) computed in PricingService.calculate_token_usage_cost → TokenUsageCostBreakdown, stored in TokenUsageRecord per-dim cost fields + cost_details JSON. 4 new DB methods: list_token_usage_records_filtered, count_token_usage_records_filtered, get_token_usage_record_by_id, delete_daily_for_date. JSONL dual-format parser (Claude + Codex). CSV with quoted-field handling. FNV-1a 64-bit hex for deterministic import dedup id. 15 unit tests inlined.",
+      "files": [
+        "src-tauri/src/services/token_usage.rs",
+        "src-tauri/src/services/pricing.rs",
+        "src-tauri/src/services/mod.rs",
+        "src-tauri/src/types.rs",
+        "src-tauri/src/database.rs"
+      ],
+      "depends_on": ["stage-a"],
+      "status": "done",
+      "evidence": "cargo check --manifest-path src-tauri/Cargo.toml --lib: PASS\ncargo test --manifest-path src-tauri/Cargo.toml --lib: 20/20 PASS (15 token_usage + 5 adapter)\n  - record_usage_happy_path: PASS\n  - record_usage_duplicate: PASS\n  - cost_calculation_known_model: PASS (gpt-4o 1M+1M = $12.50; per-dim: prompt=2.50, completion=10.00, cache_read=0, cache_creation=0, reasoning=0; cost_details JSON has all 5 fields)\n  - cost_calculation_unknown_model: PASS (all 5 dims = 0; cost_details has pricing_missing_for)\n  - cost_calculation_with_cache_read: PASS (gpt-4o 1M cache_read = $1.25)\n  - cost_calculation_with_cache_creation: PASS (gpt-4o 1M cache_creation = $2.50)\n  - list_records_filtered_by_date: PASS\n  - list_records_filtered_by_agent: PASS\n  - get_summary_aggregates_correctly: PASS (rollup sync via database.rs::insert_token_usage tx.commit + INSERT OR REPLACE COALESCE upsert)\n  - import_jsonl_claude_format: PASS\n  - import_jsonl_codex_format: PASS\n  - import_jsonl_dedup: PASS (imported=1, skipped=1)\n  - import_csv_basic: PASS\n  - import_csv_bad_header: PASS (TokenUsageInvalidFormat)\n  - refresh_daily_rollups_recomputes: PASS (ops tool for corruption recovery, not hot-path)\nHard constraints:\n  - grep 'use tauri' services/token_usage.rs: 0 matches\n  - grep 'tx.commit' services/token_usage.rs: 1 match (refresh_daily_rollups); database.rs: 2 matches (insert_token_usage + refresh)\n  - All fallible fns return Result<T, AppError>\n  - No fs::write in services/\nA1 fix: TokenUsageCostBreakdown struct in types.rs; PricingService.calculate_token_usage_cost now returns Result<TokenUsageCostBreakdown, AppError> with per-dim costs (input/output/cache_read/cache_creation/reasoning) and pricing_missing_for flag. record_usage stores all 5 cost fields on TokenUsageRecord and emits full breakdown in cost_details JSON (currency + 5 dims + total + optional pricing_missing_for).",
+      "started_at": "2026-06-26",
+      "ended_at": "2026-06-26",
+      "assignee": "fixer",
+      "notes": "Methods are sync (not async) — rusqlite + std::sync::Mutex are blocking. Tauri IPC layer (Stage C) wraps with spawn_blocking if needed. No Cargo.toml changes — FNV-1a hash inlined to avoid sha2 dep. Stage A INSERT bug fixed in this stage: added prompt_tokens/completion_tokens fields to TokenUsageRecord, updated both INSERT params and list_token_usage_records SELECT to read correct columns. Rollup sync (PLAN §3.1) lives at the DB layer in insert_token_usage (tx.commit + INSERT OR REPLACE COALESCE), not in the service record_usage — service just delegates. refresh_daily_rollups is a belt-and-suspenders ops tool for corruption recovery / future nightly sweep. record_usage signature is record_usage(id: &str, input: UsageRecordInput) — A2: extra id param is deliberate so imports (deterministic_id on 5-tuple) feed the same id to record_usage → unique constraint fires → TokenUsageDuplicate → counted as skipped. Plan §3.1 signature mismatch resolved in favor of Stage C IPC contract clarity."
+    },
+    {
       "id": "stage-9",
       "name": "V0.1 验收 (13 项清单)",
       "description": "V0.1 acceptance test suite — 13 项手动验收清单。",
@@ -243,6 +276,82 @@
       "ended_at": "2026-06-25",
       "assignee": "fixer",
       "notes": "🎉 V0.1 Development Complete — Release artifacts ready for staging"
+    },
+    {
+      "id": "stage-10",
+      "name": "Action Registry — Agent 可发现/可调用操作层",
+      "description": "在现有 commands/ + services/ 之上新增 actions/ 层，将 12+ 个操作注册为带 schema 的可发现单元。新增 2 个 IPC：list_actions / execute_action，供外部 Agent/MCP 通过 invoke 调用。保留现有 12 个强类型 IPC 不变。",
+      "files": [
+        "src-tauri/src/actions/mod.rs",
+        "src-tauri/src/actions/provider.rs",
+        "src-tauri/src/actions/category.rs",
+        "src-tauri/src/actions/quota.rs",
+        "src-tauri/src/actions/system.rs",
+        "src-tauri/src/commands/action.rs",
+        "src-tauri/src/lib.rs",
+        "webui/src/lib/action-registry.ts",
+        "webui/src/hooks/useActions.ts"
+      ],
+      "depends_on": ["stage-1"],
+      "status": "planned",
+      "evidence": "",
+      "notes": "设计决策：(1) 保留现有 12 IPC 不变，新增通用 IPC 专供 Agent；(2) execute_action 用 serde_json::Value 动态传参，内部严格校验；(3) 前端 mirror action-registry.ts 保持单一真相源；(4) V0.1 不做 MCP server 管理，只暴露可调用接口；(5) Agent 填参策略：description + input_schema 轻量推断，不自动填 defaults；(6) Workflow 编排留到后续阶段。"
+    },
+    {
+      "id": "stage-11",
+      "name": "V0.2 Search — provider 名 / 字段名 全文过滤",
+      "description": "webui/src/hooks/useProviders.ts::filterProviders + webui/src/components/CategorySidebar.tsx 顶部 search input。Scope: provider.name + provider.fields[].key 包含匹配(provider.fields[].value 不参与,防 secret 误暴露)。Esc 清空,搜索时全 category 强制展开,空 category 整段消失,无匹配显示「无匹配」。Client-side filter,无新 IPC,Rust 零改动。Icon.tsx 加 search icon(Search from lucide-react,plan 阶段漏核验)。",
+      "files": [
+        "webui/src/hooks/useProviders.ts",
+        "webui/src/components/CategorySidebar.tsx",
+        "webui/src/components/Icon.tsx"
+      ],
+      "depends_on": ["stage-1"],
+      "status": "done",
+      "evidence": "pnpm tsc --noEmit: EXIT 0\n用户手动验收通过 (2026-06-25)\n侧记: AddCredentialModal.tsx 类型/服务两处 placeholder option 同步加 hidden 属性(同 session 修的非搜索 bug)",
+      "started_at": "2026-06-25",
+      "ended_at": "2026-06-25",
+      "notes": "设计决策:(1) search 单一 owner = CategorySidebar,ProviderList 维持 dumb component;(2) field.value 不参与匹配 = 防 secret 误暴露;(3) 不引防抖 / 正则 / FTS5,includes 足够;(4) Icon.tsx 加 search 是因为现有 iconMap 不含,plan 阶段没 grep 核验。V0.3 计划: 用量历史曲线 + test_connection UI 增强。"
+    },
+    {
+      "id": "stage-12",
+      "name": "UI Redesign: Kaku 设计系统应用",
+      "description": "把 Kaku 设计系统 (openspec/changes/ui-redesign/) 应用到 webui。Token 替换 (globals.css + tailwind.config.ts 切 Kaku 色板/字阶/间距/圆角,**含 tailwind.config.ts:4 darkMode 迁移 + ThemeToggle.tsx:17-28 data-theme 迁移 — H-3**)+ 布局重做 (删 CategorySidebar + ProviderList,改 ProviderCard + ProviderGrid + DensityToggle)+ Detail 改 Modal (**ProviderDetailModal 重用 Modal.tsx 原地改造,不再创建 ModalShell — H-1**)+ shadcn ui 组件 (button/card/input/select/toast) 全圆角 + 无 shadow。Charter 字体走 Google Fonts,加 link 标签。3 主题 (Auto/Light/Dark) 行为保留,dark 变体 coherent inversion (warm near-black #1a1916 + lightened navy #7da3d1)。Drag handle 留 affordance 不接 dnd 库。零新 IPC / 零新 schema / 零新后端 / 零 emoji。8 子任务 T-UI-001..008,@fixer 按 tasks.md 跑。T-UI-003 / T-UI-004 / T-UI-005 三者 squash 成单个 stage-12 commit 同时落地 (H-2)。",
+      "files": [
+        "webui/src/styles/globals.css",
+        "webui/tailwind.config.ts",
+        "webui/index.html",
+        "webui/src/App.tsx",
+        "webui/src/components/Titlebar.tsx",
+        "webui/src/components/TopBar.tsx",
+        "webui/src/components/ProviderCard.tsx",
+        "webui/src/components/ProviderGrid.tsx",
+        "webui/src/components/DensityToggle.tsx",
+        "webui/src/components/ProviderDetailModal.tsx",
+        "webui/src/components/SectionLabel.tsx",
+        "webui/src/components/ChipGroup.tsx",
+        "webui/src/components/ThemeToggle.tsx",
+        "webui/src/components/ui/button.tsx",
+        "webui/src/components/ui/card.tsx",
+        "webui/src/components/ui/input.tsx",
+        "webui/src/components/ui/select.tsx",
+        "webui/src/components/ui/toast.tsx",
+        "webui/src/components/KvRow.tsx",
+        "webui/src/components/QuotaBadge.tsx",
+        "webui/src/components/CopyButton.tsx",
+        "webui/src/components/Icon.tsx",
+        "webui/src/components/ErrorBoundary.tsx",
+        "webui/src/components/TrayHoverCard.tsx",
+        "webui/src/components/AddCredentialModal.tsx",
+        "webui/src/components/AddKvModal.tsx",
+        "webui/src/components/ManualQuotaModal.tsx",
+        "webui/src/components/SettingsModal.tsx",
+        "webui/src/components/ConfirmDialog.tsx"
+      ],
+      "depends_on": ["stage-1", "stage-11"],
+      "status": "planned",
+      "evidence": "",
+      "notes": "用户已批准设计 (webui/dist/design-preview.html v2 + openspec/changes/ui-redesign/)。8 任务 T-UI-001..008。**关键决策**：(1) Charter 字体 Google Fonts + system fallback (Charter→Georgia→Palatino→Times New Roman);(2) Density toggle 状态 localStorage `keypilot.density` 持久化,默认 '1';(3) Modal 沿用 Radix Dialog (focus trap / Esc / overlay click 行为现成);(4) Drag handle 仅 affordance,本期不接 dnd 库,后续 V0.X 接 @dnd-kit;(5) 删 CategorySidebar + ProviderList + ProviderDetail 三个旧组件,新组件为 ProviderCard + ProviderGrid + ProviderDetailModal;(6) Auto 主题 = matchMedia resolver,无独立 data-theme='auto' 规则;(7) ProviderCard 接受 onClick + onRefresh(分离刷新与打开,避免事件冒泡)。V0.3 token-usage-history 沿用本 stage 的设计系统。**预期 build 体积 +5KB CSS / +2KB JS (估算,待 stage-12 完成后实测 — M-4)**。**Stage-12 审查补丁 (2026-06-25)**:H-1..H-5 + M-1..M-16 + L-1..L-6/L-8 已合并入 execution-plan.md / design.md / tasks.md,详见 openspec/changes/ui-redesign/execution-plan.md §3 / §6 / §7 / §10 / §11 / §13。L-7 (spec.md REQ-UI-004.4 localStorage vs DB 漂移) 不在 stage-12 scope,开独立 spec amendment PR。"
     }
   ]
 }

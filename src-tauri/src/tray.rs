@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use tauri::{
+    image::Image,
     menu::{Menu, MenuItem},
     tray::{TrayIcon, TrayIconBuilder},
     AppHandle, Emitter, Manager, Runtime,
@@ -10,7 +11,11 @@ use tauri::{
 pub fn init_tray<R: Runtime>(app: &AppHandle<R>) -> Result<TrayIcon<R>, tauri::Error> {
     let menu = build_tray_menu(app)?;
 
+    let tray_icon = Image::from_bytes(include_bytes!("../icons/tray.png"))
+        .expect("Failed to load tray icon");
+
     let tray = TrayIconBuilder::new()
+        .icon(tray_icon)
         .menu(&menu)
         .tooltip("KeyPilot")
         .on_menu_event(move |app, event| {

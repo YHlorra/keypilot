@@ -38,13 +38,3 @@ pnpm-debug.log*
 /tmp/
 *.tmp
 *.bak
-
-# OpenCode slim (kept out of git, readable to OpenCode)
-.slim/deepwork/
-
-# OpenCode agent state (HUD cache etc.)
-.omc/
-
-# Development session docs (internal, not for VCS)
-progress.md
-session-handoff.md
