@@ -62,7 +62,6 @@ export const QuotaBadge = React.memo(function QuotaBadge({
         className={cn("inline-flex items-center gap-1.5 text-sm text-danger", className)}
         title={error instanceof Error ? error.message : "获取配额失败"}
       >
-        <span>—</span>
         <span className="text-xs">刷新失败</span>
         {onOpenManual ? (
           <button

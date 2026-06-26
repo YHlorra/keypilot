@@ -1,6 +1,6 @@
-// webui/src/types/api.ts (Phase 1.5 — 12 IPC contract locked, Phase 1.5 oracle fixes applied)
+// webui/src/types/api.ts (Phase 1.5 -- 12 IPC contract locked, Phase 1.5 oracle fixes applied)
 // @see openspec/changes/v0.1-general-credentials/spec.md REQ-VIS-001/002, REQ-PROV-008, REQ-THEME-001, REQ-CAT-001
-// @see src-tauri/src/types.rs (Rust mirror — must stay field-by-field aligned)
+// @see src-tauri/src/types.rs (Rust mirror -- must stay field-by-field aligned)
 
 // === Enums (V0.1 二态 / 三态) ===
 export type Visibility = 'visible' | 'masked';  // REQ-VIS-002
@@ -43,12 +43,12 @@ export interface Category {
   updated_at: number;
 }
 
-// QuotaSnapshot — per-preset shape (REQ-QUOTA-001~006 + REQ-QUOTA-DISPLAY-001):
+// QuotaSnapshot -- per-preset shape (REQ-QUOTA-001~006 + REQ-QUOTA-DISPLAY-001):
 // - 3 LLM: { total, used, remaining, unit, level?, reset_at? }
 // - GitHub: { total, used, remaining, unit='req', level?, reset_at? }
 // - PostgreSQL: { total=null, used, unit='GB', level? }  (no remaining, no reset_at)
 // - Anthropic: AppError::ProviderQuotaUnsupported (no QuotaSnapshot returned)
-// `fetched_at` is NOT in the wire shape — frontend uses TanStack Query staleTime.
+// `fetched_at` is NOT in the wire shape -- frontend uses TanStack Query staleTime.
 export interface QuotaSnapshot {
   total: number | null;                // null = PostgreSQL or N/A
   used: number;                        // always present
@@ -58,7 +58,7 @@ export interface QuotaSnapshot {
   reset_at?: number;                   // unix epoch seconds, optional
 }
 
-// === AppError (mirrors src-tauri/src/error.rs — 11 codes) ===
+// === AppError (mirrors src-tauri/src/error.rs -- 11 codes) ===
 export type AppErrorCode =
   | 'DATABASE'
   | 'IO'
@@ -160,13 +160,13 @@ export type UnpinProviderResponse = void;
 // quit_app
 export type QuitAppResponse = void;
 
-// set_manual_quota (Phase 3 — stores in quota_cache without touching provider notes)
+// set_manual_quota (Phase 3 -- stores in quota_cache without touching provider notes)
 export interface SetManualQuotaRequest { id: number; snapshot: QuotaSnapshot; }
 export type SetManualQuotaResponse = void;
 
 // === Token Usage types (REQ-TOKEN-001.2/001.3/002) ===
 
-// TokenBreakdown — REQ-TOKEN-001.2 usage_details
+// TokenBreakdown -- REQ-TOKEN-001.2 usage_details
 export interface TokenBreakdown {
   input?: number;
   output?: number;
@@ -175,7 +175,7 @@ export interface TokenBreakdown {
   reasoning?: number;       // reasoning_tokens
 }
 
-// CostBreakdown — REQ-TOKEN-001.3 cost_details
+// CostBreakdown -- REQ-TOKEN-001.3 cost_details
 export interface CostBreakdown {
   input?: number;
   output?: number;
@@ -183,7 +183,7 @@ export interface CostBreakdown {
   total?: number;
 }
 
-// UsageRecordInput — what the frontend sends to record_usage
+// UsageRecordInput -- what the frontend sends to record_usage
 export interface UsageRecordInput {
   occurred_at: string;
   finished_at?: string;
@@ -205,12 +205,12 @@ export interface UsageRecordInput {
   tags?: string[];
 }
 
-// UsageRecord — returned by record_usage, list_usage_records
+// UsageRecord -- returned by record_usage, list_usage_records
 export interface UsageRecord extends UsageRecordInput {
   id: string;
 }
 
-// UsageFilter — shared by list_usage_records and get_usage_summary
+// UsageFilter -- shared by list_usage_records and get_usage_summary
 export interface UsageFilter {
   start_date?: string;
   end_date?: string;
@@ -220,7 +220,7 @@ export interface UsageFilter {
   status?: string;
 }
 
-// AgentPair — part of UsageSummary
+// AgentPair -- part of UsageSummary
 export interface AgentPair {
   agent_type: string;
   model: string;
@@ -237,7 +237,7 @@ export interface AgentPair {
   };
 }
 
-// DailySeriesPoint — part of UsageSummary
+// DailySeriesPoint -- part of UsageSummary
 export interface DailySeriesPoint {
   date: string;
   total_tokens: number;
@@ -245,7 +245,7 @@ export interface DailySeriesPoint {
   request_count: number;
 }
 
-// UsageSummary — returned by get_usage_summary (REQ-TOKEN-002.1)
+// UsageSummary -- returned by get_usage_summary (REQ-TOKEN-002.1)
 export interface UsageSummary {
   total_tokens: number;
   total_cost_usd: number;
@@ -254,17 +254,17 @@ export interface UsageSummary {
   daily_series: DailySeriesPoint[];
 }
 
-// ImportResult — returned by import_usage
+// ImportResult -- returned by import_usage
 export interface ImportResult {
   imported: number;
   skipped: number;
   errors: string[];
 }
 
-// ImportFormat — union literal
+// ImportFormat -- union literal
 export type ImportFormat = 'jsonl' | 'csv';
 
-// PricingEntry — returned by get_pricing
+// PricingEntry -- returned by get_pricing
 export interface PricingEntry {
   model: string;
   input_cost_per_token: number;
@@ -274,7 +274,7 @@ export interface PricingEntry {
   supports_reasoning?: boolean;
 }
 
-// PaginatedResponse<T> — standard pagination shape
+// PaginatedResponse<T> -- standard pagination shape
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
@@ -282,13 +282,13 @@ export interface PaginatedResponse<T> {
   perPage: number;
 }
 
-// UsageError — error detail for a failed import row
+// UsageError -- error detail for a failed import row
 export interface UsageError {
   line: number;
   message: string;
 }
 
-// UsageBreakdown — summary of usage by category (used in detail panel)
+// UsageBreakdown -- summary of usage by category (used in detail panel)
 export interface UsageBreakdown {
   label: string;
   value: number;

@@ -6,7 +6,7 @@
 
 :root,
 [data-theme="light"] {
-  /* Color tokens — Light theme */
+  /* Color tokens -- Light theme */
   --color-primary: #1b365d;
   --color-secondary: #faf9f5;
   --color-tertiary: #e5e7eb;
@@ -21,25 +21,25 @@
   --color-success: #46a758;
   --color-error: #b42318;
 
-  /* Font tokens — REQ-UI-001.2 */
+  /* Font tokens -- REQ-UI-001.2 */
   --font-serif: "Charter", Georgia, Palatino, "Times New Roman", serif;
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  /* Spacing tokens — REQ-UI-001.3 */
+  /* Spacing tokens -- REQ-UI-001.3 */
   --spacing-xs: 2px;
   --spacing-sm: 10px;
   --spacing-md: 18px;
   --spacing-lg: 28px;
   --spacing-xl: 64px;
 
-  /* Radius tokens — REQ-UI-001.3 */
+  /* Radius tokens -- REQ-UI-001.3 */
   --radius-sm: 8px;
   --radius-pill: 999px;
 }
 
 [data-theme="dark"] {
-  /* Color tokens — Dark theme */
+  /* Color tokens -- Dark theme */
   --color-primary: #7da3d1;
   --color-secondary: #0e0d0c;
   --color-surface: #1a1916;

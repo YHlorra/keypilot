@@ -1,70 +1,61 @@
 import * as React from "react";
-import { Icon } from "./Icon";
+import * as Dialog from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ModalProps {
   open: boolean;
   onClose: () => void;
-  title: string;
   children: React.ReactNode;
+  title?: string;
   footer?: React.ReactNode;
 }
 
-export const Modal = React.memo(function Modal({ open, onClose, title, children, footer }: ModalProps) {
-  React.useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [open]);
-
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && open) onClose();
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
+export const Modal = React.memo(function Modal({ open, onClose, children, title, footer }: ModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/80 animate-in fade-in duration-200"
-        onClick={onClose}
-      />
-
-      {/* Content */}
-      <div className="relative z-10 w-full max-w-lg animate-in fade-in zoom-in-95 duration-200">
-        <div className="rounded-lg border border-border bg-background shadow-2xl">
+    <Dialog.Root open={open} onOpenChange={(val) => !val && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 animate-in fade-in duration-200" />
+        <Dialog.Content
+          className={cn(
+            "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
+            "w-full max-w-3xl rounded-sm border border-border bg-background",
+            "focus:outline-none",
+            "max-h-[90vh] flex flex-col"
+          )}
+        >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1 rounded hover:bg-accent transition-colors"
-            >
-              <Icon name="x" className="w-4 h-4" />
-            </button>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+            {title ? (
+              <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
+            ) : (
+              <div />
+            )}
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded hover:bg-accent transition-colors"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </Dialog.Close>
           </div>
 
           {/* Body */}
-          <div className="px-6 py-4">{children}</div>
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {children}
+          </div>
 
           {/* Footer */}
           {footer && (
-            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border">
+            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border flex-shrink-0">
               {footer}
             </div>
           )}
-        </div>
-      </div>
-    </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 });
