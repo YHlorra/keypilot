@@ -26,6 +26,13 @@ pub async fn fetch_quota(
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<QuotaSnapshot, AppError> {
+    fetch_quota_by_state(&state, id).await
+}
+
+pub async fn fetch_quota_by_state(
+    state: &AppState,
+    id: i64,
+) -> Result<QuotaSnapshot, AppError> {
     // Phase A: read provider fields + check cache (sync SQLite ops, short lock)
     let (preset, base_url, api_key, cached) = {
         let db = state.db.lock().unwrap();

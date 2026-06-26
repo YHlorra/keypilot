@@ -39,3 +39,6 @@ pnpm-debug.log*
 /tmp/
 *.tmp
 *.bak
+
+# Deepwork progress
+.slim/deepwork/

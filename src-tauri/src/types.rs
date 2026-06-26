@@ -241,6 +241,7 @@ pub struct UsageFilter {
 pub struct UsageSummaryAgentPair {
     pub agent_type: String,
     pub model: String,
+    pub provider: String,
     pub request_count: i64,
     pub input_tokens: i64,
     pub output_tokens: i64,

@@ -43,6 +43,12 @@ pub enum AppError {
 
     #[error("pricing not found for model: {0}")]
     TokenUsagePricingNotFound(String),
+
+    #[error("action validation error: {0}")]
+    ActionValidation(String),
+
+    #[error("unknown action: {0}")]
+    ActionNotFound(String),
 }
 
 // Tauri command serialization: { code: String, message: String }
@@ -68,6 +74,8 @@ impl serde::Serialize for AppError {
             Self::TokenUsageInvalidFormat(_) => "TOKEN_USAGE_INVALID_FORMAT",
             Self::TokenUsageDuplicate(_) => "TOKEN_USAGE_DUPLICATE",
             Self::TokenUsagePricingNotFound(_) => "TOKEN_USAGE_PRICING_NOT_FOUND",
+            Self::ActionValidation(_) => "ACTION_VALIDATION",
+            Self::ActionNotFound(_) => "ACTION_NOT_FOUND",
         };
         s.serialize_field("code", code)?;
         s.serialize_field("message", &self.to_string())?;

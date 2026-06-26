@@ -37,6 +37,10 @@ impl PricingService {
         &PRICING_DATA.version
     }
 
+    pub fn all_entries(&self) -> Vec<&PricingEntry> {
+        self.model_index.values().map(|arc| arc.as_ref()).collect()
+    }
+
     pub fn calculate_cost(&self, entry: &PricingEntry, tokens: &TokenCounts) -> f64 {
         let mut total = 0.0;
         if let Some(rate) = entry.input_price_per_1m {

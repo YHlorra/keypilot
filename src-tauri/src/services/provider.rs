@@ -88,6 +88,10 @@ fn load_fields(conn: &rusqlite::Connection, provider_id: i64) -> Result<Vec<Prov
 }
 
 pub async fn list_providers(state: tauri::State<'_, AppState>) -> Result<Vec<Provider>, AppError> {
+    list_providers_by_state(&state).await
+}
+
+pub async fn list_providers_by_state(state: &AppState) -> Result<Vec<Provider>, AppError> {
     let db = state.db.clone();
     let providers = tauri::async_runtime::spawn_blocking(move || {
         let guard = db.lock().unwrap();
@@ -109,6 +113,10 @@ pub async fn list_providers(state: tauri::State<'_, AppState>) -> Result<Vec<Pro
 }
 
 pub async fn get_provider(state: tauri::State<'_, AppState>, id: i64) -> Result<Provider, AppError> {
+    get_provider_by_state(&state, id).await
+}
+
+pub async fn get_provider_by_state(state: &AppState, id: i64) -> Result<Provider, AppError> {
     let db = state.db.clone();
     let provider = tauri::async_runtime::spawn_blocking(move || {
         let guard = db.lock().unwrap();
@@ -127,6 +135,10 @@ pub async fn add_provider(
     state: tauri::State<'_, AppState>,
     req: AddProviderRequest,
 ) -> Result<Provider, AppError> {
+    add_provider_by_state(&state, req).await
+}
+
+pub async fn add_provider_by_state(state: &AppState, req: AddProviderRequest) -> Result<Provider, AppError> {
     let db = state.db.clone();
     let now = chrono::Utc::now().timestamp();
 
@@ -185,6 +197,10 @@ pub async fn update_provider(
     state: tauri::State<'_, AppState>,
     req: UpdateProviderRequest,
 ) -> Result<Provider, AppError> {
+    update_provider_by_state(&state, req).await
+}
+
+pub async fn update_provider_by_state(state: &AppState, req: UpdateProviderRequest) -> Result<Provider, AppError> {
     let db = state.db.clone();
     let now = chrono::Utc::now().timestamp();
 
@@ -289,6 +305,10 @@ pub async fn update_provider(
 }
 
 pub async fn delete_provider(state: tauri::State<'_, AppState>, id: i64) -> Result<(), AppError> {
+    delete_provider_by_state(&state, id).await
+}
+
+pub async fn delete_provider_by_state(state: &AppState, id: i64) -> Result<(), AppError> {
     let db = state.db.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let guard = db.lock().unwrap();
