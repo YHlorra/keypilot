@@ -39,18 +39,7 @@ function getFamilyTint(preset: string | null): { bg: string; label: string } {
   return { bg: "var(--color-muted)", label: "" };
 }
 
-function GripIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-      <circle cx="4" cy="3" r="1.2" />
-      <circle cx="8" cy="3" r="1.2" />
-      <circle cx="4" cy="7" r="1.2" />
-      <circle cx="8" cy="7" r="1.2" />
-      <circle cx="4" cy="11" r="1.2" />
-      <circle cx="8" cy="11" r="1.2" />
-    </svg>
-  );
-}
+
 
 export const ProviderCard = ({
   provider,
@@ -104,7 +93,6 @@ export const ProviderCard = ({
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log("[hunt] ProviderCard edit-btn onClick fired, id=", provider.id, "onEdit=", typeof onEdit);
     onEdit?.(provider.id);
   };
 
@@ -147,14 +135,6 @@ export const ProviderCard = ({
             : "border border-[var(--color-border)]"
         )}
       >
-        {/* Drag handle */}
-        <div
-          data-testid="drag-handle"
-          className="shrink-0 cursor-grab text-[var(--color-muted)] active:cursor-grabbing"
-        >
-          <GripIcon />
-        </div>
-
         {/* Provider icon */}
         <div
           data-testid="provider-icon"

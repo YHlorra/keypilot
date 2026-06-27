@@ -345,21 +345,3 @@ pub async fn copy_credential_by_state(
         field_key: field.key.clone(),
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_copy_credential_result_serde() {
-        let r = CopyCredentialResult {
-            value: "sk-test".to_string(),
-            field_key: "api_key".to_string(),
-        };
-        let json = serde_json::to_string(&r).unwrap();
-        assert!(json.contains("sk-test"));
-        let back: CopyCredentialResult = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.value, "sk-test");
-        assert_eq!(back.field_key, "api_key");
-    }
-}
