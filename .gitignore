@@ -42,3 +42,14 @@ pnpm-debug.log*
 
 # Deepwork progress
 .slim/deepwork/
+
+# Agent session state (omc / nezha / etc.)
+.omc/
+.nezha/
+
+# Tauri / Vite transient logs (not the *.log glob — these have no extension)
+.tauri.err
+.vite.err
+
+# Icon generation scratch (final icons live under src-tauri/icons/)
+src-tauri/icons/_candidates/
