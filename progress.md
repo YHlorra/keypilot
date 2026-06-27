@@ -3,6 +3,48 @@
 > Per AGENTS.md §8 — Session 连续性日志。 每个 session 至少更新一次。
 > 真相源: git log (commit 详情) + feature_list.json (feature 状态) + progress.md (session 进度)。
 
+<!-- 2026-06-28 -->
+
+## 2026-06-28
+
+**Session scope**: stage-d — opencode.db import adapter for TokenUsageService
+**Files changed**: `src-tauri/src/services/token_usage.rs`, `src-tauri/src/commands/token_usage.rs`, `src-tauri/src/lib.rs`, `src-tauri/src/actions/token_usage.rs`, `src-tauri/src/actions/mod.rs`, `feature_list.json`, `progress.md`
+
+### 完成项
+
+- **TokenUsageService::import_opencode_db** (`services/token_usage.rs`)
+  - Reads `session` table from opencode.db via `rusqlite::Connection::open_with_flags` (READ ONLY + NO_MUTEX)
+  - Model split on `/` to derive `provider_name` (e.g. `minimax-cn-coding-plan/MiniMax-M2.7` → provider=`minimax-cn-coding-plan`, model=`MiniMax-M2.7`)
+  - Feeds each row through existing `record_usage` → FNV-1a dedup applies automatically
+  - WHERE clause filters zero-token rows
+  - `usage_details` JSON includes `cost_usd` + `source:"opencode"`
+- **IPC handler** `import_opencode_db` (`commands/token_usage.rs`)
+  - `ImportOpencodeDbRequest` DTO + `import_opencode_db` command + `import_opencode_db_by_state` helper
+  - Wrapped in `spawn_blocking`
+- **lib.rs** invoke_handler registration (alphabetical with other token_usage entries)
+- **Action Registry** `token_usage.import_opencode_db` (`actions/token_usage.rs` + `actions/mod.rs`)
+- **3 unit tests**: `import_opencode_db_basic` / `import_opencode_db_dedup` / `import_opencode_db_missing_file`
+
+### 验证
+
+- `cargo check --lib`: PASS (`Finished dev profile`, no warnings)
+- `cargo test --lib`: 25/25 PASS (18 token_usage + 7 other; 3 new opencode tests included)
+  - `import_opencode_db_basic`: PASS
+  - `import_opencode_db_dedup`: PASS (imported=1, skipped=1 on re-import)
+  - `import_opencode_db_missing_file`: PASS (err on nonexistent path)
+- Hard constraints:
+  - `grep argon2/chacha20/aes-gcm/sodiumoxide/age src-tauri/Cargo.toml`: empty (PASS)
+  - `grep fs::write src-tauri/src/`: empty (PASS — new code uses `Connection::open_with_flags`, no write)
+- `pnpm tsc --noEmit`: PASS
+- `grep import_opencode_db src-tauri/src/`: 12 matches (service def + IPC def + 3 tests + lib.rs register + 2× action registry)
+
+### 下一步
+
+- Commit with Stage d format
+- stage-13 (UsagePage UI hookup for opencode.db file picker) deferred to future stage
+
+---
+
 ## 2026-06-27
 
 **Session scope**: Stage 12 incremental polish + icon generation + dev workflow fix

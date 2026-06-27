@@ -310,6 +310,27 @@
       "notes": "Frontend (stage-13) already built UsagePage + hooks + API wrappers. This stage closes the loop by adding the missing backend IPC handlers. Type mismatch between frontend DTOs and Rust DTOs resolved via IPC-layer conversion (no changes to frontend types or core Rust DTOs). get_summary query updated to include provider in SELECT/GROUP BY to match frontend AgentPair contract."
     },
     {
+      "id": "stage-d",
+      "name": "opencode.db import adapter for TokenUsageService",
+      "description": "Add import_opencode_db to TokenUsageService + IPC handler + Action Registry entry. Reads opencode.db session table (READ ONLY) via rusqlite Connection::open_with_flags. Feeds each row as UsageRecordInput through existing record_usage for FNV-1a dedup. Claude JSONL parsing was already done in stage-b; this stage closes the opencode.db gap.",
+      "files": [
+        "src-tauri/src/services/token_usage.rs",
+        "src-tauri/src/commands/token_usage.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/actions/token_usage.rs",
+        "src-tauri/src/actions/mod.rs"
+      ],
+      "depends_on": [
+        "stage-c"
+      ],
+      "status": "done",
+      "evidence": "cargo check --lib: PASS (Finished dev profile)\ncargo test --lib: 25/25 PASS (18 token_usage including 3 new: import_opencode_db_basic, import_opencode_db_dedup, import_opencode_db_missing_file)\nNo new encryption crates (grep argon2/chacha20/aes-gcm/sodiumoxide/age: empty)\nNo new fs::write paths (grep fs::write in src-tauri/src: empty)\n12 import_opencode_db references found in codebase (service def + IPC def + 3 tests + lib.rs register + 2x action registry)\npnpm tsc --noEmit: PASS",
+      "started_at": "2026-06-28",
+      "ended_at": "2026-06-28",
+      "assignee": "fixer",
+      "notes": "Claude JSONL parsing was already done in stage-b; this stage closes the opencode.db gap. opencode.db adapter reads session table (1266 rows) with READ ONLY flag + NO_MUTEX. Model field split on '/' to derive provider_name. WHERE clause filters zero-token rows. Dedup via existing deterministic_id (FNV-1a) through record_usage. No schema migration, no new crate deps, no fs::write calls in new code."
+    },
+    {
       "id": "stage-9",
       "name": "V0.1 验收 (13 项清单)",
       "description": "V0.1 acceptance test suite — 13 项手动验收清单。",
