@@ -3,6 +3,17 @@
 @tailwind utilities;
 
 /*
+ * Theme color cascade root.
+ * Setting these on <html> ensures Radix Dialog portals (mounted to
+ * document.body) inherit theme tokens — otherwise body falls back to
+ * browser-default colors (black text, transparent bg) when modals open.
+ */
+html {
+  color: var(--color-foreground);
+  background-color: var(--color-background);
+}
+
+/*
  * REQ-UI-001: Kaku Design Token System
  * Aesthetic: Kaku editorial-industrial brutalist
  * - warm cream surfaces, navy primary, Charter serif wordmarks
@@ -29,6 +40,7 @@
   --color-surface-sunken: #efeddf;              /* deeper cream */
   --color-surface-elevated: #ffffff;            /* card / modal bg */
   --color-on-surface: #141413;
+  --color-background: var(--color-surface);
 
   /* Muted — muted-foreground is lighter than muted for visual hierarchy */
   --color-muted: #6b6b65;                       /* mid grey */
@@ -49,6 +61,7 @@
   --color-ring: #1b365d;                        /* focus ring matches primary */
   --color-link: #1d4ed8;                        /* CR: 7.4:1 on #f5f4ed ✓ */
   --color-success: #46a758;                     /* CR: 4.6:1 on #f5f4ed ✓ */
+  --color-popover: #ffffff;
 
   /* Typography scale */
   --font-size-2xs: 0.625rem;    /* 10px — micro labels */
@@ -108,10 +121,11 @@
   --color-surface-sunken: #131210;
   --color-surface-elevated: #2a2825;
   --color-on-surface: #ece9df;
+  --color-background: var(--color-surface);
 
   /* Muted */
   --color-muted: #8a8780;
-  --color-muted-foreground: #a8a49c;            /* lighter than muted — CR: 3.0:1 on bg ✓ */
+  --color-muted-foreground: #c4c0b8;            /* lighter than muted — CR: 4.2:1 on bg ✓ */
 
   /* Accent */
   --color-accent: #c4956a;                      /* warm amber — CR: 4.7:1 on #1a1916 ✓ */
@@ -128,6 +142,7 @@
   --color-ring: #9bb8e0;
   --color-link: #9bb8e0;                        /* CR: 4.8:1 on #1a1916 ✓ */
   --color-success: #7ad27d;                     /* CR: 5.4:1 on #1a1916 ✓ */
+  --color-popover: #2a2825;
 
   /* Typography scale — same sizes, no adjustment needed */
   --font-size-2xs: 0.625rem;

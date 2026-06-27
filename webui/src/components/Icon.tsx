@@ -57,7 +57,7 @@ export const ProviderIcon = React.memo(function ProviderIcon({ preset, name, cla
 
   return (
     <span
-      className={cn("inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold text-white", className)}
+      className={cn("inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold text-[var(--color-secondary)]", className)}
       style={{ backgroundColor: color }}
       title={label}
     >
@@ -99,8 +99,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             key={toast.id}
             className={cn(
               "animate-in slide-in-from-bottom-2 fade-in duration-200 rounded-md border border-border px-4 py-3 text-sm shadow-lg",
-              toast.variant === "success" && "bg-success text-white border-success",
-              toast.variant === "error" && "bg-danger text-white border-danger",
+              toast.variant === "success" && "bg-success text-[var(--color-secondary)] border-success",
+              toast.variant === "error" && "bg-destructive text-destructive-foreground border-destructive",
               toast.variant !== "success" && toast.variant !== "error" && "bg-popover text-popover-foreground"
             )}
           >
