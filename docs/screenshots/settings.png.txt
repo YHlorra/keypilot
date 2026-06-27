@@ -1,3 +1,0 @@
-TODO: Settings Modal screenshot
-Placeholder for: docs/screenshots/settings.png
-Capture: Settings modal with theme toggle (Dark/Light/Auto)

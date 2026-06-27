@@ -42,7 +42,6 @@
 ### 已知遗留 (非本次 scope)
 
 - `DESIGN.md` 是 UTF-16 LE BOM 编码, 不是 UTF-8. 工具链兼容性需后续处理.
-- `docs/screenshots/*.png.txt` 是占位文件, 实际截图待补.
 - `Cargo.toml` 显示 LF/CRLF 行尾告警, 无实际内容改动, 未进 commit.
 - `docs/index.html` (1993 行) 是 UI 设计预览 HTML, 不是 markdown doc, 不在 neat-freak scope.
 

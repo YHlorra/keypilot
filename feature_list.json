@@ -10,12 +10,8 @@
       "status": "archived",
       "archived_on": "2026-06-25",
       "archived_reason": "Superseded by v0.1-general-credentials on 2026-06-24. Retained for historical reference.",
-      "path": "openspec/changes/archive/v0.1-spec-alignment/",
       "date": "2026-06-24",
-      "summary": "11 V0.1 spec decisions locked (ProviderKind 3 + Custom / OpenAI quota from openai-balance / DeepSeek quota from cc-switch / Anthropic quota Unsupported / validate_key three-state / Provider duplicates allowed / 3 preset seed + is_preset flag / schema v1 to v2 migration). Stages 1-4 implementation referenced tasks.md.",
-      "files": [
-        "openspec/changes/archive/v0.1-spec-alignment/README.md"
-      ]
+      "summary": "11 V0.1 spec decisions locked (ProviderKind 3 + Custom / OpenAI quota from openai-balance / DeepSeek quota from cc-switch / Anthropic quota Unsupported / validate_key three-state / Provider duplicates allowed / 3 preset seed + is_preset flag / schema v1 to v2 migration). Stages 1-4 implementation referenced tasks.md."
     },
     {
       "id": "v0.1-general-credentials",
@@ -39,7 +35,6 @@
         "openspec/changes/archive/ui-redesign/proposal.md",
         "openspec/changes/archive/ui-redesign/spec.md",
         "openspec/changes/archive/ui-redesign/design.md",
-        "openspec/changes/archive/ui-redesign/tasks.md",
         "webui/dist/design-preview.html"
       ],
       "archived_on": "2026-06-27",
@@ -232,21 +227,17 @@
       "description": "README 完善 + 截图。",
       "files": [
         "README.md",
-        "docs/v0.1-acceptance.md",
-        "docs/screenshots/main-dark.png.txt",
-        "docs/screenshots/quota.png.txt",
-        "docs/screenshots/tray.png.txt",
-        "docs/screenshots/settings.png.txt"
+        "docs/v0.1-acceptance.md"
       ],
       "depends_on": [
         "stage-7"
       ],
       "status": "done",
-      "evidence": "README.md: expanded with Features / Tech Stack / Screenshots / Installation / Development / V0.1 Limitations\ndocs/screenshots/: 4 placeholder .txt files created\ndocs/v0.1-acceptance.md: 13-item checklist created with status for all gates",
+      "evidence": "README.md: expanded with Features / Tech Stack / Screenshots / Installation / Development / V0.1 Limitations\ndocs/v0.1-acceptance.md: 13-item checklist created with status for all gates",
       "started_at": "2026-06-25",
       "ended_at": "2026-06-25",
       "assignee": "fixer",
-      "notes": "Screenshots are V0.1 launch artifacts; placeholder .txt files reference actual screenshot capture needed"
+      "notes": "Real screenshots to be captured separately; placeholder text files were removed (2026-06-27 audit)"
     },
     {
       "id": "stage-a",
