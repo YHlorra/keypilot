@@ -104,13 +104,11 @@ export default function App() {
   };
 
   const handleEdit = async (id: number) => {
-    console.log("[hunt] App handleEdit called, id=", id);
     try {
       await openForEdit({ id });
-      console.log("[hunt] App openForEdit succeeded, calling setActiveProviderId", id);
       setActiveProviderId(id);
     } catch (e) {
-      console.error("[hunt] App openForEdit failed, calling setActiveProviderId anyway", id, e);
+      console.error("openForEdit failed", e);
       setActiveProviderId(id);
     }
   };
@@ -160,7 +158,6 @@ export default function App() {
             </SectionLabel>
           )}
           <ProviderGrid
-            density={density}
             providers={filteredProviders}
             categories={categories}
             onSelectProvider={(id) => setActiveProviderId(id)}

@@ -1,4 +1,3 @@
-use std::sync::{Arc, Mutex};
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
@@ -71,11 +70,4 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
         }
         _ => {}
     }
-}
-
-/// Update tray tooltip with a summary of pinned providers' quotas.
-#[allow(dead_code)]
-pub fn update_tray_quota(_db: &Arc<Mutex<crate::database::Database>>) -> Result<(), crate::error::AppError> {
-    // TODO: Query quota_cache for pinned providers and update tooltip
-    Ok(())
 }

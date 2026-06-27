@@ -198,7 +198,6 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   // (Previously `open={true}` was hard-coded, which let stale query state from
   // a previous selection bleed into the next open. Now the modal truly closes
   // when providerId goes back to null.)
-  console.log("[hunt] ProviderDetailModal render, providerId=", providerId);
   if (!providerId) return null;
 
   if (isLoading) {
