@@ -11,30 +11,15 @@ import { invoke } from "@tauri-apps/api/core";
 /**
  * Action definition — mirrors src-tauri/src/actions/mod.rs::ActionDef.
  * Each action has a stable id, human-readable name/description, category,
- * and JSON Schema for input/output.
+ * and a JSON Schema (record-of-unknown for hint/validation) for input/output.
  */
 export interface ActionDef {
   id: string;
   name: string;
   description: string;
   category: "provider" | "category" | "quota" | "system" | "token_usage";
-  input_schema: JsonSchema;
-  output_schema: JsonSchema;
-}
-
-// Minimal JSON Schema types — only the subset we need for documentation/validation hints.
-export interface JsonSchema {
-  type?: string | string[];
-  properties?: Record<string, JsonSchema>;
-  required?: string[];
-  items?: JsonSchema;
-  enum?: unknown[];
-  description?: string;
-  format?: string;
-  minimum?: number;
-  maximum?: number;
-  default?: unknown;
-  $ref?: string;
+  input_schema: Record<string, unknown>;
+  output_schema: Record<string, unknown>;
 }
 
 /** Return all registered actions from the backend. */
