@@ -1,44 +1,36 @@
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { defineConfig, mergeConfig } from 'vitest/config';
+import viteConfig from './vite.config';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    alias: [
-      { find: /^@\//, replacement: `${path.resolve(__dirname, 'src')}/` },
-    ],
-  },
-  server: {
-    fs: {
-      allow: ['..'],
-    },
-  },
-  test: {
-    environment: 'jsdom',
-    globals: true,
-    setupFiles: ['./vitest.setup.ts'],
-    include: [
-      '../.bd/tasks/**/tests/**/*.{test,spec}.tsx',
-      '../.bd/tasks/**/tests/**/*.{test,spec}.ts',
-      'src/**/*.{test,spec}.{ts,tsx}',
-    ],
-    css: false,
+export default mergeConfig(
+  viteConfig,
+  defineConfig({
     server: {
-      deps: {
-        inline: [
-          '@testing-library/react',
-          '@testing-library/jest-dom',
-          '@testing-library/user-event',
-          '@tanstack/react-query',
-          'react',
-          'react-dom',
-          'lucide-react',
-        ],
+      // Allow vitest to resolve tests under ../.bd/tasks/ (one level up from webui/).
+      fs: { allow: ['..'] },
+    },
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      setupFiles: ['./vitest.setup.ts'],
+      include: [
+        '../.bd/tasks/**/tests/**/*.{test,spec}.tsx',
+        '../.bd/tasks/**/tests/**/*.{test,spec}.ts',
+        'src/**/*.{test,spec}.{ts,tsx}',
+      ],
+      css: false,
+      server: {
+        deps: {
+          inline: [
+            '@testing-library/react',
+            '@testing-library/jest-dom',
+            '@testing-library/user-event',
+            '@tanstack/react-query',
+            'react',
+            'react-dom',
+            'lucide-react',
+          ],
+        },
       },
     },
-  },
-});
+  })
+);

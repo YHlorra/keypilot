@@ -8,6 +8,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const QUOTA_CACHE_TTL_SECS: i64 = 900; // 15 minutes (REQ-QUOTA-DISPLAY-001)
 
+fn now_secs() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64
+}
+
 /// Manual quota override: Anthropic has no quota API, so the user can persist
 /// a snapshot directly. Manual entries are exempt from the 15-min TTL — once
 /// saved, they are served by `fetch_quota` indefinitely until overwritten.
@@ -76,10 +83,7 @@ pub async fn fetch_quota_by_state(
         };
 
         // Check cache: manual source never expires, auto source obeys 15-min TTL.
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
+        let now = now_secs();
 
         let cached: Option<QuotaSnapshot> = db
             .conn
@@ -124,10 +128,7 @@ pub async fn fetch_quota_by_state(
     // Phase C: write cache (sync SQLite op, short lock) — adapter fetches are auto source
     {
         let db = state.db.lock().unwrap();
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
+        let now = now_secs();
         let json = serde_json::to_string(&snapshot)?;
         db.conn.execute(
             "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
@@ -152,10 +153,7 @@ pub async fn set_manual_quota(
     req: SetManualQuotaRequest,
 ) -> Result<(), AppError> {
     let db = state.db.clone();
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
+    let now = now_secs();
     let json = serde_json::to_string(&req.snapshot)?;
 
     tauri::async_runtime::spawn_blocking(move || {

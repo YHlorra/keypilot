@@ -14,10 +14,6 @@ interface ProviderGridProps {
   onSelectProvider: (id: number) => void;
   onRefreshProvider?: (id: number) => void;
   onAddClick?: () => void;
-  // M6-passed but not used by new grid (density read from DOM, search/categoryFilter applied upstream)
-  density?: "1" | "2";
-  search?: string;
-  categoryFilter?: string;
   onCopy?: (id: number) => void;
   onEdit?: (id: number) => void;
   onTokenUsage?: (id: number) => void;
