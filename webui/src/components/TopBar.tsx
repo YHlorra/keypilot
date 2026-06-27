@@ -1,5 +1,11 @@
 import { Input } from "./ui/input";
-import { ChipGroup } from "./ChipGroup";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import { DensityToggle } from "./DensityToggle";
 
 export interface TopBarProps {
@@ -19,6 +25,8 @@ const PAGE_OPTIONS: { value: "credentials" | "usage"; label: string }[] = [
   { value: "usage", label: "Usage" },
 ];
 
+const ALL_VALUE = "all";
+
 export const TopBar = ({
   search,
   onSearchChange,
@@ -30,10 +38,12 @@ export const TopBar = ({
   onPageChange,
   categories,
 }: TopBarProps) => {
-  const CATEGORY_OPTIONS = [
-    { value: "all", label: "All" },
-    ...categories.map((c) => ({ value: String(c.id), label: c.name })),
-  ];
+  // The Select keeps a string-typed value; we round-trip to/from categoryFilter (number | "all")
+  // at the boundary.
+  const selectValue = categoryFilter === "all" ? ALL_VALUE : String(categoryFilter);
+  const handleCategorySelect = (v: string) => {
+    onCategoryChange(v === ALL_VALUE ? "all" : Number(v));
+  };
 
   return (
     <div
@@ -51,7 +61,7 @@ export const TopBar = ({
         />
       </div>
 
-      {/* Right cluster: page nav + category filter + density */}
+      {/* Right cluster: page nav + category filter (Select dropdown) + density */}
       <div className="flex flex-wrap items-center gap-2 ml-auto">
         {/* Page nav chips -- visually distinct, slightly larger */}
         <div className="inline-flex items-center rounded-pill border border-border bg-muted p-0.5 gap-0.5">
@@ -70,12 +80,26 @@ export const TopBar = ({
             </button>
           ))}
         </div>
-        {/* Category filter chips */}
-        <ChipGroup
-          value={categoryFilter === "all" ? "all" : String(categoryFilter)}
-          onChange={(v) => onCategoryChange(v === "all" ? "all" : Number(v))}
-          options={CATEGORY_OPTIONS}
-        />
+
+        {/* Category filter -- Select dropdown. Replaces the previous ChipGroup that overflowed
+            and broke Chinese text mid-character when the user had many categories. */}
+        <Select value={selectValue} onValueChange={handleCategorySelect}>
+          <SelectTrigger
+            aria-label="Filter by category"
+            className="h-9 w-[180px] rounded-sm border-[var(--color-border)] bg-transparent text-sm"
+          >
+            <SelectValue placeholder="All categories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_VALUE}>All categories</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={String(c.id)}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <DensityToggle value={density} onChange={onDensityChange} />
       </div>
     </div>

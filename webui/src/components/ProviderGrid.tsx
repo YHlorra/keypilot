@@ -5,10 +5,11 @@ import { Button } from "./ui/button";
 import type { Provider } from "@/types/api";
 import { useProviders } from "@/hooks/useProviders";
 import { useQueryClient } from "@tanstack/react-query";
-import { deleteProvider } from "@/lib/api";
+import { deleteProviderViaAction } from "@/lib/api";
 
 interface ProviderGridProps {
   providers: Provider[];
+  categories: import("@/types/api").Category[];
   selectedId?: number | null;
   onSelectProvider: (id: number) => void;
   onRefreshProvider?: (id: number) => void;
@@ -17,6 +18,10 @@ interface ProviderGridProps {
   density?: "1" | "2";
   search?: string;
   categoryFilter?: string;
+  onCopy?: (id: number) => void;
+  onEdit?: (id: number) => void;
+  onTokenUsage?: (id: number) => void;
+  onTest?: (id: number) => void;
 }
 
 function SkeletonCard({ testId }: { testId: string }) {
@@ -37,10 +42,15 @@ function SkeletonCard({ testId }: { testId: string }) {
 
 export const ProviderGrid = ({
   providers,
+  categories,
   selectedId,
   onSelectProvider,
   onRefreshProvider,
   onAddClick,
+  onCopy,
+  onEdit,
+  onTokenUsage,
+  onTest,
 }: ProviderGridProps) => {
   const { isLoading, isError, refetch } = useProviders();
   const queryClient = useQueryClient();
@@ -62,7 +72,7 @@ export const ProviderGrid = ({
 
   const handleDelete = async (id: number) => {
     try {
-      await deleteProvider({ id });
+      await deleteProviderViaAction({ id });
       await queryClient.invalidateQueries({ queryKey: ["providers"] });
     } catch {
       // error handled by caller if needed
@@ -142,6 +152,7 @@ export const ProviderGrid = ({
         <ProviderCard
           key={provider.id}
           provider={provider}
+          categories={categories}
           selected={selectedId === provider.id}
           onClick={() => onSelectProvider(provider.id)}
           onRefresh={(e) => {
@@ -149,6 +160,10 @@ export const ProviderGrid = ({
             onRefreshProvider?.(provider.id);
           }}
           onDelete={handleDelete}
+          onCopy={onCopy}
+          onEdit={onEdit}
+          onTokenUsage={onTokenUsage}
+          onTest={onTest}
         />
       ))}
     </div>

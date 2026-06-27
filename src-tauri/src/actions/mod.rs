@@ -14,12 +14,12 @@
 //   - commands::tray::unpin_provider     (only triggered by tray UI; no Agent use case)
 //   - commands::quota::set_manual_quota  (Anthropic-only manual override; not an Agent action)
 //
-// All 18 other typed IPCs ARE exposed via this registry.
+// All 21 other typed IPCs ARE exposed via this registry.
 
 use crate::error::AppError;
 use crate::store::AppState;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub mod category;
 pub mod provider;
@@ -80,6 +80,35 @@ pub async fn dispatch(
             let id = require_i64(&params, "id")?;
             let r = crate::services::provider::get_provider_by_state(state, id).await?;
             Ok(serde_json::to_value(r).map_err(AppError::Serde)?)
+        }
+        "provider.open_for_edit" => {
+            let id = require_i64(&params, "id")?;
+            let r = crate::services::provider::get_provider_by_state(state, id).await?;
+            Ok(serde_json::to_value(r).map_err(AppError::Serde)?)
+        }
+        "provider.copy_credential" => {
+            let id = require_i64(&params, "id")?;
+            let field_key = params_get(&params, "field_key")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let r = crate::services::provider::copy_credential_by_state(state, id, field_key).await?;
+            Ok(serde_json::to_value(r).map_err(AppError::Serde)?)
+        }
+        "provider.test_and_refresh" => {
+            let id = require_i64(&params, "id")?;
+            // Multi-end: test + quota in sequence
+            let test_result = match crate::commands::provider::test_connection_by_state(state, id).await {
+                Ok(_) => Ok("ok".to_string()),
+                Err(e) => Err(e),
+            };
+            let quota_result = crate::commands::quota::fetch_quota_by_state(state, id).await;
+            // Compose: test result is required, quota is optional (may fail for non-supported presets like Anthropic)
+            let test_status = match &test_result {
+                Ok(s) => s.clone(),
+                Err(e) => format!("error: {}", e),
+            };
+            let quota = quota_result.ok();
+            Ok(json!({ "test": test_status, "quota": quota }))
         }
         "provider.add" => {
             let req: crate::services::provider::AddProviderRequest = parse(params)?;

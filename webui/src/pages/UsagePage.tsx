@@ -7,6 +7,7 @@ import { ImportModal } from "@/components/ImportModal";
 import { Button } from "@/components/ui/button";
 import { useUsageSummary } from "@/hooks/useUsage";
 import { useUsageRecords } from "@/hooks/useUsage";
+import { X } from "lucide-react";
 import type { AgentPair, UsageFilter } from "@/types/api";
 
 type RangeOption = "7d" | "30d" | "90d" | "all";
@@ -24,6 +25,11 @@ const TAB_OPTIONS: { value: TabOption; label: string }[] = [
   { value: "daily", label: "Daily" },
   { value: "hourly", label: "Hourly" },
 ];
+
+export interface UsagePageProps {
+  filterProviderId?: number | null;
+  onClearFilter?: () => void;
+}
 
 // Build heatmap data from filtered usage records
 function buildHeatmapData(
@@ -56,7 +62,7 @@ function buildHeatmapData(
   return cells;
 }
 
-export default function UsagePage() {
+export default function UsagePage({ filterProviderId, onClearFilter }: UsagePageProps) {
   const [selectedRange, setSelectedRange] = useState<RangeOption>("30d");
   const [selectedTab, setSelectedTab] = useState<TabOption>("overview");
   const [selectedPair, setSelectedPair] = useState<AgentPair | null>(null);
@@ -85,8 +91,9 @@ export default function UsagePage() {
     return {
       start_date: startDate,
       end_date: now.toISOString().split("T")[0],
+      ...(filterProviderId ? { provider: String(filterProviderId) } : {}),
     };
-  }, [selectedRange]);
+  }, [selectedRange, filterProviderId]);
 
   const { data: summary, isLoading: summaryLoading } = useUsageSummary(filter);
 
@@ -123,10 +130,22 @@ export default function UsagePage() {
           ))}
         </div>
 
-        {/* Import button */}
-        <Button size="sm" onClick={() => setImportModalOpen(true)}>
-          Import
-        </Button>
+        {/* Import button + clear filter */}
+        <div className="flex items-center gap-2">
+          {filterProviderId != null && (
+            <button
+              onClick={onClearFilter}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-pill border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
+              title="Clear provider filter"
+            >
+              <X className="h-3 w-3" />
+              Clear filter
+            </button>
+          )}
+          <Button size="sm" onClick={() => setImportModalOpen(true)}>
+            Import
+          </Button>
+        </div>
       </div>
 
       {/* Tab bar */}

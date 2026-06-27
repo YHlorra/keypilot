@@ -16,7 +16,9 @@ import type {
   SetManualQuotaRequest, SetManualQuotaResponse,
   UsageRecordInput, UsageRecord, UsageFilter, UsageSummary,
   ImportFormat, ImportResult, PricingEntry, PaginatedResponse,
+  QuotaSnapshot,
 } from "@/types/api";
+import { executeAction } from "@/lib/action-registry";
 
 // 12 IPC functions -- real Tauri invoke wiring
 
@@ -111,5 +113,35 @@ export async function importUsage(
 }
 
 export async function getPricing(): Promise<PricingEntry[]> {
-  return invoke<PricingEntry[]>("get_pricing");
+  return invoke<PricingEntry[]>("get_pricing", {});
+}
+
+// === Action Registry wrappers (inline credential card buttons) ===
+
+export interface CopyCredentialResponse {
+  value: string;
+  field_key: string;
+}
+export async function copyCredential(req: { id: number; field_key?: string }): Promise<CopyCredentialResponse> {
+  return executeAction("provider.copy_credential", req) as Promise<CopyCredentialResponse>;
+}
+
+export interface TestAndRefreshResponse {
+  test: string;
+  quota: QuotaSnapshot | null;
+}
+export async function testAndRefresh(req: { id: number }): Promise<TestAndRefreshResponse> {
+  return executeAction("provider.test_and_refresh", req) as Promise<TestAndRefreshResponse>;
+}
+
+export async function openForEdit(req: { id: number }): Promise<GetProviderResponse> {
+  return executeAction("provider.open_for_edit", req) as Promise<GetProviderResponse>;
+}
+
+export async function usageSummaryForProvider(req: { provider_id: number }): Promise<UsageSummary> {
+  return executeAction("token_usage.summary", { ...req }) as Promise<UsageSummary>;
+}
+
+export async function deleteProviderViaAction(req: { id: number }): Promise<void> {
+  return executeAction("provider.delete", req) as Promise<void>;
 }

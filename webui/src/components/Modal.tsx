@@ -18,8 +18,11 @@ export const Modal = React.memo(function Modal({ open, onClose, children, title,
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 animate-in fade-in duration-200" />
         <Dialog.Content
           className={cn(
-            "fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
-            "w-full max-w-3xl rounded-sm border border-border shadow-[0_8px_24px_rgba(0,0,0,0.18)]",
+            // Mobile: inset-x-4 gives 16px breathing room from viewport edges (avoids the modal
+            // touching the screen border on narrow phones). sm+: center via translate.
+            "fixed top-1/2 z-50 -translate-y-1/2",
+            "inset-x-4 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2",
+            "max-w-3xl rounded-sm border border-border shadow-[0_8px_24px_rgba(0,0,0,0.18)]",
             "focus:outline-none",
             "max-h-[90vh] flex flex-col"
           )}

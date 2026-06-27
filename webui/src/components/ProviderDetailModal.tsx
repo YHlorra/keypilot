@@ -2,7 +2,7 @@ import * as React from "react";
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { Trash2, Eye, EyeOff, Copy, ExternalLink } from "lucide-react";
+import { Trash2, Eye, EyeOff, Copy, ExternalLink, Terminal, Pencil, X, RefreshCw, Loader2 } from "lucide-react";
 import { Modal } from "./Modal";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -10,10 +10,12 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon, useToast, ProviderIcon } from "./Icon";
 import { AddKvModal } from "./AddKvModal";
 import { getProvider, updateProvider, deleteProvider } from "@/lib/api";
-import type { GetProviderRequest, UpdateProviderRequest, Visibility } from "@/types/api";
+import type { GetProviderRequest, UpdateProviderRequest, Visibility, Category } from "@/types/api";
+import { isLlmCategory } from "@/lib/utils";
 
 interface ProviderDetailModalProps {
   providerId: number | null;
+  categories: Category[];
   onClose: () => void;
   onTest: (id: number) => void;
   onFetchQuota: (id: number) => void;
@@ -29,6 +31,7 @@ function maskValue(value: string): string {
 
 export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   providerId,
+  categories,
   onClose,
   onTest,
   onFetchQuota,
@@ -40,6 +43,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [addKvOpen, setAddKvOpen] = useState(false);
   const [revealedFields, setRevealedFields] = useState<Set<number>>(new Set());
+  const [testPending, setTestPending] = useState(false);
 
   // Fetch provider data
   const { data: provider, isLoading } = useQuery({
@@ -111,6 +115,16 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
     ? `Tested ${formatDistanceToNow(new Date(lastTested * 1000))} ago`
     : "Not tested";
 
+  // LLM detection for "test connection" action -- driven by category, not preset.
+  // We only render the test button for providers in a category literally named "LLM".
+  const canTest = !!provider && isLlmCategory(provider.category_id, categories);
+
+  // Primary field for header-level copy (api_key, else first field)
+  const primaryField = useMemo(
+    () => provider?.fields.find((f) => f.key === "api_key") ?? provider?.fields[0] ?? null,
+    [provider?.fields]
+  );
+
   // Quota data (stub -- real data comes from quota query)
   const quotaData = (provider as any)?.quota ?? null;
 
@@ -130,6 +144,23 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
       showToast("已复制", "success");
     });
   }, [showToast]);
+
+  // Header-level copy: copies the primary credential (api_key, else first field)
+  const handleCopyPrimary = useCallback(() => {
+    if (!primaryField) return;
+    handleCopy(primaryField.value);
+  }, [primaryField, handleCopy]);
+
+  // Test connection (LLM only) -- wrapper with pending state
+  const handleTestClick = useCallback(async () => {
+    if (providerId === null || testPending) return;
+    setTestPending(true);
+    try {
+      await onTest(providerId);
+    } finally {
+      setTestPending(false);
+    }
+  }, [providerId, testPending, onTest]);
 
   // Add a new field via AddKvModal -- persist via updateProvider.
   // Reuse updateMutation so onSuccess invalidates ["provider", id] + ["providers"].
@@ -167,6 +198,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   // (Previously `open={true}` was hard-coded, which let stale query state from
   // a previous selection bleed into the next open. Now the modal truly closes
   // when providerId goes back to null.)
+  console.log("[hunt] ProviderDetailModal render, providerId=", providerId);
   if (!providerId) return null;
 
   if (isLoading) {
@@ -193,32 +225,15 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
         open={true}
         onClose={handleClose}
         footer={
-          <>
-            <Button variant="ghost" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                if (providerId !== null) onFetchQuota(providerId);
-              }}
-            >
-              Fetch quota
-            </Button>
-            <Button
-              onClick={() => {
-                if (providerId !== null) onTest(providerId);
-              }}
-            >
-              Test connection
-            </Button>
-          </>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
         }
       >
         <div className="space-y-6">
-          {/* Header */}
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
+          {/* Header -- stacks vertically below sm so the action bar doesn't overflow the modal on narrow viewports */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 min-w-0">
               <ProviderIcon
                 preset={provider.preset}
                 name={provider.name}
@@ -250,10 +265,10 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 flex-wrap shrink-0">
               {/* Status pill */}
               <span
-                className={`text-xs px-2 py-0.5 rounded-full border ${
+                className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${
                   lastTested
                     ? "bg-primary/10 text-primary border-primary/20"
                     : "bg-muted text-muted-foreground border-border"
@@ -262,32 +277,88 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                 {statusPillText}
               </span>
 
-              {/* Edit / Cancel toggle */}
-              {editMode === "view" ? (
-                <Button variant="ghost" size="sm" onClick={handleStartEdit}>
-                  Edit
-                </Button>
-              ) : (
-                <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
-                  Cancel
-                </Button>
+              {/* Action bar (view mode): Copy -> Edit -> Test [LLM only] -> Trash */}
+              {editMode === "view" && (
+                <>
+                  {/* 1. Copy primary credential */}
+                  <button
+                    type="button"
+                    onClick={handleCopyPrimary}
+                    disabled={!primaryField}
+                    className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="复制"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+
+                  {/* 2. Edit */}
+                  <button
+                    type="button"
+                    onClick={handleStartEdit}
+                    className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                    title="编辑"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+
+                  {/* 3. Test connection (LLM preset only) */}
+                  {canTest && (
+                    <button
+                      type="button"
+                      onClick={handleTestClick}
+                      disabled={testPending}
+                      className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="测试连接"
+                    >
+                      {testPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Terminal className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+
+                  {/* 4. Trash */}
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirmOpen(true)}
+                    className="p-1.5 rounded hover:bg-danger/10 text-muted-foreground hover:text-danger transition-colors"
+                    title="删除"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
               )}
 
-              {/* Trash */}
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmOpen(true)}
-                className="p-1.5 rounded hover:bg-danger/10 text-muted-foreground hover:text-danger transition-colors"
-                title="Delete"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {/* Edit mode: only show cancel (X) */}
+              {editMode === "edit" && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                  title="取消"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
 
           {/* Quota section */}
           <div className="space-y-2">
-            <h3 className="text-lg font-semibold font-serif">Quota</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold font-serif">Quota</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  if (providerId !== null) onFetchQuota(providerId);
+                }}
+                className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                title="刷新配额"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
             {quotaData ? (
               <>
                 <div className="flex items-center justify-between text-sm">
