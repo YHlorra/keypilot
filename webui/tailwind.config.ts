@@ -27,6 +27,8 @@ const config: Config = {
         foreground: "var(--color-foreground)",
         card: "var(--color-surface)",
         cardForeground: "var(--color-on-surface)",
+        popover: "var(--color-popover)",
+        popoverForeground: "var(--color-on-surface)",
         primary: "var(--color-primary)",
         primaryForeground: "var(--color-secondary)",
         secondary: "var(--color-surface-elevated)",
