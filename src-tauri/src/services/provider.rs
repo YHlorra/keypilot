@@ -318,3 +318,48 @@ pub async fn delete_provider_by_state(state: &AppState, id: i64) -> Result<(), A
     }).await.map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
     Ok(())
 }
+
+/// Result of copy_credential — the resolved credential value + the field key it came from.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CopyCredentialResult {
+    pub value: String,
+    pub field_key: String,
+}
+
+pub async fn copy_credential_by_state(
+    state: &AppState,
+    id: i64,
+    field_key: Option<String>,
+) -> Result<CopyCredentialResult, AppError> {
+    let provider = get_provider_by_state(state, id).await?;
+    // Try explicit field_key first, then api_key, then first field
+    let resolved = if let Some(k) = field_key {
+        provider.fields.iter().find(|f| f.key == k)
+    } else {
+        provider.fields.iter().find(|f| f.key == "api_key")
+    };
+    let field = resolved.or_else(|| provider.fields.first())
+        .ok_or_else(|| AppError::ProviderNotFound(id))?;
+    Ok(CopyCredentialResult {
+        value: field.value.clone(),
+        field_key: field.key.clone(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_copy_credential_result_serde() {
+        let r = CopyCredentialResult {
+            value: "sk-test".to_string(),
+            field_key: "api_key".to_string(),
+        };
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(json.contains("sk-test"));
+        let back: CopyCredentialResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.value, "sk-test");
+        assert_eq!(back.field_key, "api_key");
+    }
+}

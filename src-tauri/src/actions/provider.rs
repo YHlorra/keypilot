@@ -34,6 +34,64 @@ pub fn actions() -> Vec<ActionDef> {
             output_schema: json!({ "$ref": "#/components/schemas/Provider" }),
         },
         ActionDef {
+            id: "provider.open_for_edit".into(),
+            name: "Open Provider For Edit".into(),
+            description: "Fetch a provider by id and return its current state for the edit modal. Mirrors provider.get but semantically signals the caller is about to edit.".into(),
+            category: "provider".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": { "id": { "type": "integer", "description": "Provider id" } },
+                "required": ["id"]
+            }),
+            output_schema: json!({ "$ref": "#/components/schemas/Provider" }),
+        },
+        ActionDef {
+            id: "provider.copy_credential".into(),
+            name: "Copy Primary Credential".into(),
+            description: "Return the value of the primary credential field (api_key by default, or first field if not present). For clipboard copy use case — caller's responsibility to write to clipboard.".into(),
+            category: "provider".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer", "description": "Provider id" },
+                    "field_key": { "type": ["string", "null"], "description": "Optional: override the field key. Defaults to 'api_key'." }
+                },
+                "required": ["id"]
+            }),
+            output_schema: json!({
+                "type": "object",
+                "properties": {
+                    "value": { "type": "string", "description": "The credential value (plaintext, V0.1)" },
+                    "field_key": { "type": "string", "description": "The actual field key resolved" }
+                },
+                "required": ["value", "field_key"]
+            }),
+        },
+        ActionDef {
+            id: "provider.test_and_refresh".into(),
+            name: "Test Connection And Refresh Quota".into(),
+            description: "Test the provider connection AND fetch the latest quota in one call. Multi-end invocation: runs test_connection_by_state then fetch_quota_by_state sequentially, returning both results.".into(),
+            category: "provider".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": { "id": { "type": "integer" } },
+                "required": ["id"]
+            }),
+            output_schema: json!({
+                "type": "object",
+                "properties": {
+                    "test": { "type": "string", "description": "Test result status: 'ok' or error message" },
+                    "quota": {
+                        "oneOf": [
+                            { "type": "null" },
+                            { "$ref": "#/components/schemas/QuotaSnapshot" }
+                        ]
+                    }
+                },
+                "required": ["test", "quota"]
+            }),
+        },
+        ActionDef {
             id: "provider.add".into(),
             name: "Add Provider".into(),
             description: "Create a new provider with optional initial fields.".into(),

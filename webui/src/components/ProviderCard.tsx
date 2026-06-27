@@ -1,15 +1,28 @@
-import { Clock, RefreshCw } from "lucide-react";
+import {
+  Clock,
+  RefreshCw,
+  Pencil,
+  Copy,
+  BarChart3,
+  Terminal,
+  Trash2,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { cn } from "@/lib/utils";
-import type { Provider } from "@/types/api";
+import { cn, isLlmCategory } from "@/lib/utils";
+import type { Provider, Category } from "@/types/api";
 import { ContextMenu } from "./ContextMenu";
 
 interface ProviderCardProps {
   provider: Provider;
+  categories: Category[];
   selected: boolean;
   onClick: () => void;
   onRefresh: (e: React.MouseEvent) => void;
   onDelete: (id: number) => void;
+  onCopy?: (id: number) => void;
+  onEdit?: (id: number) => void;
+  onTokenUsage?: (id: number) => void;
+  onTest?: (id: number) => void;
 }
 
 const PRESET_TINTS: Record<string, { bg: string; label: string }> = {
@@ -41,13 +54,19 @@ function GripIcon() {
 
 export const ProviderCard = ({
   provider,
+  categories,
   selected,
   onClick,
   onRefresh,
   onDelete,
+  onCopy,
+  onEdit,
+  onTokenUsage,
+  onTest,
 }: ProviderCardProps) => {
   const tint = getFamilyTint(provider.preset);
   const iconLabel = tint.label || provider.name.charAt(0).toUpperCase();
+  const isLlm = isLlmCategory(provider.category_id, categories);
 
   // Derive a display URL from base_url field if present
   const baseUrlField = provider.fields.find((f) => f.key === "base_url");
@@ -78,6 +97,32 @@ export const ProviderCard = ({
     e.preventDefault();
   };
 
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onCopy?.(provider.id);
+  };
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log("[hunt] ProviderCard edit-btn onClick fired, id=", provider.id, "onEdit=", typeof onEdit);
+    onEdit?.(provider.id);
+  };
+
+  const handleTokenUsage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onTokenUsage?.(provider.id);
+  };
+
+  const handleTest = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onTest?.(provider.id);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(provider.id);
+  };
+
   return (
     <ContextMenu providerId={provider.id} onDelete={onDelete}>
       <div
@@ -86,6 +131,13 @@ export const ProviderCard = ({
         data-selected={selected}
         onClick={onClick}
         onContextMenu={handleContextMenu}
+        // Radix DropdownMenu.Trigger (mjs:74-77) calls onOpenToggle() + event.preventDefault()
+        // on left-click pointerdown. preventDefault on pointerdown cancels the subsequent click,
+        // so the inline button onClick handlers never fire and the menu also opens. Stopping
+        // pointerdown at the card prevents the Trigger from intercepting; the click event then
+        // fires normally and onClick handlers run. Right-click (button === 2) still bubbles
+        // because Radix opens the menu via the contextmenu event, not pointerdown.
+        onPointerDown={(e) => e.stopPropagation()}
         className={cn(
           "relative flex items-center gap-3 px-4 py-3 rounded-[8px] border cursor-pointer transition-colors select-none",
           "bg-[var(--color-surface)] border-[var(--color-border)]",
@@ -106,7 +158,7 @@ export const ProviderCard = ({
         {/* Provider icon */}
         <div
           data-testid="provider-icon"
-          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-mono font-bold"
+          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[var(--color-secondary)] text-xs font-mono font-bold"
           style={{ backgroundColor: tint.bg }}
         >
           {iconLabel}
@@ -160,6 +212,60 @@ export const ProviderCard = ({
               </span>
             </div>
           )}
+
+          {/* Inline action buttons */}
+          {onEdit && (
+            <button
+              data-testid="edit-btn"
+              onClick={handleEdit}
+              className="p-1.5 rounded hover:bg-accent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="编辑"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
+
+          {onCopy && (
+            <button
+              data-testid="copy-btn"
+              onClick={handleCopy}
+              className="p-1.5 rounded hover:bg-accent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="复制"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          )}
+
+          {isLlm && onTokenUsage && (
+            <button
+              data-testid="usage-btn"
+              onClick={handleTokenUsage}
+              className="p-1.5 rounded hover:bg-accent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="用量"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </button>
+          )}
+
+          {isLlm && onTest && (
+            <button
+              data-testid="test-btn"
+              onClick={handleTest}
+              className="p-1.5 rounded hover:bg-accent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="测试连接"
+            >
+              <Terminal className="h-4 w-4" />
+            </button>
+          )}
+
+          <button
+            data-testid="delete-btn"
+            onClick={handleDelete}
+            className="p-1.5 rounded hover:bg-accent text-[var(--color-muted)] hover:text-[var(--color-foreground)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="删除"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </ContextMenu>
