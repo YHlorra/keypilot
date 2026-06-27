@@ -201,6 +201,12 @@ pub async fn dispatch(
             let r = crate::commands::token_usage::get_pricing_by_state(state).await?;
             Ok(serde_json::to_value(r).map_err(AppError::Serde)?)
         }
+        "token_usage.import_opencode_db" => {
+            let db_path = require_string(&params, "db_path")?;
+            let req = crate::commands::token_usage::ImportOpencodeDbRequest { db_path };
+            let r = crate::commands::token_usage::import_opencode_db_by_state(state, req).await?;
+            Ok(serde_json::to_value(r).map_err(AppError::Serde)?)
+        }
 
         _ => Err(AppError::ActionNotFound(action_id.to_string())),
     }

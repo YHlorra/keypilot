@@ -463,3 +463,31 @@ pub async fn get_pricing_by_state(state: &AppState) -> Result<Vec<PricingEntryRe
     let entries = state.pricing.all_entries();
     Ok(rust_pricing_to_ipc(entries))
 }
+
+// ---------- opencode.db import ----------
+
+#[derive(Debug, Deserialize)]
+pub struct ImportOpencodeDbRequest {
+    pub db_path: String,
+}
+
+#[tauri::command]
+pub async fn import_opencode_db(
+    state: State<'_, AppState>,
+    req: ImportOpencodeDbRequest,
+) -> Result<ImportResultResponse, AppError> {
+    import_opencode_db_by_state(&state, req).await
+}
+
+pub async fn import_opencode_db_by_state(
+    state: &AppState,
+    req: ImportOpencodeDbRequest,
+) -> Result<ImportResultResponse, AppError> {
+    let svc = TokenUsageService::new(state.db.clone(), state.pricing.clone());
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        svc.import_opencode_db(std::path::Path::new(&req.db_path))
+    })
+    .await
+    .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
+    Ok(rust_import_result_to_ipc(result))
+}

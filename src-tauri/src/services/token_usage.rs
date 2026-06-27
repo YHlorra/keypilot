@@ -561,6 +561,90 @@ impl TokenUsageService {
         Ok(ImportResult { imported, skipped, errors })
     }
 
+    /// Import token usage from an opencode.db SQLite file (READ ONLY).
+    /// Reads `session` table rows and feeds each as a UsageRecordInput through
+    /// `record_usage` so existing dedup (FNV-1a) applies.
+    pub fn import_opencode_db(&self, db_path: &std::path::Path) -> Result<ImportResult, AppError> {
+        use rusqlite::OpenFlags;
+        let conn = rusqlite::Connection::open_with_flags(
+            db_path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map_err(|e| AppError::TokenUsageInvalidFormat(format!("open db: {e}")))?;
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, model, cost, tokens_input, tokens_output, \
+                        tokens_reasoning, tokens_cache_read, tokens_cache_write, time_created \
+                 FROM session \
+                 WHERE (tokens_input > 0 OR tokens_output > 0) \
+                 ORDER BY time_created ASC",
+            )
+            .map_err(|e| AppError::TokenUsageInvalidFormat(format!("prepare: {e}")))?;
+
+        let mut rows = stmt
+            .query([])
+            .map_err(|e| AppError::TokenUsageInvalidFormat(format!("query: {e}")))?;
+
+        let mut imported: u32 = 0;
+        let mut skipped: u32 = 0;
+        let mut errors: Vec<ImportError> = Vec::new();
+        let mut idx: u32 = 0;
+
+        while let Some(row) = rows
+            .next()
+            .map_err(|e| AppError::TokenUsageInvalidFormat(format!("next: {e}")))?
+        {
+            idx += 1;
+            let id: String = row.get(0).unwrap_or_default();
+            let model_raw: Option<String> = row.get(1).ok();
+            let cost: f64 = row.get(2).unwrap_or(0.0);
+            let input_tokens: i64 = row.get(3).unwrap_or(0);
+            let output_tokens: i64 = row.get(4).unwrap_or(0);
+            let reasoning_tokens: i64 = row.get(5).unwrap_or(0);
+            let cache_read: i64 = row.get(6).unwrap_or(0);
+            let cache_write: i64 = row.get(7).unwrap_or(0);
+            let occurred_at: i64 = row.get(8).unwrap_or(0);
+
+            let (provider_name, model) = match model_raw.as_deref() {
+                Some(m) if m.contains('/') => {
+                    let mut parts = m.splitn(2, '/');
+                    (parts.next().unwrap_or("opencode").to_string(), parts.next().unwrap_or(m).to_string())
+                }
+                Some(m) => ("opencode".to_string(), m.to_string()),
+                None => ("opencode".to_string(), "unknown".to_string()),
+            };
+
+            let usage_details = Some(format!(r#"{{"cost_usd":{cost},"source":"opencode"}}"#));
+
+            let input = UsageRecordInput {
+                agent_type: "opencode".to_string(),
+                model,
+                provider_name,
+                occurred_at,
+                session_id: Some(id.clone()),
+                request_id: None,
+                input_tokens,
+                output_tokens,
+                cache_read_input_tokens: cache_read,
+                cache_creation_input_tokens: cache_write,
+                reasoning_tokens,
+                usage_details,
+            };
+
+            match self.record_usage(&id, input) {
+                Ok(_) => imported += 1,
+                Err(AppError::TokenUsageDuplicate(_)) => skipped += 1,
+                Err(e) => errors.push(ImportError {
+                    line: idx,
+                    message: e.to_string(),
+                }),
+            }
+        }
+
+        Ok(ImportResult { imported, skipped, errors })
+    }
+
     pub fn refresh_daily_rollups(&self, date: &str) -> Result<(), AppError> {
         let db = self.db.lock().map_err(|e| {
             AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
@@ -914,5 +998,76 @@ mod tests {
         svc.refresh_daily_rollups(date).unwrap();
         let after = svc.get_summary(UsageFilter::default()).unwrap();
         assert_eq!(after.total_requests, 2); // recomputed back
+    }
+
+    #[test]
+    fn import_opencode_db_basic() {
+        use rusqlite::Connection;
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("kp_test_opencode_{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE session (
+                    id TEXT PRIMARY KEY, model TEXT, cost REAL DEFAULT 0 NOT NULL,
+                    tokens_input INTEGER DEFAULT 0 NOT NULL,
+                    tokens_output INTEGER DEFAULT 0 NOT NULL,
+                    tokens_reasoning INTEGER DEFAULT 0 NOT NULL,
+                    tokens_cache_read INTEGER DEFAULT 0 NOT NULL,
+                    tokens_cache_write INTEGER DEFAULT 0 NOT NULL,
+                    time_created INTEGER NOT NULL
+                 );
+                 INSERT INTO session VALUES
+                   ('s1','minimax-cn-coding-plan/MiniMax-M2.7',0.001,1000,500,0,200,0,1700000000000),
+                   ('s2','openai/gpt-4o',0.05,2000,1000,0,0,500,1700000001000),
+                   ('s3',NULL,0,0,0,0,0,0,1700000002000);",
+            ).unwrap();
+        }
+
+        let svc = make_service();
+        let r = svc.import_opencode_db(&path).unwrap();
+        assert_eq!(r.imported, 2);
+        assert_eq!(r.skipped, 0);
+        assert!(r.errors.is_empty(), "errors: {:?}", r.errors);
+
+        let summary = svc.get_summary(UsageFilter::default()).unwrap();
+        assert!(summary.agent_pairs.iter().any(|p| p.agent_type == "opencode"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn import_opencode_db_dedup() {
+        use rusqlite::Connection;
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("kp_test_opencode_dedup_{}.db", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE session (id TEXT PRIMARY KEY, model TEXT, cost REAL DEFAULT 0,
+                 tokens_input INT DEFAULT 0, tokens_output INT DEFAULT 0,
+                 tokens_reasoning INT DEFAULT 0, tokens_cache_read INT DEFAULT 0,
+                 tokens_cache_write INT DEFAULT 0, time_created INT NOT NULL);
+                 INSERT INTO session VALUES ('dup1','openai/gpt-4o',0.01,500,250,0,0,0,1700000000000);",
+            ).unwrap();
+        }
+
+        let svc = make_service();
+        let r1 = svc.import_opencode_db(&path).unwrap();
+        assert_eq!(r1.imported, 1);
+        let r2 = svc.import_opencode_db(&path).unwrap();
+        assert_eq!(r2.imported, 0);
+        assert_eq!(r2.skipped, 1);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn import_opencode_db_missing_file() {
+        let svc = make_service();
+        let r = svc.import_opencode_db(std::path::Path::new("Z:/nonexistent/kp_opencode_xyz.db"));
+        assert!(r.is_err());
     }
 }

@@ -85,6 +85,7 @@ pub fn run() {
     commands::token_usage::list_usage_records,
     commands::token_usage::get_usage_summary,
     commands::token_usage::import_usage,
+    commands::token_usage::import_opencode_db,
     commands::token_usage::get_pricing,
     // Action Registry (Stage 10)
     commands::action::list_actions,

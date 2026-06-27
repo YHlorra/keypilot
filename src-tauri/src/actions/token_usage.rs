@@ -127,5 +127,38 @@ pub fn actions() -> Vec<ActionDef> {
                 "items": { "$ref": "#/components/schemas/PricingEntry" }
             }),
         },
+        ActionDef {
+            id: "token_usage.import_opencode_db".into(),
+            name: "Import opencode.db".into(),
+            description: "Import token usage from an opencode.db SQLite file (READ ONLY). Reads the session table and feeds each row through record_usage so existing FNV-1a dedup applies.".into(),
+            category: "token_usage".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "db_path": {
+                        "type": "string",
+                        "description": "Absolute path to opencode.db (READ ONLY). Table 'session' must exist with columns: id, model, cost, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, time_created."
+                    }
+                },
+                "required": ["db_path"]
+            }),
+            output_schema: json!({
+                "type": "object",
+                "properties": {
+                    "imported": { "type": "integer" },
+                    "skipped": { "type": "integer" },
+                    "errors": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "line": { "type": "integer" },
+                                "message": { "type": "string" }
+                            }
+                        }
+                    }
+                }
+            }),
+        },
     ]
 }
