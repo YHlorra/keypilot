@@ -34,6 +34,14 @@ impl Database {
         Ok(value)
     }
 
+    pub fn set_meta(&self, key: &str, value: &str) -> Result<(), AppError> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)",
+            rusqlite::params![key, value],
+        ).map_err(AppError::Database)?;
+        Ok(())
+    }
+
     pub fn setup_schema(&self) -> Result<()> {
         let conn = &self.conn;
 

@@ -155,6 +155,83 @@ fn get_cell<'a>(row: &'a [String], idx: Option<usize>) -> Option<&'a str> {
     idx.and_then(|i| row.get(i).map(|s| s.as_str()))
 }
 
+// ---------- opencode.db row parser (pure — used by import_opencode_db and AgentParser) ----------
+
+/// Parse opencode.db session rows into canonical `UsageRecordInput` records.
+/// No DB writes.  Exposed so `AgentParser` implementations can reuse it.
+pub fn parse_opencode_db_records(
+    db_path: &std::path::Path,
+) -> Result<Vec<UsageRecordInput>, AppError> {
+    use rusqlite::OpenFlags;
+    let conn = rusqlite::Connection::open_with_flags(
+        db_path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|e| AppError::TokenUsageInvalidFormat(format!("open db: {e}")))?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, model, cost, tokens_input, tokens_output, \
+                    tokens_reasoning, tokens_cache_read, tokens_cache_write, time_created \
+             FROM session \
+             WHERE (tokens_input > 0 OR tokens_output > 0) \
+             ORDER BY time_created ASC",
+        )
+        .map_err(|e| AppError::TokenUsageInvalidFormat(format!("prepare: {e}")))?;
+
+    let mut rows = stmt
+        .query([])
+        .map_err(|e| AppError::TokenUsageInvalidFormat(format!("query: {e}")))?;
+
+    let mut records = Vec::new();
+
+    while let Some(row) = rows
+        .next()
+        .map_err(|e| AppError::TokenUsageInvalidFormat(format!("next: {e}")))?
+    {
+        let id: String = row.get(0).unwrap_or_default();
+        let model_raw: Option<String> = row.get(1).ok();
+        let cost: f64 = row.get(2).unwrap_or(0.0);
+        let input_tokens: i64 = row.get(3).unwrap_or(0);
+        let output_tokens: i64 = row.get(4).unwrap_or(0);
+        let reasoning_tokens: i64 = row.get(5).unwrap_or(0);
+        let cache_read: i64 = row.get(6).unwrap_or(0);
+        let cache_write: i64 = row.get(7).unwrap_or(0);
+        let occurred_at: i64 = row.get(8).unwrap_or(0);
+
+        let (provider_name, model) = match model_raw.as_deref() {
+            Some(m) if m.contains('/') => {
+                let mut parts = m.splitn(2, '/');
+                (
+                    parts.next().unwrap_or("opencode").to_string(),
+                    parts.next().unwrap_or(m).to_string(),
+                )
+            }
+            Some(m) => ("opencode".to_string(), m.to_string()),
+            None => ("opencode".to_string(), "unknown".to_string()),
+        };
+
+        let usage_details = Some(format!(r#"{{"cost_usd":{cost},"source":"opencode"}}"#));
+
+        records.push(UsageRecordInput {
+            agent_type: "opencode".to_string(),
+            model,
+            provider_name,
+            occurred_at,
+            session_id: Some(id),
+            request_id: None,
+            input_tokens,
+            output_tokens,
+            cache_read_input_tokens: cache_read,
+            cache_creation_input_tokens: cache_write,
+            reasoning_tokens,
+            usage_details,
+        });
+    }
+
+    Ok(records)
+}
+
 // ---------- Service ----------
 
 pub struct TokenUsageService {
@@ -165,6 +242,17 @@ pub struct TokenUsageService {
 impl TokenUsageService {
     pub fn new(db: Arc<Mutex<Database>>, pricing: Arc<PricingService>) -> Self {
         Self { db, pricing }
+    }
+
+    pub fn count_records(&self) -> Result<u64, AppError> {
+        let db = self.db.lock().map_err(|e| {
+            AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        })?;
+        let count: i64 = db
+            .conn()
+            .query_row("SELECT COUNT(*) FROM token_usage_records", [], |row| row.get(0))
+            .map_err(AppError::Database)?;
+        Ok(count as u64)
     }
 
     pub fn record_usage(
@@ -562,81 +650,21 @@ impl TokenUsageService {
     }
 
     /// Import token usage from an opencode.db SQLite file (READ ONLY).
-    /// Reads `session` table rows and feeds each as a UsageRecordInput through
-    /// `record_usage` so existing dedup (FNV-1a) applies.
+    /// Delegates to `parse_opencode_db_records` for the pure row-extraction,
+    /// then feeds each row through `record_usage` so FNV-1a dedup applies.
     pub fn import_opencode_db(&self, db_path: &std::path::Path) -> Result<ImportResult, AppError> {
-        use rusqlite::OpenFlags;
-        let conn = rusqlite::Connection::open_with_flags(
-            db_path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )
-        .map_err(|e| AppError::TokenUsageInvalidFormat(format!("open db: {e}")))?;
-
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, model, cost, tokens_input, tokens_output, \
-                        tokens_reasoning, tokens_cache_read, tokens_cache_write, time_created \
-                 FROM session \
-                 WHERE (tokens_input > 0 OR tokens_output > 0) \
-                 ORDER BY time_created ASC",
-            )
-            .map_err(|e| AppError::TokenUsageInvalidFormat(format!("prepare: {e}")))?;
-
-        let mut rows = stmt
-            .query([])
-            .map_err(|e| AppError::TokenUsageInvalidFormat(format!("query: {e}")))?;
-
+        let records = parse_opencode_db_records(db_path)?;
         let mut imported: u32 = 0;
         let mut skipped: u32 = 0;
         let mut errors: Vec<ImportError> = Vec::new();
-        let mut idx: u32 = 0;
 
-        while let Some(row) = rows
-            .next()
-            .map_err(|e| AppError::TokenUsageInvalidFormat(format!("next: {e}")))?
-        {
-            idx += 1;
-            let id: String = row.get(0).unwrap_or_default();
-            let model_raw: Option<String> = row.get(1).ok();
-            let cost: f64 = row.get(2).unwrap_or(0.0);
-            let input_tokens: i64 = row.get(3).unwrap_or(0);
-            let output_tokens: i64 = row.get(4).unwrap_or(0);
-            let reasoning_tokens: i64 = row.get(5).unwrap_or(0);
-            let cache_read: i64 = row.get(6).unwrap_or(0);
-            let cache_write: i64 = row.get(7).unwrap_or(0);
-            let occurred_at: i64 = row.get(8).unwrap_or(0);
-
-            let (provider_name, model) = match model_raw.as_deref() {
-                Some(m) if m.contains('/') => {
-                    let mut parts = m.splitn(2, '/');
-                    (parts.next().unwrap_or("opencode").to_string(), parts.next().unwrap_or(m).to_string())
-                }
-                Some(m) => ("opencode".to_string(), m.to_string()),
-                None => ("opencode".to_string(), "unknown".to_string()),
-            };
-
-            let usage_details = Some(format!(r#"{{"cost_usd":{cost},"source":"opencode"}}"#));
-
-            let input = UsageRecordInput {
-                agent_type: "opencode".to_string(),
-                model,
-                provider_name,
-                occurred_at,
-                session_id: Some(id.clone()),
-                request_id: None,
-                input_tokens,
-                output_tokens,
-                cache_read_input_tokens: cache_read,
-                cache_creation_input_tokens: cache_write,
-                reasoning_tokens,
-                usage_details,
-            };
-
+        for (idx, input) in records.into_iter().enumerate() {
+            let id = input.session_id.clone().unwrap_or_default();
             match self.record_usage(&id, input) {
                 Ok(_) => imported += 1,
                 Err(AppError::TokenUsageDuplicate(_)) => skipped += 1,
                 Err(e) => errors.push(ImportError {
-                    line: idx,
+                    line: (idx + 1) as u32,
                     message: e.to_string(),
                 }),
             }
