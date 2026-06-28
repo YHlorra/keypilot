@@ -7,9 +7,8 @@
 use std::path::PathBuf;
 
 use crate::error::AppError;
-use crate::services::agent_parser::AgentParser;
+use crate::services::agent_parser::{AgentParser, ParseOutcome, ParseStats};
 use crate::services::token_usage::parse_opencode_db_records;
-use crate::types::UsageRecordInput;
 
 /// Path to opencode.db on Windows.
 fn default_db_path() -> PathBuf {
@@ -54,11 +53,21 @@ impl AgentParser for OpencodeParser {
 
     /// Returns session rows as `UsageRecordInput` — caller (`auto_import`)
     /// feeds them through `record_usage` so FNV-1a dedup applies.
-    fn parse(&self) -> Result<Vec<UsageRecordInput>, AppError> {
+    /// Parser stats reflect rows discovered (opencode.db is a single file,
+    /// so `files_scanned=1` when present, 0 when unavailable).
+    fn parse(&self) -> Result<ParseOutcome, AppError> {
         if !self.is_available() {
-            return Ok(vec![]);
+            return Ok(ParseOutcome { records: vec![], stats: ParseStats::empty() });
         }
-        parse_opencode_db_records(&self.path)
+        let records = parse_opencode_db_records(&self.path)?;
+        let stats = ParseStats {
+            files_scanned: 1,
+            lines_scanned: records.len() as u32,
+            lines_matched: records.len() as u32,
+            lines_parse_errored: 0,
+            sample_errors: vec![],
+        };
+        Ok(ParseOutcome { records, stats })
     }
 }
 

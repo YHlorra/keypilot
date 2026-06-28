@@ -305,3 +305,35 @@ export interface UsageBreakdown {
   value: number;
   cost?: number;
 }
+
+// === Auto-import (Stage F+) ===
+// Mirrors src-tauri/src/services/auto_import.rs.  Returned by
+// `get_last_auto_import` Tauri command as raw JSON string; frontend parses
+// before showing a toast on App.tsx mount.
+export interface ParseStats {
+  files_scanned: number;
+  lines_scanned: number;
+  lines_matched: number;
+  lines_parse_errored: number;
+  sample_errors: string[];
+}
+
+export interface AgentImportEntry {
+  agent_type: string;
+  display_name: string;
+  path: string;
+  available: boolean;
+  imported: number;
+  skipped: number;
+  errors: string[];
+  parse_stats: ParseStats;
+}
+
+export interface AutoImportSummary {
+  entries: AgentImportEntry[];
+  total_imported: number;
+  total_skipped: number;
+  total_errors: number;
+  started_at: number;
+  finished_at: number;
+}

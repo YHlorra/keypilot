@@ -116,6 +116,12 @@ export async function getPricing(): Promise<PricingEntry[]> {
   return invoke<PricingEntry[]>("get_pricing", {});
 }
 
+// Returns the last auto-import summary JSON string (or null if no run yet).
+// Frontend parses and decides whether to surface a toast.
+export async function getLastAutoImport(): Promise<string | null> {
+  return invoke<string | null>("get_last_auto_import", {});
+}
+
 // === Action Registry wrappers (inline credential card buttons) ===
 
 export interface CopyCredentialResponse {

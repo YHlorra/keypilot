@@ -13,6 +13,10 @@ Cargo.lock.bak
 /webui/.vite/
 /webui/*.local
 
+# Playwright transient artifacts (baselines live under tests/__screenshots__/)
+/webui/test-results/
+/webui/playwright-report/
+
 # IDE
 .vscode/
 .idea/
@@ -42,6 +46,9 @@ pnpm-debug.log*
 
 # Deepwork progress
 .slim/deepwork/
+
+# Reference repos cloned for local code-reading (not part of our code)
+docs/references/
 
 # Agent session state (omc / nezha / etc.)
 .omc/

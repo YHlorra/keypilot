@@ -4,9 +4,6 @@
 //! `scan_and_import_if_empty()` is the entry point: it skips the scan if the
 //! DB already has > 100 rows (already populated, avoid re-import churn).
 
-#[cfg(test)]
-use std::sync::{Arc, Mutex};
-
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
@@ -33,9 +30,15 @@ pub struct AgentImportEntry {
     pub display_name: String,
     pub path: String,
     pub available: bool,
+    /// Rows actually inserted into the DB (dedup-aware).
     pub imported: u32,
+    /// Rows skipped because the deterministic ID was already present.
     pub skipped: u32,
+    /// `AppError`-level failures (e.g. parse() returned Err, file unreadable).
     pub errors: Vec<String>,
+    /// Scanner-level observability — explains why `imported` may be 0 even
+    /// when the parser ran.  Use to debug future schema drift.
+    pub parse_stats: crate::services::agent_parser::ParseStats,
 }
 
 /// Returns true when the token_usage_records table has more than `threshold`
@@ -66,10 +69,12 @@ pub fn scan_and_import(svc: &TokenUsageService) -> AutoImportSummary {
         let mut skipped: u32 = 0;
         let mut error_msgs: Vec<String> = Vec::new();
 
+        let mut parse_stats = crate::services::agent_parser::ParseStats::empty();
         if available {
             match parser.parse() {
-                Ok(rows) => {
-                    for input in rows {
+                Ok(outcome) => {
+                    parse_stats = outcome.stats;
+                    for input in outcome.records {
                         let id = deterministic_id(&input);
                         match svc.record_usage(&id, input) {
                             Ok(_) => imported += 1,
@@ -96,6 +101,7 @@ pub fn scan_and_import(svc: &TokenUsageService) -> AutoImportSummary {
             imported,
             skipped,
             errors: error_msgs,
+            parse_stats,
         });
     }
 
@@ -182,29 +188,35 @@ mod tests {
     }
 
     #[test]
-    fn scan_and_import_if_empty_skips_when_populated() {
+    fn scan_and_import_if_empty_runs_when_under_threshold() {
         let svc = make_svc();
-        // Pre-populate with 5 records
+        // Pre-populate 5 rows (< 100 threshold) → scan should run, not skip.
         for i in 0..5 {
-            let input = make_input("claude-code", "gpt-4o", 100, 50, 1700000000 + i);
+            let input = make_input("claude-code", "gpt-4o", 100, 50, 1_700_000_000 + i);
             let id = deterministic_id(&input);
             let _ = svc.record_usage(&id, input);
         }
-        // DB now has 5 rows — threshold is 100, so should NOT skip
         let result = scan_and_import_if_empty(&svc);
-        // scan_and_import_if_empty checks threshold 100, 5 < 100 so runs scan
-        // But parsers aren't available in test env, so entries are empty
-        assert_eq!(result.total_imported, 0);
-        assert_eq!(result.total_skipped, 0);
+        // Orchestration invariant: both parsers attempted regardless of disk state.
+        assert_eq!(result.entries.len(), 2);
+        // ponytail: counts of imported/skipped depend on real-machine fixture data —
+        // we only assert that the orchestration ran without panicking.
     }
 
     #[test]
-    fn scan_and_import_returns_correct_counts() {
+    fn scan_and_import_returns_two_parser_entries() {
         let svc = make_svc();
-        // Verify empty DB triggers full scan
         let result = scan_and_import(&svc);
-        assert_eq!(result.entries.len(), 2); // opencode + claude-code
-        assert_eq!(result.total_imported, 0); // no parsers available in test env
+        // 2 parsers attempted; ParseStats always populated (even when empty).
+        assert_eq!(result.entries.len(), 2);
+        let opencode = result.entries.iter().find(|e| e.agent_type == "opencode").unwrap();
+        let claude = result.entries.iter().find(|e| e.agent_type == "claude-code").unwrap();
+        // Opencode.db typically absent in test env → 0 files scanned.
+        assert_eq!(opencode.parse_stats.files_scanned, 0);
+        // Claude data MAY exist on dev machine (real fixture) or not (CI):
+        // assert only the invariant "parser attempted" via `available` + populated stats.
+        assert!(claude.parse_stats.files_scanned > 0 || !claude.available);
+        assert_eq!(claude.parse_stats.lines_parse_errored, 0, "real fixtures must not error");
     }
 
     #[test]

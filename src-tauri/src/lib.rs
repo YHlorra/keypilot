@@ -13,7 +13,7 @@ use error::AppError;
 use services::auto_import;
 use services::token_usage::TokenUsageService;
 use store::AppState;
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub fn run() {
     // Build Tauri app — startup chain runs inside .setup() where app.path() is accessible
@@ -56,8 +56,9 @@ pub fn run() {
                 if let Err(e) = db_for_import.lock().unwrap().set_meta("last_auto_import", &json) {
                     eprintln!("Failed to store last_auto_import meta: {}", e);
                 }
-                // Emit event so frontend can show a toast if desired
-                let _ = app.emit("auto_import_completed", &summary);
+                // ponytail: previously emitted `auto_import_completed` here, but
+                // emit() ran before WebviewWindowBuilder.build() — listener dead
+                // on arrival.  Frontend now queries `get_last_auto_import` on mount.
             }
 
             // Stage 5: Initialize system tray
@@ -107,6 +108,7 @@ pub fn run() {
     commands::token_usage::get_usage_summary,
     commands::token_usage::import_usage,
     commands::token_usage::import_opencode_db,
+    commands::token_usage::get_last_auto_import,
     commands::token_usage::get_pricing,
     // Action Registry (Stage 10)
     commands::action::list_actions,
