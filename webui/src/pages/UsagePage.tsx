@@ -2,8 +2,6 @@ import { useMemo, useState } from "react";
 import { UsageTimeSeries } from "@/components/UsageTimeSeries";
 import { UsageHeatmapCalendar } from "@/components/UsageHeatmapCalendar";
 import { UsageDetailPanel } from "@/components/UsageDetailPanel";
-import { ImportModal } from "@/components/ImportModal";
-import { Button } from "@/components/ui/button";
 import { useUsageSummary } from "@/hooks/useUsage";
 import { UsageKpiCards } from "@/components/UsageKpiCards";
 import { UsageStatsSidebar } from "@/components/UsageStatsSidebar";
@@ -24,7 +22,6 @@ export interface UsagePageProps {
 
 export default function UsagePage({ filterProviderName, onClearFilter }: UsagePageProps) {
   const [selectedRange, setSelectedRange] = useState<RangeOption>("30d");
-  const [importModalOpen, setImportModalOpen] = useState(false);
   const [selectedPair, setSelectedPair] = useState<AgentPair | null>(null);
 
   // Trend filter (windowed by selectedRange)
@@ -104,14 +101,11 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+      <div className="flex-shrink-0 min-h-[64px] flex items-center justify-between px-6 py-4 border-b border-border">
         <div>
-          <h1 className="text-lg font-semibold text-foreground" style={{ letterSpacing: "var(--tracking-tight)" }}>
+          <h1 className="text-lg font-semibold text-white" style={{ letterSpacing: "var(--tracking-tight)" }}>
             Usage
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Data from language model calls, may be delayed
-          </p>
         </div>
         <div className="flex items-center gap-2">
           {filterProviderName != null && (
@@ -123,14 +117,11 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
               Clear filter
             </button>
           )}
-          <Button size="sm" onClick={() => setImportModalOpen(true)}>
-            Import
-          </Button>
         </div>
       </div>
 
       {/* Page content */}
-      <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-6">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 flex flex-col gap-6">
         {/* KPI cards */}
         <UsageKpiCards todayTotal={todayTotal} last7dTotal={last7dTotal} last30dTotal={last30dTotal} />
 
@@ -207,9 +198,6 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
       {selectedPair !== null && (
         <UsageDetailPanel agentPair={selectedPair} onClose={() => setSelectedPair(null)} />
       )}
-
-      {/* ImportModal */}
-      <ImportModal open={importModalOpen} onClose={() => setImportModalOpen(false)} />
     </div>
   );
 }

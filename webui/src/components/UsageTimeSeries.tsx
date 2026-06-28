@@ -100,8 +100,8 @@ export function UsageTimeSeries({
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
-  const PADDING = { top: 20, right: 20, bottom: 40, left: 60 };
-  const DEFAULT_HEIGHT = 200;
+  const PADDING = { top: 20, right: 20, bottom: 60, left: 60 };
+  const DEFAULT_HEIGHT = 400;
   const innerWidth = 100 - PADDING.left - PADDING.right;
   const innerHeight = DEFAULT_HEIGHT - PADDING.top - PADDING.bottom;
 
@@ -262,26 +262,10 @@ export function UsageTimeSeries({
             y={tick.y}
             textAnchor="end"
             dominantBaseline="middle"
-            fontSize="3"
+            fontSize="8"
             fill="currentColor"
-            className="text-muted-foreground"
           >
             {formatTokens(tick.value)}
-          </text>
-        ))}
-
-        {/* X-axis labels */}
-        {xTicks.map((tick, i) => (
-          <text
-            key={i}
-            x={tick.x}
-            y={PADDING.top + innerHeight + 5}
-            textAnchor="middle"
-            fontSize="3"
-            fill="currentColor"
-            className="text-muted-foreground"
-          >
-            {tick.label}
           </text>
         ))}
 
@@ -331,6 +315,20 @@ export function UsageTimeSeries({
           />
         ))}
 
+        {/* X-axis labels — rendered after chart paths so they paint on top */}
+        {xTicks.map((tick, i) => (
+          <text
+            key={i}
+            x={tick.x}
+            y={PADDING.top + innerHeight + 12}
+            textAnchor="middle"
+            fontSize="7"
+            fill="currentColor"
+          >
+            {tick.label}
+          </text>
+        ))}
+
         {/* Tooltip */}
         {hoveredPoint && (
           <g>
@@ -349,9 +347,8 @@ export function UsageTimeSeries({
               x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
               y={Math.max(tooltipPos.y - 20, PADDING.top) + 4}
               textAnchor="middle"
-              fontSize="2.5"
+              fontSize="3"
               fill="currentColor"
-              className="text-foreground"
             >
               {hoveredPoint.date}
             </text>
@@ -359,7 +356,7 @@ export function UsageTimeSeries({
               x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
               y={Math.max(tooltipPos.y - 20, PADDING.top) + 8}
               textAnchor="middle"
-              fontSize="2.5"
+              fontSize="3"
               fill="var(--color-primary)"
             >
               {formatTokens(hoveredPoint.total_tokens)} tokens
@@ -368,9 +365,8 @@ export function UsageTimeSeries({
               x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
               y={Math.max(tooltipPos.y - 20, PADDING.top) + 12}
               textAnchor="middle"
-              fontSize="2.5"
+              fontSize="3"
               fill="currentColor"
-              className="text-muted-foreground"
             >
               ${hoveredPoint.total_cost_usd.toFixed(4)}
             </text>
@@ -379,9 +375,8 @@ export function UsageTimeSeries({
                 x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
                 y={Math.max(tooltipPos.y - 20, PADDING.top) + 16}
                 textAnchor="middle"
-                fontSize="2.5"
+                fontSize="3"
                 fill="currentColor"
-                className="text-muted-foreground"
               >
                 {hoveredPoint.request_count} req
               </text>
@@ -392,7 +387,7 @@ export function UsageTimeSeries({
                   x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
                   y={Math.max(tooltipPos.y - 20, PADDING.top) + 16}
                   textAnchor="middle"
-                  fontSize="2.2"
+                  fontSize="2.5"
                   fill="var(--color-primary)"
                 >
                   in:{formatTokens(hoveredPoint.input_tokens ?? 0)}
@@ -401,7 +396,7 @@ export function UsageTimeSeries({
                   x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
                   y={Math.max(tooltipPos.y - 20, PADDING.top) + 19}
                   textAnchor="middle"
-                  fontSize="2.2"
+                  fontSize="2.5"
                   fill="var(--color-success)"
                 >
                   out:{formatTokens(hoveredPoint.output_tokens ?? 0)}
@@ -410,7 +405,7 @@ export function UsageTimeSeries({
                   x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
                   y={Math.max(tooltipPos.y - 20, PADDING.top) + 22}
                   textAnchor="middle"
-                  fontSize="2.2"
+                  fontSize="2.5"
                   fill="var(--color-link)"
                 >
                   cache:{formatTokens(hoveredPoint.cache_read_tokens ?? 0)}

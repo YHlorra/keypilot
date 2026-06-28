@@ -10,8 +10,10 @@ pub mod commands;
 
 use database::Database;
 use error::AppError;
+use services::auto_import;
+use services::token_usage::TokenUsageService;
 use store::AppState;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub fn run() {
     // Build Tauri app — startup chain runs inside .setup() where app.path() is accessible
@@ -37,7 +39,26 @@ pub fn run() {
             }
 
             let state = AppState::new(db);
+            // Clone Arcs before moving state into app.manage — needed for
+            // auto-import which runs before the window opens.
+            let db_for_import = state.db.clone();
+            let pricing_for_import = state.pricing.clone();
             app.manage(state);
+
+            // Run auto-import across all available agent parsers (opencode.db,
+            // claude-code jsonl files, etc.) before the UI is shown.  This
+            // populates token_usage_records from existing agent data so the
+            // heatmap and KPI cards are non-empty on first launch.
+            {
+                let svc = TokenUsageService::new(db_for_import.clone(), pricing_for_import);
+                let summary = auto_import::scan_and_import_if_empty(&svc);
+                let json = serde_json::to_string(&summary).unwrap_or_default();
+                if let Err(e) = db_for_import.lock().unwrap().set_meta("last_auto_import", &json) {
+                    eprintln!("Failed to store last_auto_import meta: {}", e);
+                }
+                // Emit event so frontend can show a toast if desired
+                let _ = app.emit("auto_import_completed", &summary);
+            }
 
             // Stage 5: Initialize system tray
             let _tray = tray::init_tray(app.handle())?;

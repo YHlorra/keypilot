@@ -147,15 +147,17 @@ export default function App() {
           }
         />
 
-        <TopBar
-          search={search}
-          onSearchChange={setSearch}
-          categoryFilter={categoryFilter}
-          onCategoryChange={setCategoryFilter}
-          density={density}
-          onDensityChange={setDensity}
-          categories={categories}
-        />
+        {currentPage === "credentials" && (
+          <TopBar
+            search={search}
+            onSearchChange={setSearch}
+            categoryFilter={categoryFilter}
+            onCategoryChange={setCategoryFilter}
+            density={density}
+            onDensityChange={setDensity}
+            categories={categories}
+          />
+        )}
 
         {currentPage === "credentials" && (
           <div className="flex-1 overflow-y-auto md:pl-16 pb-[56px] md:pb-0">
