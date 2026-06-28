@@ -170,6 +170,12 @@ export interface SetManualQuotaRequest { id: number; snapshot: QuotaSnapshot; }
 export type SetManualQuotaResponse = void;
 
 // === Token Usage types (REQ-TOKEN-001.2/001.3/002) ===
+//
+// CONTRACT: field names are SNAKE_CASE to match Rust serde default output.
+// If you add `#[serde(rename_all = "camelCase")]` on any Rust struct in
+// `src-tauri/src/commands/token_usage.rs`, these field names must change
+// in lockstep or all IPC calls will return undefined fields at runtime.
+// See src-tauri/src/commands/token_usage.rs UsageFilterIpc + UsageSummaryResponse.
 
 // TokenBreakdown -- REQ-TOKEN-001.2 usage_details
 export interface TokenBreakdown {

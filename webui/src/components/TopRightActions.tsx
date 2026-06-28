@@ -1,27 +1,23 @@
 import * as React from "react";
-import { Wrench, BarChart3, Plus } from "lucide-react";
+import { Wrench, Plus } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { cn } from "@/lib/utils";
 
 interface TopRightActionsProps {
   onSettingsClick: () => void;
-  onTokenUsageClick: () => void;
   onAddClick: () => void;
-  isOnUsagePage?: boolean;
 }
 
 /**
  * Top-right chrome cluster:
- *   [ pill: settings | token usage | theme ]   ( + )
+ *   [ pill: settings | theme ]   ( + )
  *   icon-only secondary actions live in a soft surface pill,
  *   the primary action (add credential) is a separate circular CTA
  *   for clear visual hierarchy.
  */
 export const TopRightActions = React.memo(function TopRightActions({
   onSettingsClick,
-  onTokenUsageClick,
   onAddClick,
-  isOnUsagePage = false,
 }: TopRightActionsProps) {
   return (
     <div className="flex items-center gap-2.5" data-testid="top-right-actions">
@@ -36,12 +32,6 @@ export const TopRightActions = React.memo(function TopRightActions({
           icon={<Wrench className="h-4 w-4" strokeWidth={1.75} />}
           label="Settings"
           onClick={onSettingsClick}
-        />
-        <PillIconButton
-          icon={<BarChart3 className="h-4 w-4" strokeWidth={1.75} />}
-          label="Token usage"
-          onClick={onTokenUsageClick}
-          active={isOnUsagePage}
         />
         <ThemeToggle bare />
       </div>

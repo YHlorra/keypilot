@@ -6,7 +6,7 @@ interface TitlebarProps {
 export const Titlebar = ({ rightActions }: TitlebarProps) => {
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 border-b border-border bg-card"
+      className="fixed top-0 left-0 md:left-16 right-0 z-50 flex items-center justify-between px-4 border-b border-border bg-card"
       style={{ height: 48 }}
       data-density
     >

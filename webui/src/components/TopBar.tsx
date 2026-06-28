@@ -15,15 +15,8 @@ export interface TopBarProps {
   onCategoryChange: (v: number | "all") => void;
   density: "1" | "2";
   onDensityChange: (v: "1" | "2") => void;
-  currentPage: "credentials" | "usage";
-  onPageChange: (v: "credentials" | "usage") => void;
   categories: Array<{ id: number; name: string }>;
 }
-
-const PAGE_OPTIONS: { value: "credentials" | "usage"; label: string }[] = [
-  { value: "credentials", label: "Credentials" },
-  { value: "usage", label: "Usage" },
-];
 
 const ALL_VALUE = "all";
 
@@ -34,8 +27,6 @@ export const TopBar = ({
   onCategoryChange,
   density,
   onDensityChange,
-  currentPage,
-  onPageChange,
   categories,
 }: TopBarProps) => {
   // The Select keeps a string-typed value; we round-trip to/from categoryFilter (number | "all")
@@ -47,7 +38,7 @@ export const TopBar = ({
 
   return (
     <div
-      className="fixed left-0 right-0 z-40 flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 border-b border-border bg-card"
+      className="fixed left-0 md:left-16 right-0 z-40 flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 border-b border-border bg-card"
       style={{ top: 48, minHeight: 60 }}
     >
       {/* Search input - 360px wide on desktop */}
@@ -61,26 +52,8 @@ export const TopBar = ({
         />
       </div>
 
-      {/* Right cluster: page nav + category filter (Select dropdown) + density */}
+      {/* Right cluster: category filter (Select dropdown) + density */}
       <div className="flex flex-wrap items-center gap-2 ml-auto">
-        {/* Page nav chips -- visually distinct, slightly larger */}
-        <div className="inline-flex items-center rounded-pill border border-border bg-muted p-0.5 gap-0.5">
-          {PAGE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onPageChange(opt.value)}
-              className={`inline-flex items-center px-4 py-1.5 rounded-pill text-sm font-medium transition-colors ${
-                currentPage === opt.value
-                  ? "bg-[var(--color-primary)] text-[var(--color-secondary)]"
-                  : "text-[var(--color-muted)] hover:text-[var(--color-neutral)]"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
         {/* Category filter -- Select dropdown. Replaces the previous ChipGroup that overflowed
             and broke Chinese text mid-character when the user had many categories. */}
         <Select value={selectValue} onValueChange={handleCategorySelect}>
