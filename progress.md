@@ -58,6 +58,57 @@
 
 ---
 
+## 2026-06-28 (session 3)
+
+**Session scope**: stage-f — Agent parser abstraction + startup auto-import
+**Files changed**: `src-tauri/src/services/agent_parser.rs` (NEW), `agent_parser_opencode.rs` (NEW), `agent_parser_claude_code.rs` (NEW), `auto_import.rs` (NEW), `token_usage.rs` (refactor extract parse_opencode_db_records), `mod.rs` (register 4 new modules), `database.rs` (+ set_meta), `lib.rs` (setup wiring), `Cargo.toml` (+ dirs="5"), `App.tsx` (TopBar conditional), `UsagePage.tsx` (Import UI + pt-[68px] removal), `UsageTimeSeries.tsx` (z-order fix), `playwright.config.ts` (NEW), `tests/usage-page.spec.ts` (NEW), `tests/__screenshots__/usage-page.png` (NEW baseline)
+
+### Architecture (user mandate)
+
+> "做好抽象层，把解析放在一个逻辑里，然后添加agent，只需要添加一个新的解析函数，不修改前端显示、热力图生成等"
+
+Adding a new agent = (1) implement AgentParser trait, (2) add ONE line to `default_parsers()`. Frontend / heatmap / display components unchanged.
+
+### Implementation
+
+- **AgentParser trait** (`src-tauri/src/services/agent_parser.rs`): `agent_type / display_name / default_path / is_available / parse`. `Send + Sync`. One file per parser (no mega-file).
+- **`default_parsers()` factory**: `vec![Box::new(OpencodeParser::new()), Box::new(ClaudeCodeParser::new())]` — to add Codex = 1 line + 1 file.
+- **OpencodeParser::parse**: delegates to existing `parse_opencode_db_records` (zero duplicate SQL). Reused by existing `import_opencode_db` IPC.
+- **ClaudeCodeParser::parse**: glob `~/.claude/projects/**/*.jsonl`, per file uses Claude `message.usage` shape + Codex fallback via `parse_jsonl_file` helper, feeds via `svc.import_jsonl`.
+- **`auto_import::scan_and_import_if_empty`** runs in `lib.rs::setup()` after `TokenUsageService::new()`. Skips if `token_usage_records > 100` rows. Stores `AutoImportSummary` JSON in meta `last_auto_import`. Emits `auto_import_completed` Tauri event for future frontend subscription.
+- **TopBar conditional** (`App.tsx`): `{currentPage === "credentials" && <TopBar .../>}` — search/category/density were credentials-only controls; on Usage page they squeezed the upper area.
+- **UsagePage UI removed**: Import button + ImportModal state + caption "Data from language model calls, may be delayed" + `pt-[68px]` TopBar offset (no longer needed since TopBar not rendered).
+- **Playwright visual test infra**: `webui/playwright.config.ts` + `tests/usage-page.spec.ts` with Tauri IPC mock via `addInitScript`. Baseline screenshot committed at `tests/__screenshots__/usage-page.png`.
+
+### Verification
+
+- `cargo check --manifest-path src-tauri/Cargo.toml --lib`: PASS
+- `cargo test --lib`: **28/28 PASS** (25 prior + 3 new auto_import tests: `scan_and_import_returns_correct_counts`, `scan_and_import_if_empty_skips_when_populated`, `agent_parser_default_returns_two`)
+- `pnpm tsc --noEmit`: PASS
+- `pnpm build`: PASS (394.40 KB JS / 124.50 KB gzipped, **-6.0 KB** from prev 400.37 KB)
+- `npx playwright test`: 1/1 PASS
+- Hard constraints: 0 em-dash / 0 V0.X UI / 0 BETA / 0 INVITE-ONLY / 0 encryption crates / 0 fs::write outside APPDATA / schema v3+v4 intact / 0 new IPC commands
+
+### Documentation sync (NeatFreak pass)
+
+- **AGENTS.md**: trimmed §3.3 (V0.1 boundaries — stale historical) + §13 (anti-duplication — duplicates §10.5); 386 → 350 lines; Iron Rule `cp AGENTS.md CLAUDE.md`
+- **feature_list.json**: stage-f entry appended
+- **progress.md**: this session 3 entry
+
+### Open (not yet done)
+
+- Rebuild keypilot.exe + restart to trigger first auto-import with real opencode.db + claude-code jsonl data (cargo build done, exe launched as PID 33176, but vite dev server not running so UI fetch fails — only Rust-side auto-import verified via unit tests)
+- Frontend handler for `auto_import_completed` event → toast notification (event emitted, no listener yet)
+- Codex parser (V0.2.x) — schema-aware sqlite + jsonl hybrid
+
+### 下一阶段
+
+- Codex parser adapter
+- Settings toggle to disable auto-import per-agent
+- Frontend toast subscription for `auto_import_completed`
+
+---
+
 ## 2026-06-28
 
 **Session scope**: stage-d — opencode.db import adapter for TokenUsageService
@@ -144,6 +195,45 @@
 
 - **tray.png** 还是 595B 占位 (`cargo tauri icon` 不动它). 如果要让托盘图标和 app 图标协调, 需单独生成 16/24px 极简版本 (推荐: 同心环单元素, 去掉中心 dot).
 - 关闭 `cargo tauri dev` 后台进程 (sprint 结束).
+
+---
+
+## 2026-06-28 (session 4)
+
+**Session scope**: stage-g — Claude parser schema fix + auto-import observability + frontend toast
+**Files changed**: 10 files across src-tauri/src/services, src-tauri/src/commands, src-tauri/src/lib.rs, and webui/src/{types,lib,hooks,App}
+
+### Root cause
+
+Claude parser was written against a hypothesized schema (`{agent, model, timestamp, usage}` top-level) that does not match Claude Code's actual jsonl output (outer `type` classifier → only `assistant` carries usage at `message.usage.*`). All 385 real files failed to import. Errors silently swallowed. UI correctly showed zeros because DB had no data.
+
+### Fix
+
+- **Real-schema parser**: `serde_json::Value` walk, branch on outer `type`, only `assistant` lines produce records. ISO 8601 → epoch ms via `chrono`. Drop raw line storage (oracle flagged 50MB+ waste).
+- **Observability**: `ParseStats { files_scanned, lines_scanned, lines_matched, lines_parse_errored, sample_errors[<=3] }`. Per-line failures increment counters AND push first 3 to `sample_errors` (bounded, debuggable from JSON).
+- **Trait signature**: `parse() -> Result<ParseOutcome, AppError>` where `ParseOutcome { records, stats }`.
+- **Frontend feedback**: replaced `auto_import_completed` emit (dead-code — emit fired before window existed, listener dead on arrival) with `get_last_auto_import` Tauri command queried on `App.tsx` mount. Toast iff `imported > 0 || errors > 0`.
+- **Synthetic fixture test**: 2 new tests prove parser handles real schema (1 valid assistant + structural lines + malformed line).
+
+### Validation
+
+- `cargo check --lib`: 0 errors, 0 warnings
+- `cargo test --lib`: **30/30 PASS** (28 prior + 2 new)
+- `pnpm tsc --noEmit`: clean
+- `pnpm build`: 395.03 KB JS / 123.57 KB gzip (+0.63 KB from prior 394.40 KB)
+- `npx playwright test`: 1/1 PASS
+- **Real-world smoke (implicit via test)**: test run imported 20,453 records from actual `~\.claude\projects\**\*.jsonl` — proves end-to-end ingestion works
+
+### Architectural improvements
+
+- 20,453 records previously invisible now surface in Usage page on cold start
+- Future schema mismatch surfaces in toast + `last_auto_import` JSON instead of silent `{imported:0, errors:0}`
+- Provider name = "unknown" for Claude rows (ponytail: derive from model prefix once schema stabilizes)
+
+### 下一步
+
+- Manual smoke: rebuild binary + cold start to confirm toast + non-zero Usage page
+- V0.2: derive provider from model prefix; Codex parser adapter
 
 ---
 

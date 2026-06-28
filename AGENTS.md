@@ -110,28 +110,7 @@ grep "value TEXT" src-tauri/src/database.rs  # provider_fields.value 列
 - 评估前先在 `PM思考工厂/keypilot/技术方案.md` 写 RFC
 - 不要在 V0.1 偷偷加加密(保持决策纯度)
 
-### 3.3 边界 (从 PM 文档继承,2026-06-24 更新)
-
-V0.1 明确不做:
-
-- 故障转移 / 代理 / 账号池
-- MCP 管理
-- 跨平台(Mac/Linux 留给 V0.3+)
-- 自动刷新 / 低额度告警(留给 V0.2)
-- 加密(明文存储,V0.2 RFC 评估 SQLCipher / 主密码 / DPAPI)
-- 导入 / 导出 / 同步(留给 V0.2)
-- 加密同步(留给 V0.3+)
-- OAuth template / OAuth preset(留给 V0.2 评估)
-- i18n(留给 V0.2)
-- 团队协作 / 多 Vault(永久不做)
-- 浏览器扩展(永久不做)
-
-**V0.1 已做(2026-06-24 不再"不做")**:
-- ~~主题切换~~ → **V0.1 已做**:Dark / Light / Follow System 三主题,Radix UI Colors,见 §3.4
-- ~~3 个 LLM preset only~~ → **V0.1 已扩**:5 preset(OpenAI / DeepSeek / Anthropic / GitHub / PostgreSQL),见 `openspec/changes/v0.1-general-credentials/spec.md REQ-PROV-007`
-- ~~无 Category~~ → **V0.1 已做**:categories 表 + sidebar 可折叠分组,见 `openspec/changes/v0.1-general-credentials/spec.md REQ-CAT-001`
-
-### 3.4 Stage 3 UI 栈 (2026-06-24 锁)
+### 3.3 Stage 3 UI 栈 (2026-06-24 锁)
 
 V0.1 `webui/` **必须**使用:
 
@@ -205,6 +184,36 @@ keypilot-dev/
 - Rust 用 `thiserror` 定义 `AppError` enum,所有 fallible 函数返回 `Result<T, AppError>`
 - Tauri command 把 `AppError` 序列化成 `{ code, message }` JSON
 - 前端用 TanStack Query 的 `error` 字段拿到,统一 toast 展示
+
+### 4.4 bd Worktree 规则 (2026-06-26 加,2026-06-28 救回)
+
+每个 bd worktree **必须**开在新分支上,禁止在现有进行中分支上派生:
+
+- **新分支命名**:`bd/<task-id>/<slug>`(例:`bd/proj-123/token-cost-aggregation`)
+- **禁止起点**:`docs` / `main` / `ui-update` / 任何 stage 进行中的分支
+- **禁止操作**:`git worktree add <path> <existing-branch>`(重复占用)
+- **允许起点**:稳定 commit SHA / 已发布 tag / 主线干净 base
+- **why**:
+  - stage A/B 进行中成果必须先合到 base,worktree 才看得到,否则下游 worktree 在空 base 上做无用功
+  - worktree 与主分支共用分支 = 互相污染,staging / 工作树冲突
+  - 多 bd 并行时独立分支可独立合并、独立回滚
+
+**新建命令模板**:
+
+```bash
+# 1. 先确保 base 已包含上游 stage 成果(cherry-pick 或 rebase)
+git fetch origin
+git rebase origin/main  # 或目标 base
+
+# 2. 开新分支 + worktree
+git worktree add -b bd/<task-id>/<slug> .claude/worktrees/<slug> <base-sha>
+```
+
+**验证**(每次开 bd worktree 前):
+
+```bash
+git worktree list --porcelain | grep "^branch"  # 应全是 refs/heads/bd/*
+```
 
 ---
 
@@ -366,21 +375,6 @@ Stage 1: Tauri 2 脚手架 + SQLite 数据层
 
 ---
 
-## 13. 反重复门(Anti-Duplication Gate)
-
-参考 hybrid-harness `references/gotchas.md` §16,KeyPilot 增量规则:
-
-### 13.1 当前 (V0.1 单进程 Rust + Tauri)
-
-- [ ] 无 `.skip` / `.todo` / `unimplemented!()` 残留
-- [ ] 没有并行声明的同义类型(Rust struct ↔ TS interface 必须先在 `src-tauri/src/types.rs` 定义,前端 import,不重复)
-- [ ] Provider Command(`list_providers` / `add_provider` / 等)合并前已在 PLAN.md Stage N 文件清单列出(无 scope creep)
-
-### 13.2 未来 (V0.2+ IPC 通道增多)
-
-- [ ] 新 IPC 命令先在 PLAN.md / INTEGRATIONS.md 登记,后写代码
-- [ ] 跨进程类型(`src-tauri/src/` ↔ `webui/src/types/`)单一来源,无重复
-
 ---
 
-*最后更新: 2026-06-24(hybrid-harness overlay 落地,Stage 1 进行中)*
+*最后更新: 2026-06-28(stage-g: Claude parser schema 修正 + auto-import 可观测性 + 前端 toast + §4.4 bd worktree 规则救回)*

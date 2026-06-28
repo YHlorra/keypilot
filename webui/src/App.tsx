@@ -12,6 +12,7 @@ import { LeftRail } from "./components/LeftRail";
 import { useTheme } from "./hooks/useTheme";
 import { useProviders } from "./hooks/useProviders";
 import { useCategories } from "./hooks/useCategories";
+import { useLastAutoImport } from "./hooks/useUsage";
 import { useToast } from "./components/Icon";
 import {
   copyCredential,
@@ -68,6 +69,26 @@ export default function App() {
   }, [density]);
 
   const { showToast } = useToast();
+
+  // One-shot cold-start feedback for auto-import. Silent on success-with-zero;
+  // toast iff imported > 0 or parse errors > 0.  Replaces the prior
+  // `auto_import_completed` Tauri event which had an emit-before-window race.
+  const { data: autoImport } = useLastAutoImport();
+  useEffect(() => {
+    if (!autoImport) return;
+    const { total_imported, total_errors } = autoImport;
+    if (total_imported > 0 && total_errors === 0) {
+      showToast(`已导入 ${total_imported} 行 token 用量`, "success");
+    } else if (total_imported > 0 && total_errors > 0) {
+      showToast(`已导入 ${total_imported} 行，${total_errors} 条解析失败`, "error");
+    } else if (total_errors > 0) {
+      const firstErr = autoImport.entries
+        .flatMap((e) => e.errors)
+        .slice(0, 1)[0];
+      showToast(`导入失败：${firstErr ?? "未知错误"}`, "error");
+    }
+    // total_imported == 0 && total_errors == 0 → silent (no useful signal)
+  }, [autoImport, showToast]);
 
   // Handlers
   const handleTest = async (id: number) => {

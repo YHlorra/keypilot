@@ -491,3 +491,37 @@ pub async fn import_opencode_db_by_state(
     .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
     Ok(rust_import_result_to_ipc(result))
 }
+
+/// Return the last auto-import summary JSON (stored in `meta.last_auto_import`).
+///
+/// Frontend queries this on `App.tsx` mount to decide whether to surface a
+/// toast.  This replaces the prior `auto_import_completed` Tauri event which
+/// had an emit-before-window race (event fired in `.setup()` before the
+/// webview existed; listener dead on arrival).
+#[tauri::command]
+pub async fn get_last_auto_import(
+    state: State<'_, AppState>,
+) -> Result<Option<String>, AppError> {
+    get_last_auto_import_by_state(&state).await
+}
+
+pub async fn get_last_auto_import_by_state(
+    state: &AppState,
+) -> Result<Option<String>, AppError> {
+    let result = tauri::async_runtime::spawn_blocking({
+        let db = state.db.clone();
+        move || -> Result<Option<String>, AppError> {
+            let guard = db.lock().map_err(|e| {
+                AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            })?;
+            match guard.get_meta("last_auto_import") {
+                Ok(v) => Ok(Some(v)),
+                Err(AppError::Database(_)) => Ok(None), // key not found
+                Err(e) => Err(e),
+            }
+        }
+    })
+    .await
+    .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
+    Ok(result)
+}

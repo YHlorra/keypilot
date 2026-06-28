@@ -528,6 +528,41 @@
       "ended_at": "2026-06-27",
       "assignee": "designer+orchestrator",
       "notes": "mmx CLI 1.0.15 has a bug where it sends the API key without \"Bearer \" prefix in the Authorization header, causing all API calls (text/image/quota) to fail with code 6 \"Network request failed\". Worked around by calling https://api.minimaxi.com/v1/image_generation directly via Invoke-WebRequest with Bearer-prefixed auth. Generated 3 candidates (A-monogram serif K, B-keyfusion K+key bit, C-pilotmark concentric ring+dot); user picked C. Image-01 standard model produced clean flat output; image-01-live diverged to unrelated \"canyon coliseum\" scene and was rejected. JPEG converted to 1024x1024 PNG via System.Drawing before cargo tauri icon. _candidates/ temp directory NOT committed. Commit: d70013d."
+    },
+    {
+      "id": "stage-f",
+      "name": "Agent parser abstraction + startup auto-import",
+      "description": "Trait-based parser pattern (AgentParser) for extensible agent data sources. Adding a new agent = (1) implement AgentParser trait, (2) add ONE line to default_parsers(). Frontend / heatmap / display components unchanged. On startup, scan_and_import_if_empty auto-loads opencode.db (~/.local/share/opencode/opencode.db) + claude-code jsonl (~/.claude/projects/**/*.jsonl). Manual Import button + caption removed from UsagePage; TopBar wrapped in currentPage === 'credentials' conditional so it only renders on credentials page.",
+      "files": [
+        "src-tauri/src/services/agent_parser.rs",
+        "src-tauri/src/services/agent_parser_opencode.rs",
+        "src-tauri/src/services/agent_parser_claude_code.rs",
+        "src-tauri/src/services/auto_import.rs",
+        "src-tauri/src/services/token_usage.rs",
+        "src-tauri/src/services/mod.rs",
+        "src-tauri/src/database.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/Cargo.toml",
+        "src-tauri/Cargo.lock",
+        "webui/src/App.tsx",
+        "webui/src/pages/UsagePage.tsx",
+        "webui/src/components/UsageTimeSeries.tsx",
+        "webui/playwright.config.ts",
+        "webui/tests/usage-page.spec.ts",
+        "webui/tests/__screenshots__/usage-page.png",
+        "webui/package.json",
+        "webui/pnpm-lock.yaml"
+      ],
+      "depends_on": [
+        "stage-e"
+      ],
+      "status": "done",
+      "evidence": "cargo check --manifest-path src-tauri/Cargo.toml --lib: PASS\ncargo test --manifest-path src-tauri/Cargo.toml --lib: 28/28 PASS (25 prior + 3 new auto_import tests: scan_and_import_returns_correct_counts, scan_and_import_if_empty_skips_when_populated, agent_parser_default_returns_two)\npnpm tsc --noEmit: PASS\npnpm build: PASS (394.40 KB JS / 124.50 KB gzipped; delta -6.0 KB from prev 400.37 KB; Import button + ImportModal state removal + TopBar conditional)\nnpx playwright test: 1/1 PASS\nTrait signature: pub trait AgentParser: Send + Sync { fn agent_type() -> &'static str; fn display_name() -> &'static str; fn default_path() -> PathBuf; fn is_available() -> bool; fn parse() -> Result<Vec<UsageRecordInput>, AppError>; }\ndefault_parsers() body: vec![Box::new(OpencodeParser::new()), Box::new(ClaudeCodeParser::new())] -- to add Codex = 1 line + 1 file\nlib.rs: scan_and_import_if_empty called in setup after TokenUsageService::new(); meta 'last_auto_import' stores AutoImportSummary JSON; emits 'auto_import_completed' Tauri event\nOpencodeParser::parse strategy: calls exported parse_opencode_db_records (zero duplicate SQL); reused by import_opencode_db\nClaudeCodeParser::parse strategy: glob ~/.claude/projects/**/*.jsonl; per file, parse_jsonl_file helper builds UsageRecordInput (Claude shape + Codex fallback); reuses svc.import_jsonl\nHard constraints: 0 em-dash / 0 V0.X UI / 0 BETA / 0 INVITE-ONLY / 0 encryption crates / 0 fs::write outside APPDATA whitelist / schema v3+v4 intact / 0 new IPC commands",
+      "started_at": "2026-06-28",
+      "ended_at": "2026-06-28",
+      "assignee": "fixer",
+      "notes": "Architecture: 1 parser per file + AgentParser trait + default_parsers factory. Adding new agent = write file + add 1 line to factory. Frontend / heatmap / display components consume agent-agnostic UsageRecordInput / UsageSummary / UsageFilter unchanged. Auto-import runs on startup if token_usage_records < 100 rows; meta 'last_auto_import' for visibility. TopBar conditional: hidden on Usage page (was credentials-page-specific controls: search input + category filter + density toggle). UsagePage removed: Import button + ImportModal state + caption 'Data from language model calls, may be delayed' (auto-import replaces manual import); pt-[68px] for TopBar offset (no longer needed). Playwright visual test infra added: webui/playwright.config.ts + tests/usage-page.spec.ts with Tauri IPC mock via addInitScript. Baseline screenshot committed at tests/__screenshots__/usage-page.png.",
+      "openspec_ref": null
     }
   ]
 }

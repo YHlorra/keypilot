@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import {
+  getLastAutoImport,
   getPricing,
   getUsageSummary,
   importUsage,
   listUsageRecords,
 } from "@/lib/api";
 import type {
+  AutoImportSummary,
   ImportFormat,
   ImportResult,
   PaginatedResponse,
@@ -63,5 +65,25 @@ export function usePricing(): UseQueryResult<PricingEntry[]> {
     queryKey: ["usage", "pricing"],
     queryFn: () => getPricing(),
     staleTime: 60 * 60 * 1000, // 1 hour
+  });
+}
+
+// useLastAutoImport -- reads `meta.last_auto_import` JSON on App mount.
+// Returns null if no run has been recorded yet, or the parsed summary otherwise.
+export function useLastAutoImport(): UseQueryResult<AutoImportSummary | null> {
+  return useQuery({
+    queryKey: ["usage", "last-auto-import"],
+    queryFn: async () => {
+      const raw = await getLastAutoImport();
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw) as AutoImportSummary;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: Infinity, // one-shot — we only fire on cold start
+    gcTime: 60 * 1000,
+    retry: false,
   });
 }
