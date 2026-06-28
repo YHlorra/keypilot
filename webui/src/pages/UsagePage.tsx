@@ -1,144 +1,125 @@
 import { useMemo, useState } from "react";
-import { AgentPairChart } from "@/components/AgentPairChart";
 import { UsageTimeSeries } from "@/components/UsageTimeSeries";
-import { UsageHeatmap, type HeatmapCell } from "@/components/UsageHeatmap";
+import { UsageHeatmapCalendar } from "@/components/UsageHeatmapCalendar";
 import { UsageDetailPanel } from "@/components/UsageDetailPanel";
 import { ImportModal } from "@/components/ImportModal";
 import { Button } from "@/components/ui/button";
 import { useUsageSummary } from "@/hooks/useUsage";
-import { useUsageRecords } from "@/hooks/useUsage";
-import { X } from "lucide-react";
+import { UsageKpiCards } from "@/components/UsageKpiCards";
+import { UsageStatsSidebar } from "@/components/UsageStatsSidebar";
 import type { AgentPair, UsageFilter } from "@/types/api";
+import { cn } from "@/lib/utils";
 
-type RangeOption = "7d" | "30d" | "90d" | "all";
-type TabOption = "overview" | "daily" | "hourly";
+type RangeOption = "7d" | "30d";
 
 const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
-  { value: "7d", label: "7D" },
-  { value: "30d", label: "30D" },
-  { value: "90d", label: "90D" },
-  { value: "all", label: "All" },
-];
-
-const TAB_OPTIONS: { value: TabOption; label: string }[] = [
-  { value: "overview", label: "Overview" },
-  { value: "daily", label: "Daily" },
-  { value: "hourly", label: "Hourly" },
+  { value: "7d", label: "7d" },
+  { value: "30d", label: "30d" },
 ];
 
 export interface UsagePageProps {
-  filterProviderId?: number | null;
+  filterProviderName?: string | null;
   onClearFilter?: () => void;
 }
 
-// Build heatmap data from filtered usage records
-function buildHeatmapData(
-  records: { occurred_at: string; agent_type?: string; usage_details: { input?: number; output?: number; cache_read?: number; cache_creation?: number; reasoning?: number } }[],
-  date: string
-): HeatmapCell[] {
-  const cells: HeatmapCell[] = [];
-  const dateRecords = records.filter((r) => r.occurred_at?.startsWith(date));
-  const agentTypes = [...new Set(dateRecords.map((r) => r.agent_type || "unknown"))];
-
-  for (const agentType of agentTypes) {
-    for (let hour = 0; hour < 24; hour++) {
-      const hourRecords = dateRecords.filter((r) => {
-        if (r.agent_type !== agentType) return false;
-        const d = new Date(r.occurred_at);
-        return d.getHours() === hour;
-      });
-
-      const tokens = hourRecords.reduce(
-        (sum, r) => sum + (r.usage_details.input ?? 0) + (r.usage_details.output ?? 0), 0
-      );
-      const costUsd = 0; // TODO: derive from pricing if available
-      const requestCount = hourRecords.length;
-
-      if (tokens > 0) {
-        cells.push({ hour, agentType, tokens, costUsd, requestCount });
-      }
-    }
-  }
-  return cells;
-}
-
-export default function UsagePage({ filterProviderId, onClearFilter }: UsagePageProps) {
+export default function UsagePage({ filterProviderName, onClearFilter }: UsagePageProps) {
   const [selectedRange, setSelectedRange] = useState<RangeOption>("30d");
-  const [selectedTab, setSelectedTab] = useState<TabOption>("overview");
-  const [selectedPair, setSelectedPair] = useState<AgentPair | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [selectedPair, setSelectedPair] = useState<AgentPair | null>(null);
 
-  // Build filter from selected range
-  const filter = useMemo((): UsageFilter => {
+  // Trend filter (windowed by selectedRange)
+  const trendFilter = useMemo((): UsageFilter => {
     const now = new Date();
-    let startDate: string | undefined;
-
-    if (selectedRange === "7d") {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 7);
-      startDate = d.toISOString().split("T")[0];
-    } else if (selectedRange === "30d") {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 30);
-      startDate = d.toISOString().split("T")[0];
-    } else if (selectedRange === "90d") {
-      const d = new Date(now);
-      d.setDate(d.getDate() - 90);
-      startDate = d.toISOString().split("T")[0];
-    }
-    // 'all' -- no start_date filter
-
+    const start = new Date(now);
+    start.setDate(start.getDate() - (selectedRange === "7d" ? 7 : 30));
     return {
-      start_date: startDate,
+      start_date: start.toISOString().split("T")[0],
       end_date: now.toISOString().split("T")[0],
-      ...(filterProviderId ? { provider: String(filterProviderId) } : {}),
+      ...(filterProviderName ? { provider: filterProviderName } : {}),
     };
-  }, [selectedRange, filterProviderId]);
+  }, [selectedRange, filterProviderName]);
 
-  const { data: summary, isLoading: summaryLoading } = useUsageSummary(filter);
+  // Lifetime filter (no date range -- fetches all-time data)
+  const lifetimeFilter = useMemo((): UsageFilter => {
+    return filterProviderName ? { provider: filterProviderName } : {};
+  }, [filterProviderName]);
 
-  // Fetch records for heatmap (paginated, first 1000)
-  const { data: recordsData } = useUsageRecords(filter, 1, 1000);
-  const records = recordsData?.items ?? [];
+  const { data: trendSummary, isLoading: trendLoading } = useUsageSummary(trendFilter);
+  const { data: lifetimeSummary, isLoading: lifetimeLoading } = useUsageSummary(lifetimeFilter);
 
-  // Heatmap date = today
-  const heatmapDate = new Date().toISOString().split("T")[0];
-  const heatmapCells = useMemo(() => buildHeatmapData(records, heatmapDate), [records, heatmapDate]);
+  // Compute derived stats from LIFETIME daily_series (all-time, Fix 3)
+  const { todayTotal, last7dTotal, last30dTotal, dateMap, peakDay, peakDayLabel, activeDays } =
+    useMemo(() => {
+      const series = lifetimeSummary?.daily_series ?? [];
+      const now = new Date();
+      const todayISO = now.toISOString().split("T")[0];
 
-  // Build range filter for time series sub-components
-  const seriesRange = selectedRange === "all" ? "90d" : selectedRange;
+      const last7d = new Date(now);
+      last7d.setDate(last7d.getDate() - 7);
+      const last7dISO = last7d.toISOString().split("T")[0];
+
+      const last30d = new Date(now);
+      last30d.setDate(last30d.getDate() - 30);
+      const last30dISO = last30d.toISOString().split("T")[0];
+
+      let todayTotal = 0;
+      let last7dTotal = 0;
+      let last30dTotal = 0;
+      let peakDay = 0;
+      let peakDayLabel = "";
+      let activeDays = 0;
+      const dateMap = new Map<string, number>();
+
+      for (const point of series) {
+        const count = point.request_count ?? 0;
+        dateMap.set(point.date, count);
+
+        if (point.date === todayISO) todayTotal += count;
+        if (point.date >= last7dISO) last7dTotal += count;
+        if (point.date >= last30dISO) last30dTotal += count;
+
+        if (count > peakDay) {
+          peakDay = count;
+          peakDayLabel = point.date;
+        }
+        if (count > 0) activeDays++;
+      }
+
+      return { todayTotal, last7dTotal, last30dTotal, dateMap, peakDay, peakDayLabel, activeDays };
+    }, [lifetimeSummary]);
+
+  // Lifetime total (backend-computed from all-time query)
+  const lifetimeTotal = lifetimeSummary?.total_requests ?? 0;
+
+  // Period total (from windowed trend query, Fix 3 bonus)
+  const periodTotal = trendSummary?.total_requests ?? 0;
+
+  // Top agent pairs sorted by tokens (from trend window)
+  const topAgentPairs = useMemo(() => {
+    return [...(trendSummary?.agent_pairs ?? [])]
+      .sort((a, b) => b.total_tokens - a.total_tokens)
+      .slice(0, 5);
+  }, [trendSummary]);
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header row: range chips + Import button */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        {/* Range chips */}
-        <div className="inline-flex items-center rounded-pill border border-border p-0.5 gap-0.5">
-          {RANGE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setSelectedRange(opt.value)}
-              className={`inline-flex items-center px-3 py-1.5 rounded-pill text-xs font-medium transition-colors ${
-                selectedRange === opt.value
-                  ? "bg-[var(--color-primary)] text-[var(--color-secondary)]"
-                  : "text-[var(--color-muted)] hover:text-[var(--color-neutral)]"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+        <div>
+          <h1 className="text-lg font-semibold text-foreground" style={{ letterSpacing: "var(--tracking-tight)" }}>
+            Usage
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Data from language model calls, may be delayed
+          </p>
         </div>
-
-        {/* Import button + clear filter */}
         <div className="flex items-center gap-2">
-          {filterProviderId != null && (
+          {filterProviderName != null && (
             <button
               onClick={onClearFilter}
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-pill border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
               title="Clear provider filter"
             >
-              <X className="h-3 w-3" />
               Clear filter
             </button>
           )}
@@ -148,88 +129,87 @@ export default function UsagePage({ filterProviderId, onClearFilter }: UsagePage
         </div>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
-        {TAB_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => setSelectedTab(opt.value)}
-            className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
-              selectedTab === opt.value
-                ? "bg-secondary text-secondary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      {/* Page content */}
+      <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-6">
+        {/* KPI cards */}
+        <UsageKpiCards todayTotal={todayTotal} last7dTotal={last7dTotal} last30dTotal={last30dTotal} />
 
-      {/* Tab content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        {selectedTab === "overview" && (
-          <div className="flex flex-col gap-4 h-full">
-            {/* AgentPairChart -- top, 40% height */}
-            <div className="flex-shrink-0" style={{ height: "40%" }}>
-              {summaryLoading ? (
-                <div className="h-full animate-pulse bg-muted rounded" />
-              ) : (
-                <AgentPairChart
-                  pairs={summary?.agent_pairs ?? []}
-                  maxRows={10}
-                />
-              )}
-            </div>
-            {/* UsageTimeSeries -- bottom, 60% height */}
-            <div className="flex-1 min-h-0">
-              {summaryLoading ? (
-                <div className="h-full animate-pulse bg-muted rounded" />
+        {/* Body: trend chart + sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+          {/* Main column */}
+          <div className="flex flex-col gap-6">
+            {/* Trend chart */}
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-foreground">Trend</h2>
+                {/* Range toggle */}
+                <div className="inline-flex items-center rounded-pill border border-border p-0.5 gap-0.5">
+                  {RANGE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setSelectedRange(opt.value)}
+                      className={cn(
+                        "inline-flex items-center px-3 py-1 rounded-pill text-xs font-medium transition-colors",
+                        selectedRange === opt.value
+                          ? "bg-[var(--color-primary)] text-[var(--color-secondary)]"
+                          : "text-[var(--color-muted)] hover:text-[var(--color-neutral)]"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {trendLoading ? (
+                <div className="h-48 animate-pulse bg-muted rounded" />
+              ) : (trendSummary?.daily_series ?? []).length === 0 ? (
+                <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
+                  No data in selected range
+                </div>
               ) : (
                 <UsageTimeSeries
-                  dailySeries={summary?.daily_series ?? []}
-                  range={seriesRange}
-                  isLoading={summaryLoading}
+                  dailySeries={trendSummary?.daily_series ?? []}
+                  range={selectedRange}
+                  isLoading={false}
                 />
               )}
-            </div>
-          </div>
-        )}
+            </section>
 
-        {selectedTab === "daily" && (
-          <div className="h-full">
-            {summaryLoading ? (
-              <div className="h-full animate-pulse bg-muted rounded" />
-            ) : (
-              <UsageTimeSeries
-                dailySeries={summary?.daily_series ?? []}
-                range={seriesRange}
-                isLoading={summaryLoading}
-              />
-            )}
+            {/* Activity heatmap */}
+            <section>
+              <h2 className="text-sm font-semibold text-foreground mb-3">Activity</h2>
+              {lifetimeLoading ? (
+                <div className="h-48 animate-pulse bg-muted rounded" />
+              ) : (
+                <UsageHeatmapCalendar dateMap={dateMap} />
+              )}
+            </section>
           </div>
-        )}
 
-        {selectedTab === "hourly" && (
-          <div className="h-full">
-            <UsageHeatmap data={heatmapCells} date={heatmapDate} loading={false} />
-          </div>
-        )}
+          {/* Sidebar */}
+          <aside>
+            <UsageStatsSidebar
+              lifetimeTotal={lifetimeTotal}
+              periodTotal={periodTotal}
+              selectedRange={selectedRange}
+              peakDay={peakDay}
+              peakDayLabel={peakDayLabel}
+              activeDays={activeDays}
+              topAgentPairs={topAgentPairs}
+            />
+          </aside>
+        </div>
       </div>
 
       {/* UsageDetailPanel slide-in */}
       {selectedPair !== null && (
-        <UsageDetailPanel
-          agentPair={selectedPair}
-          onClose={() => setSelectedPair(null)}
-        />
+        <UsageDetailPanel agentPair={selectedPair} onClose={() => setSelectedPair(null)} />
       )}
 
       {/* ImportModal */}
-      <ImportModal
-        open={importModalOpen}
-        onClose={() => setImportModalOpen(false)}
-      />
+      <ImportModal open={importModalOpen} onClose={() => setImportModalOpen(false)} />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { SectionLabel } from "./components/SectionLabel";
 import { ProviderDetailModal } from "./components/ProviderDetailModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { AddCredentialModal } from "./components/AddCredentialModal";
+import { LeftRail } from "./components/LeftRail";
 import { useTheme } from "./hooks/useTheme";
 import { useProviders } from "./hooks/useProviders";
 import { useCategories } from "./hooks/useCategories";
@@ -53,7 +54,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState<"credentials" | "usage">("credentials");
   const [addCredOpen, setAddCredOpen] = useState(false);
-  const [usageFilterProviderId, setUsageFilterProviderId] = useState<number | null>(null);
+  const [usageFilterProviderName, setUsageFilterProviderName] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -114,11 +115,12 @@ export default function App() {
   };
 
   const handleTokenUsage = (id: number) => {
-    setUsageFilterProviderId(id);
+    const provider = allProviders.find((p) => p.id === id);
+    setUsageFilterProviderName(provider?.name ?? null);
     setCurrentPage("usage");
   };
 
-  const handleClearUsageFilter = () => setUsageFilterProviderId(null);
+  const handleClearUsageFilter = () => setUsageFilterProviderName(null);
 
   // Filtered provider list for ProviderGrid
   const { data: allProviders = [] } = useProviders();
@@ -126,57 +128,65 @@ export default function App() {
   const filteredProviders = filterProviders(allProviders, search, categoryFilter);
 
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground">
-      <Titlebar
-        rightActions={
-          <TopRightActions
-            onSettingsClick={() => setSettingsOpen(true)}
-            onTokenUsageClick={() => setCurrentPage("usage")}
-            onAddClick={() => setAddCredOpen(true)}
-            isOnUsagePage={currentPage === "usage"}
-          />
-        }
-      />
-
-      <TopBar
-        search={search}
-        onSearchChange={setSearch}
-        categoryFilter={categoryFilter}
-        onCategoryChange={setCategoryFilter}
-        density={density}
-        onDensityChange={setDensity}
+    <div className="flex h-screen bg-background text-foreground">
+      {/* Left rail - persistent on desktop, bottom bar on mobile */}
+      <LeftRail
         currentPage={currentPage}
         onPageChange={setCurrentPage}
-        categories={categories}
+        onSettingsClick={() => setSettingsOpen(true)}
       />
 
-      {currentPage === "credentials" && (
-        <main className="flex-1 overflow-y-auto pt-[108px]">
-          {categoryFilter !== "all" && (
-            <SectionLabel>
-              {categories.find((c) => c.id === categoryFilter)?.name ?? ""}
-            </SectionLabel>
-          )}
-          <ProviderGrid
-            providers={filteredProviders}
-            categories={categories}
-            onSelectProvider={(id) => setActiveProviderId(id)}
-            onAddClick={() => setAddCredOpen(true)}
-            onCopy={handleCopy}
-            onEdit={handleEdit}
-            onTokenUsage={handleTokenUsage}
-            onTest={handleTest}
-          />
-        </main>
-      )}
-      {currentPage === "usage" && (
-        <main className="flex-1 overflow-y-auto pt-[108px]">
-          <UsagePage
-            filterProviderId={usageFilterProviderId}
-            onClearFilter={handleClearUsageFilter}
-          />
-        </main>
-      )}
+      {/* Right content column */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Titlebar
+          rightActions={
+            <TopRightActions
+              onSettingsClick={() => setSettingsOpen(true)}
+              onAddClick={() => setAddCredOpen(true)}
+            />
+          }
+        />
+
+        <TopBar
+          search={search}
+          onSearchChange={setSearch}
+          categoryFilter={categoryFilter}
+          onCategoryChange={setCategoryFilter}
+          density={density}
+          onDensityChange={setDensity}
+          categories={categories}
+        />
+
+        {currentPage === "credentials" && (
+          <div className="flex-1 overflow-y-auto md:pl-16 pb-[56px] md:pb-0">
+            <main className="flex-1">
+              {categoryFilter !== "all" && (
+                <SectionLabel>
+                  {categories.find((c) => c.id === categoryFilter)?.name ?? ""}
+                </SectionLabel>
+              )}
+              <ProviderGrid
+                providers={filteredProviders}
+                categories={categories}
+                onSelectProvider={(id) => setActiveProviderId(id)}
+                onAddClick={() => setAddCredOpen(true)}
+                onCopy={handleCopy}
+                onEdit={handleEdit}
+                onTokenUsage={handleTokenUsage}
+                onTest={handleTest}
+              />
+            </main>
+          </div>
+        )}
+        {currentPage === "usage" && (
+          <div className="flex-1 overflow-y-auto md:pl-16 pb-[56px] md:pb-0">
+            <UsagePage
+              filterProviderName={usageFilterProviderName}
+              onClearFilter={handleClearUsageFilter}
+            />
+          </div>
+        )}
+      </div>
 
       <ProviderDetailModal
         providerId={activeProviderId}

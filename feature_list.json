@@ -331,6 +331,24 @@
       "notes": "Claude JSONL parsing was already done in stage-b; this stage closes the opencode.db gap. opencode.db adapter reads session table (1266 rows) with READ ONLY flag + NO_MUTEX. Model field split on '/' to derive provider_name. WHERE clause filters zero-token rows. Dedup via existing deterministic_id (FNV-1a) through record_usage. No schema migration, no new crate deps, no fs::write calls in new code."
     },
     {
+      "id": "stage-e",
+      "name": "UsagePage audit-driven alignment fixes (3 contract bugs)",
+      "description": "Frontend-only fixes to UsagePage <-> backend contract: (1) Heatmap range mismatch: UsageHeatmapCalendar renders ~26 weeks of cells but only 7d/30d data was fetched; added second useUsageSummary call for lifetime view (no start_date filter). (2) provider filter received numeric ID instead of name: renamed filterProviderId:number -> filterProviderName:string, App.tsx resolves name via providers.find(). (3) Sidebar lifetimeTotal/peakDay/activeDays derived from windowed summary instead of lifetime: all now derive from lifetimeSummary.daily_series; added periodTotal 4th stat.",
+      "files": [
+        "webui/src/pages/UsagePage.tsx",
+        "webui/src/App.tsx",
+        "webui/src/components/UsageStatsSidebar.tsx",
+        "webui/src/types/api.ts"
+      ],
+      "depends_on": [],
+      "status": "done",
+      "evidence": "pnpm tsc --noEmit: PASS\npnpm build: PASS (400.61 KB JS, delta +0.14 KB from prev 400.47 KB)\ncargo test --lib: 25/25 PASS\nMechanical greps: em-dash 0 matches in edited files; V0.1/BETA/INVITE-ONLY 0 matches in edited files; marketing copy 0 matches\nManual contract trace:\n  UsagePage.tsx props: filterProviderName?: string | null ✓\n  UsagePage.tsx filter: provider: filterProviderName (no String() cast) ✓\n  UsagePage.tsx: 2 separate useUsageSummary calls (trendFilter + lifetimeFilter) ✓\n  App.tsx handleTokenUsage: providers.find(p => p.id === id)?.name ✓\n  App.tsx <UsagePage filterProviderName={...} /> ✓\n  KPI + sidebar useMemo reads from lifetimeSummary.daily_series ✓\n  types/api.ts: snake_case contract comment added ✓",
+      "started_at": "2026-06-28",
+      "ended_at": "2026-06-28",
+      "assignee": "fixer",
+      "notes": "Audit-driven alignment fixes. No Rust changes, no schema changes, no new IPC. Fix 1: dual-query (trend + lifetime). Fix 2: provider name not ID. Fix 3: lifetime-derived stats + periodTotal bonus stat. Fix 4: snake_case contract comment in types/api.ts."
+    },
+    {
       "id": "stage-9",
       "name": "V0.1 验收 (13 项清单)",
       "description": "V0.1 acceptance test suite — 13 项手动验收清单。",

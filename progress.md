@@ -5,6 +5,59 @@
 
 <!-- 2026-06-28 -->
 
+## 2026-06-28 (session 2)
+
+**Session scope**: stage-e — UsagePage audit-driven alignment fixes (3 contract bugs)
+**Files changed**: `webui/src/pages/UsagePage.tsx`, `webui/src/App.tsx`, `webui/src/components/UsageStatsSidebar.tsx`, `webui/src/types/api.ts`, `feature_list.json`, `progress.md`
+
+### Fix 1 (HIGH): Heatmap range mismatch
+
+- `UsagePage.tsx` now makes **2 separate** `useUsageSummary` calls:
+  - `trendFilter`: windowed 7d/30d for trend chart + filteredDailySeries
+  - `lifetimeFilter`: no date range, fetches all-time for heatmap + KPI + sidebar
+- `isLoading` split: trendLoading for trend section, lifetimeLoading for heatmap section
+- Heatmap `dateMap` now built from `lifetimeSummary.daily_series` (full ~26 week range)
+
+### Fix 2 (HIGH): provider filter received numeric ID instead of name
+
+- `App.tsx`: `usageFilterProviderId: number | null` → `usageFilterProviderName: string | null`
+- `handleTokenUsage(id)`: resolves name via `allProviders.find(p => p.id === id)?.name ?? null`
+- `UsagePage.tsx`: props `filterProviderName?: string | null` (was `filterProviderId`)
+- Filter construction: `provider: filterProviderName` (no `String()` cast)
+- "Clear filter" badge uses `filterProviderName`
+
+### Fix 3 (MEDIUM): Sidebar + KPI semantics — filter-scoped → truly lifetime
+
+- KPI `useMemo`: reads `lifetimeSummary?.daily_series ?? []` (was `summary`)
+- Sidebar `peakDay` / `activeDays`: same lifetime series (was trend-scoped)
+- `lifetimeTotal = lifetimeSummary?.total_requests ?? 0` (was `summary`)
+- **Bonus**: 4th sidebar stat `Period` showing `trendSummary?.total_requests` with range sub-label
+- `UsageStatsSidebar.tsx`: added `periodTotal` + `selectedRange` props
+
+### Fix 4 (LOW): snake_case contract comment in types/api.ts
+
+- Comment block above Token Usage types section (line ~172)
+- Warns that `#[serde(rename_all = "camelCase")]` on any Rust struct would silently break all IPC DTOs
+- No field renames — comment only
+
+### 验证
+
+- `pnpm tsc --noEmit`: PASS (no output = clean)
+- `pnpm build`: PASS (`400.61 kB JS`, delta +0.14 KB from prev `400.47 kB`)
+- `cargo test --lib`: **25/25 PASS** (no Rust changes)
+- Greps (UsagePage.tsx + App.tsx):
+  - Em-dash (`—`): **0 matches**
+  - `V0\.[0-9]|BETA|INVITE-ONLY`: **0 matches** (pre-existing V0.1 in SettingsModal.tsx, not edited)
+  - Marketing copy: **0 matches**
+- Hard constraints: no encryption crates, no fs::write outside APPDATA, schema v3 intact
+
+### 下一步
+
+- Commit with Stage e format
+- No further UsagePage changes in scope
+
+---
+
 ## 2026-06-28
 
 **Session scope**: stage-d — opencode.db import adapter for TokenUsageService
