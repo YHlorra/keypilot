@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 use crate::services::agent_parser::default_parsers;
+use crate::services::token_usage::deterministic_id;
 use crate::services::TokenUsageService;
+#[cfg(test)]
 use crate::types::UsageRecordInput;
 
 /// Summary of one auto-import run, suitable for storing in the meta table
@@ -53,7 +55,7 @@ fn db_has_records(svc: &TokenUsageService, threshold: u32) -> bool {
 /// Returns an `AutoImportSummary` for the caller to store / emit.
 pub fn scan_and_import(svc: &TokenUsageService) -> AutoImportSummary {
     let started_at = chrono::Utc::now().timestamp_millis();
-    let parsers = default_parsers();
+    let parsers = default_parsers(svc.pricing());
     let mut entries = Vec::new();
     let mut total_imported: u32 = 0;
     let mut total_skipped: u32 = 0;
@@ -133,28 +135,10 @@ pub fn scan_and_import_if_empty(svc: &TokenUsageService) -> AutoImportSummary {
     scan_and_import(svc)
 }
 
-// ---------- FNV-1a 64-bit deterministic ID (same as token_usage.rs) ----------
-
-fn fnv1a_64(bytes: &[u8]) -> u64 {
-    let mut hash: u64 = 0xcbf29ce484222325;
-    for b in bytes {
-        hash ^= *b as u64;
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    hash
-}
-
-fn deterministic_id(input: &UsageRecordInput) -> String {
-    let key = format!(
-        "{}|{}|{}|{}|{}",
-        input.agent_type,
-        input.model,
-        input.occurred_at,
-        input.input_tokens,
-        input.output_tokens
-    );
-    format!("{:016x}", fnv1a_64(key.as_bytes()))
-}
+// `deterministic_id` is provided by `crate::services::token_usage::deterministic_id`
+// (pub).  Previously this module kept a private FNV-1a copy that diverged from
+// the canonical key shape (missing `provider_name`).  The single source of
+// truth is now in `token_usage.rs` (2026-06-28).
 
 // ---------- Tests ----------
 
@@ -192,39 +176,44 @@ mod tests {
         let svc = make_svc();
         // Pre-populate 5 rows (< 100 threshold) → scan should run, not skip.
         for i in 0..5 {
-            let input = make_input("claude-code", "gpt-4o", 100, 50, 1_700_000_000 + i);
+            let input = make_input("claude-code", "gpt-4o", 100, 50, 1_700_000_000_000 + i);
             let id = deterministic_id(&input);
             let _ = svc.record_usage(&id, input);
         }
         let result = scan_and_import_if_empty(&svc);
-        // Orchestration invariant: both parsers attempted regardless of disk state.
-        assert_eq!(result.entries.len(), 2);
+        // Orchestration invariant: all 3 parsers attempted regardless of disk state.
+        assert_eq!(result.entries.len(), 3);
         // ponytail: counts of imported/skipped depend on real-machine fixture data —
         // we only assert that the orchestration ran without panicking.
     }
 
     #[test]
-    fn scan_and_import_returns_two_parser_entries() {
+    fn scan_and_import_returns_three_parser_entries() {
         let svc = make_svc();
         let result = scan_and_import(&svc);
-        // 2 parsers attempted; ParseStats always populated (even when empty).
-        assert_eq!(result.entries.len(), 2);
+        // 3 parsers attempted (opencode + claude-code + codex); ParseStats always populated (even when empty).
+        assert_eq!(result.entries.len(), 3);
         let opencode = result.entries.iter().find(|e| e.agent_type == "opencode").unwrap();
         let claude = result.entries.iter().find(|e| e.agent_type == "claude-code").unwrap();
+        let codex = result.entries.iter().find(|e| e.agent_type == "codex").unwrap();
         // Opencode.db typically absent in test env → 0 files scanned.
         assert_eq!(opencode.parse_stats.files_scanned, 0);
         // Claude data MAY exist on dev machine (real fixture) or not (CI):
         // assert only the invariant "parser attempted" via `available` + populated stats.
         assert!(claude.parse_stats.files_scanned > 0 || !claude.available);
         assert_eq!(claude.parse_stats.lines_parse_errored, 0, "real fixtures must not error");
+        // Codex data MAY exist on dev machine; assert non-empty stats (even if 0 files).
+        assert!(codex.parse_stats.files_scanned >= 0);
     }
 
     #[test]
-    fn default_parsers_returns_two() {
-        let parsers = default_parsers();
-        assert_eq!(parsers.len(), 2);
+    fn default_parsers_returns_three() {
+        let pricing = std::sync::Arc::new(crate::services::pricing::PricingService::new());
+        let parsers = default_parsers(pricing);
+        assert_eq!(parsers.len(), 3);
         let types: Vec<&str> = parsers.iter().map(|p| p.agent_type()).collect();
         assert!(types.contains(&"opencode"));
         assert!(types.contains(&"claude-code"));
+        assert!(types.contains(&"codex"));
     }
 }

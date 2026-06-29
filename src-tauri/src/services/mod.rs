@@ -7,4 +7,8 @@ pub use token_usage::TokenUsageService;
 pub mod agent_parser;
 pub mod agent_parser_opencode;
 pub mod agent_parser_claude_code;
+pub mod agent_parser_codex;
 pub mod auto_import;
+pub mod currency;
+pub mod opencode_go_limits;
+pub mod deepseek_balance_history;

@@ -50,12 +50,25 @@ export interface Category {
 // - Anthropic: AppError::ProviderQuotaUnsupported (no QuotaSnapshot returned)
 // `fetched_at` is NOT in the wire shape -- frontend uses TanStack Query staleTime.
 export interface QuotaSnapshot {
+  // === 旧字段(保留) ===
   total: number | null;                // null = PostgreSQL or N/A
   used: number;                        // always present
   remaining?: number;                  // computed if total+used known; null for PostgreSQL
-  unit: 'USD' | 'CNY' | 'req' | 'GB' | 'token';  // strict union (no `| string` escape hatch)
-  level?: 'green' | 'amber' | 'red' | 'ruby';    // UI visual hint
+  unit: 'USD' | 'CNY' | 'req' | 'GB' | 'token' | string;  // 加 | string 容错(对齐 token-monitor normalizeLimitProvider)
+  level?: 'green' | 'amber' | 'red' | 'ruby' | string;     // UI visual hint
   reset_at?: number;                   // unix epoch seconds, optional
+  // === 新字段(对齐 token-monitor normalizeLimitProvider) ===
+  windows?: LimitWindow[];
+  status?: LimitStatus;
+  source?: LimitSource;
+  source_detail?: string;
+  account_label?: string | null;
+  account_email?: string | null;
+  region?: string | null;
+  balance?: MoneyAmount | null;
+  used_amount?: MoneyAmount | null;
+  balance_usd?: number | null;
+  used_usd?: number | null;
 }
 
 // === AppError (mirrors src-tauri/src/error.rs -- 15 codes) ===
@@ -336,4 +349,95 @@ export interface AutoImportSummary {
   total_errors: number;
   started_at: number;
   finished_at: number;
+}
+
+// === PeriodsSummary (token-monitor-alignment Part A #1) ===
+// Mirrors src-tauri/src/types.rs PeriodsSummary / PeriodsTriplet / PeriodWindowsPair / PeriodWindow
+
+export interface PeriodWindow {
+  key: string;                // today: "YYYY-MM-DD", month: "YYYY-MM"
+  ends_at: string;            // ISO 8601 with timezone
+}
+
+export interface PeriodWindowsPair {
+  today: PeriodWindow;
+  month: PeriodWindow;
+}
+
+export interface PeriodsTriplet {
+  today: UsageSummary;
+  month: UsageSummary;
+  all_time: UsageSummary;
+}
+
+// === Money / Limits (token-monitor-alignment Part B #6A) ===
+// Mirrors src-tauri/src/types.rs LimitWindow / LimitStatus / LimitSource / MoneyAmount / LimitsSummary
+
+export interface MoneyAmount {
+  amount: number;
+  currency: string;
+}
+
+export type LimitWindowKind = 'session' | 'weekly' | 'billing';
+
+export type LimitStatus =
+  | 'ok'
+  | 'disabled'
+  | 'not_configured'
+  | 'unauthorized'
+  | 'rate_limited'
+  | 'source_rate_limited'
+  | 'unavailable'
+  | 'error';
+
+export type LimitSource =
+  | 'oauth'
+  | 'cli'
+  | 'web'
+  | 'rpc'
+  | 'local'
+  | 'api'
+  | 'manual';
+
+export interface LimitWindow {
+  kind: LimitWindowKind;
+  label: string;
+  used: number;
+  limit?: number | null;
+  remaining?: number | null;
+  used_percent?: number | null;
+  remaining_percent?: number | null;
+  resets_at?: string | null;          // ISO 8601
+  window_minutes?: number | null;
+  reset_description: string;
+  show_meter: boolean;
+}
+
+export interface LimitProvider {
+  provider: string;
+  windows: LimitWindow[];
+  status: LimitStatus;
+  source: LimitSource;
+  source_detail: string;
+  account_label?: string | null;
+  account_email?: string | null;
+  region?: string | null;
+  balance?: MoneyAmount | null;
+  used_amount?: MoneyAmount | null;
+  balance_usd?: number | null;
+  used_usd?: number | null;
+}
+
+export interface LimitsSummary {
+  providers: LimitProvider[];
+  updated_at: number;        // unix epoch seconds
+}
+
+// === PeriodsSummary main contract ===
+
+export interface PeriodsSummary {
+  periods: PeriodsTriplet;
+  period_windows: PeriodWindowsPair;
+  client_models: Record<string, Record<string, number>>;  // agent_type -> model -> total_tokens
+  limits?: LimitsSummary | null;
 }

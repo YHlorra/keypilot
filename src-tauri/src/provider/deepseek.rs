@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::time::Duration;
 
 use crate::provider::adapter::{QuotaError, ValidateError};
-use crate::types::QuotaSnapshot;
+use crate::types::{LimitSource, LimitStatus, LimitWindow, LimitWindowKind, MoneyAmount, QuotaSnapshot};
 
 pub struct DeepSeekAdapter;
 
@@ -97,13 +97,79 @@ impl super::ProviderAdapter for DeepSeekAdapter {
             Some("red".to_string())
         };
 
+        // DeepSeek 旧字段语义:used=0(无"已用"概念,余额就是 total_balance)
+        // balance = remaining = total_balance
+        let used = 0.0_f64;
+        let remaining = total_balance;
+
+        // CNY → USD 换算(硬编码 6.8,对齐 services/currency.rs 默认汇率)
+        // 若 currency 已是 USD 直接用原值
+        let usd_rate = if currency == "USD" { 1.0 } else { 6.8 };
+        let balance_usd = remaining / usd_rate;
+        let used_usd = used / usd_rate;
+
+        // 记录余额快照,计算今日/本月消耗(对齐 token-monitor deepseekBalanceHistory.js)
+        let account_key = {
+            use sha2::{Digest, Sha256};
+            let mut hasher = Sha256::new();
+            hasher.update(api_key.as_bytes());
+            let digest = hasher.finalize();
+            format!(
+                "sha256:{}",
+                crate::services::deepseek_balance_history::bytes_to_hex(&digest)
+            )
+        };
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        let consumption = crate::services::deepseek_balance_history::record_consumption(
+            &account_key,
+            &currency,
+            total_balance,
+            now_ms,
+        )
+        .map_err(|e| QuotaError::Network(format!("record_consumption failed: {}", e)))?;
+
         Ok(QuotaSnapshot {
+            // 旧字段(向后兼容)
             total: None,
-            used: 0.0,
-            remaining: Some(total_balance),
-            unit: currency,
+            used,
+            remaining: Some(remaining),
+            unit: currency.clone(),
             level,
             reset_at: None,
+            // 新字段(对齐 token-monitor normalizeLimitProvider 输出)
+            windows: vec![LimitWindow {
+                kind: LimitWindowKind::Billing,
+                label: "Monthly".to_string(),
+                used,
+                limit: None,
+                remaining: Some(remaining),
+                used_percent: Some(0.0),
+                remaining_percent: Some(100.0),
+                resets_at: None,
+                window_minutes: None,
+                reset_description: String::new(),
+                show_meter: true,
+            }],
+            status: LimitStatus::Ok,
+            source: LimitSource::Api,
+            source_detail: "app".to_string(),
+            account_label: None,
+            account_email: None,
+            region: None,
+            balance: Some(MoneyAmount {
+                amount: remaining,
+                currency: currency.clone(),
+                today_spend: Some(consumption.today_spend),
+                month_spend: Some(consumption.month_spend),
+                month_since_tracking: Some(consumption.month_since_tracking),
+            }),
+            used_amount: Some(MoneyAmount {
+                amount: used,
+                currency,
+                ..Default::default()
+            }),
+            balance_usd: Some(balance_usd),
+            used_usd: Some(used_usd),
         })
     }
 }

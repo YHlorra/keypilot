@@ -105,6 +105,10 @@ keypilot-dev/
     └── v0.1-acceptance.md  # Acceptance checklist
 ```
 
+## Acknowledgements
+
+- [token-monitor](https://github.com/Javis603/token-monitor) — token usage 解析逻辑(client 归一化、total_tokens 公式、时间戳处理)参考
+
 ## License
 
 MIT — see [LICENSE](LICENSE) (待添加).

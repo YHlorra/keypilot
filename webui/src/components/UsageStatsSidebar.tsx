@@ -10,6 +10,12 @@ interface UsageStatsSidebarProps {
   peakDayLabel?: string;
   activeDays: number;
   topAgentPairs?: AgentPair[];
+  /**
+   * Tool x Model 二维聚合:agent_type -> model -> total_tokens.
+   * 来自 PeriodsSummary.client_models。Task 10 会渲染实际表格;
+   * 当前先打印到 console 并显示占位标题,确保 prop 流通但不变更现有布局。
+   */
+  clientModels?: Record<string, Record<string, number>>;
 }
 
 function formatNumber(n: number): string {
@@ -27,7 +33,16 @@ export const UsageStatsSidebar = React.memo(function UsageStatsSidebar({
   peakDayLabel,
   activeDays,
   topAgentPairs = [],
+  clientModels,
 }: UsageStatsSidebarProps) {
+  // 占位:Task 10 在此渲染 Tool x Model 表格。当前只观察 prop 流通情况。
+  React.useEffect(() => {
+    if (clientModels && Object.keys(clientModels).length > 0) {
+      // eslint-disable-next-line no-console
+      console.log("[UsageStatsSidebar] clientModels received (render deferred to Task 10)", clientModels);
+    }
+  }, [clientModels]);
+
   return (
     <div className="flex flex-col gap-3">
       <StatCard label="All-time" value={formatNumber(lifetimeTotal)} />
@@ -51,6 +66,16 @@ export const UsageStatsSidebar = React.memo(function UsageStatsSidebar({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Tool x Model breakdown -- 占位标题,实际渲染留 Task 10 */}
+      {clientModels !== undefined && Object.keys(clientModels).length > 0 && (
+        <div className="flex flex-col rounded-sm border border-border bg-card px-4 py-3">
+          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+            Tool x Model Breakdown
+          </span>
+          <span className="text-[10px] text-muted-foreground mt-1">(rendered in Task 10)</span>
         </div>
       )}
     </div>

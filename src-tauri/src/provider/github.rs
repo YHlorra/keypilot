@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use crate::provider::adapter::{QuotaError, ValidateError};
-use crate::types::QuotaSnapshot;
+use crate::types::{LimitSource, LimitStatus, LimitWindow, LimitWindowKind, QuotaSnapshot};
 
 pub struct GitHubAdapter;
 
@@ -84,13 +84,54 @@ impl super::ProviderAdapter for GitHubAdapter {
             None
         };
 
+        // 计算百分比与 ISO 重置时间(hourly 窗口)
+        let used_percent = if total > 0.0 {
+            Some((used / total) * 100.0)
+        } else {
+            None
+        };
+        let remaining_percent = if total > 0.0 {
+            Some((remaining / total) * 100.0)
+        } else {
+            None
+        };
+        // GitHub rate_limit reset 是 unix epoch 秒,转 ISO 8601
+        let resets_at_iso = chrono::DateTime::from_timestamp(core.reset, 0)
+            .map(|dt| dt.to_rfc3339());
+
         Ok(QuotaSnapshot {
+            // 旧字段(向后兼容)
             total: Some(total),
             used,
             remaining: Some(remaining),
             unit: "req".to_string(),
             level,
             reset_at: Some(core.reset),
+            // 新字段(对齐 token-monitor normalizeLimitProvider 输出)
+            windows: vec![LimitWindow {
+                kind: LimitWindowKind::Session,
+                label: "Hourly".to_string(),
+                used,
+                limit: Some(total),
+                remaining: Some(remaining),
+                used_percent,
+                remaining_percent,
+                resets_at: resets_at_iso,
+                window_minutes: Some(60),
+                reset_description: String::new(),
+                show_meter: true,
+            }],
+            status: LimitStatus::Ok,
+            source: LimitSource::Api,
+            source_detail: "app".to_string(),
+            account_label: None,
+            account_email: None,
+            region: None,
+            // GitHub 是请求数,不是金额,故 balance/used_amount/balance_usd/used_usd 全部 None
+            balance: None,
+            used_amount: None,
+            balance_usd: None,
+            used_usd: None,
         })
     }
 }

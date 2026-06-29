@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useMemo } from "react";
+import type { UsageSummary } from "@/types/api";
 
 interface KpiCardProps {
   label: string;
@@ -42,17 +43,16 @@ const KpiCard = React.memo(function KpiCard({ label, value, subLabel, emphasized
 });
 
 interface UsageKpiCardsProps {
-  todayTotal: number;
-  last7dTotal: number;
-  last30dTotal: number;
+  today?: UsageSummary;
+  month?: UsageSummary;
+  allTime?: UsageSummary;
 }
 
 export const UsageKpiCards = React.memo(function UsageKpiCards({
-  todayTotal,
-  last7dTotal,
-  last30dTotal,
+  today,
+  month,
+  allTime,
 }: UsageKpiCardsProps) {
-  // Derive today label
   const todayLabel = useMemo(() => {
     const now = new Date();
     return `${now.getMonth() + 1}/${now.getDate()}`;
@@ -60,9 +60,18 @@ export const UsageKpiCards = React.memo(function UsageKpiCards({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <KpiCard label="Today" value={todayTotal} subLabel={todayLabel} />
-      <KpiCard label="Last 7 days" value={last7dTotal} emphasized />
-      <KpiCard label="Last 30 days" value={last30dTotal} />
+      <KpiCard label="Today" value={today?.total_requests ?? 0} subLabel={todayLabel} />
+      <KpiCard
+        label="This Month"
+        value={month?.total_requests ?? 0}
+        emphasized
+        subLabel={`${month?.total_cost_usd?.toFixed(2) ?? "0.00"} USD`}
+      />
+      <KpiCard
+        label="All Time"
+        value={allTime?.total_requests ?? 0}
+        subLabel={`${allTime?.total_cost_usd?.toFixed(2) ?? "0.00"} USD`}
+      />
     </div>
   );
 });

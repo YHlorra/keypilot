@@ -5,27 +5,31 @@
 //! so FNV-1a dedup applies automatically.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use serde_json::Value;
 
 use crate::error::AppError;
 use crate::services::agent_parser::{AgentParser, ParseOutcome, ParseStats};
+use crate::services::pricing::PricingService;
 use crate::types::UsageRecordInput;
 
 pub struct ClaudeCodeParser {
     path: PathBuf,
+    pricing: Arc<PricingService>,
 }
 
 impl ClaudeCodeParser {
-    pub fn new() -> Self {
+    pub fn new(pricing: Arc<PricingService>) -> Self {
         Self {
             path: dirs_next(),
+            pricing,
         }
     }
 
     #[cfg(test)]
-    pub fn with_path(path: PathBuf) -> Self {
-        Self { path }
+    pub fn with_path(path: PathBuf, pricing: Arc<PricingService>) -> Self {
+        Self { path, pricing }
     }
 }
 
@@ -42,7 +46,7 @@ fn dirs_next() -> PathBuf {
 
 impl Default for ClaudeCodeParser {
     fn default() -> Self {
-        Self::new()
+        Self::new(Arc::new(PricingService::new()))
     }
 }
 
@@ -72,190 +76,203 @@ impl AgentParser for ClaudeCodeParser {
         }
         let mut records = Vec::new();
         let mut stats = ParseStats::empty();
-        walk_jsonl_dir(&self.path, &mut records, &mut stats);
+        self.walk_jsonl_dir(&self.path, &mut records, &mut stats);
         Ok(ParseOutcome { records, stats })
     }
 }
 
 // ---------- JSONL parsing helpers ----------
 
-fn walk_jsonl_dir(
-    dir: &std::path::Path,
-    out: &mut Vec<UsageRecordInput>,
-    stats: &mut ParseStats,
-) {
-    let entries = match std::fs::read_dir(dir) {
-        Ok(e) => e,
-        Err(e) => {
-            stats.record_error(&dir.to_string_lossy(), 0, &format!("read_dir: {e}"));
-            return;
-        }
-    };
-    for entry in entries {
-        let entry = match entry {
+impl ClaudeCodeParser {
+    fn walk_jsonl_dir(
+        &self,
+        dir: &std::path::Path,
+        out: &mut Vec<UsageRecordInput>,
+        stats: &mut ParseStats,
+    ) {
+        let entries = match std::fs::read_dir(dir) {
             Ok(e) => e,
             Err(e) => {
-                stats.record_error(&dir.to_string_lossy(), 0, &format!("dir entry: {e}"));
-                continue;
+                stats.record_error(&dir.to_string_lossy(), 0, &format!("read_dir: {e}"));
+                return;
             }
         };
-        let p = entry.path();
-        if p.is_dir() {
-            walk_jsonl_dir(&p, out, stats);
-        } else if p.extension().map(|e| e == "jsonl").unwrap_or(false) {
-            let content = match std::fs::read_to_string(&p) {
-                Ok(c) => c,
+        for entry in entries {
+            let entry = match entry {
+                Ok(e) => e,
                 Err(e) => {
-                    stats.record_error(&p.to_string_lossy(), 0, &format!("read: {e}"));
+                    stats.record_error(&dir.to_string_lossy(), 0, &format!("dir entry: {e}"));
                     continue;
                 }
             };
-            parse_jsonl_file(&p, &content, out, stats);
+            let p = entry.path();
+            if p.is_dir() {
+                self.walk_jsonl_dir(&p, out, stats);
+            } else if p.extension().map(|e| e == "jsonl").unwrap_or(false) {
+                let content = match std::fs::read_to_string(&p) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        stats.record_error(&p.to_string_lossy(), 0, &format!("read: {e}"));
+                        continue;
+                    }
+                };
+                self.parse_jsonl_file(&p, &content, out, stats);
+            }
         }
     }
-}
 
-fn parse_jsonl_file(
-    path: &std::path::Path,
-    content: &str,
-    out: &mut Vec<UsageRecordInput>,
-    stats: &mut ParseStats,
-) {
-    let file_name = path.to_string_lossy().to_string();
-    stats.files_scanned += 1;
+    fn parse_jsonl_file(
+        &self,
+        path: &std::path::Path,
+        content: &str,
+        out: &mut Vec<UsageRecordInput>,
+        stats: &mut ParseStats,
+    ) {
+        let file_name = path.to_string_lossy().to_string();
+        stats.files_scanned += 1;
 
-    for (idx, line) in content.lines().enumerate() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        stats.lines_scanned += 1;
-        let line_no = idx as u32 + 1;
-
-        let v: Value = match serde_json::from_str(line) {
-            Ok(v) => v,
-            Err(e) => {
-                stats.record_error(&file_name, line_no, &format!("json: {e}"));
+        for (idx, line) in content.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
                 continue;
+            }
+            stats.lines_scanned += 1;
+            let line_no = idx as u32 + 1;
+
+            let v: Value = match serde_json::from_str(line) {
+                Ok(v) => v,
+                Err(e) => {
+                    stats.record_error(&file_name, line_no, &format!("json: {e}"));
+                    continue;
+                }
+            };
+
+            // Branch on outer type — only "assistant" carries usage.
+            match v.get("type").and_then(|t| t.as_str()) {
+                Some("assistant") => {
+                    match self.parse_assistant(&v, stats, &file_name, line_no) {
+                        Some(rec) => {
+                            stats.lines_matched += 1;
+                            out.push(rec);
+                        }
+                        None => {} // error already recorded inside parse_assistant
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn parse_assistant(
+        &self,
+        v: &Value,
+        stats: &mut ParseStats,
+        file: &str,
+        line_no: u32,
+    ) -> Option<UsageRecordInput> {
+        let message = match v.get("message") {
+            Some(m) => m,
+            None => {
+                stats.record_error(file, line_no, "missing message");
+                return None;
             }
         };
 
-        // Branch on outer type — only "assistant" carries usage.
-        match v.get("type").and_then(|t| t.as_str()) {
-            Some("assistant") => {
-                match parse_assistant(&v, stats, &file_name, line_no) {
-                    Some(rec) => {
-                        stats.lines_matched += 1;
-                        out.push(rec);
-                    }
-                    None => {} // error already recorded inside parse_assistant
-                }
+        let model = match message.get("model").and_then(|m| m.as_str()) {
+            Some(m) => m.to_string(),
+            None => {
+                stats.record_error(file, line_no, "missing message.model");
+                return None;
             }
-            _ => {}
-        }
+        };
+
+        let usage = match message.get("usage") {
+            Some(u) => u,
+            None => {
+                stats.record_error(file, line_no, "missing message.usage");
+                return None;
+            }
+        };
+
+        let ts_str = match v.get("timestamp").and_then(|t| t.as_str()) {
+            Some(t) => t,
+            None => {
+                stats.record_error(file, line_no, "missing top-level timestamp");
+                return None;
+            }
+        };
+
+        let occurred_at = match chrono::DateTime::parse_from_rfc3339(ts_str) {
+            Ok(dt) => dt.timestamp_millis(),
+            Err(e) => {
+                stats.record_error(file, line_no, &format!("timestamp: {e}"));
+                return None;
+            }
+        };
+
+        let input_tokens = usage.get("input_tokens").and_then(|x| x.as_i64()).unwrap_or(0);
+        let output_tokens = usage.get("output_tokens").and_then(|x| x.as_i64()).unwrap_or(0);
+        let cache_read = usage
+            .get("cache_read_input_tokens")
+            .and_then(|x| x.as_i64())
+            .unwrap_or(0);
+        let cache_creation = usage
+            .get("cache_creation_input_tokens")
+            .and_then(|x| x.as_i64())
+            .unwrap_or(0);
+
+        let provider_name = self.derive_provider(&model);
+
+        let session_id = v.get("sessionId").and_then(|x| x.as_str()).map(String::from);
+        let request_id = v.get("uuid").and_then(|x| x.as_str()).map(String::from);
+
+        Some(UsageRecordInput {
+            agent_type: "claude-code".into(),
+            model,
+            provider_name,
+            occurred_at,
+            session_id,
+            request_id,
+            input_tokens,
+            output_tokens,
+            cache_read_input_tokens: cache_read,
+            cache_creation_input_tokens: cache_creation,
+            reasoning_tokens: 0,
+            usage_details: None,
+        })
     }
-}
 
-fn parse_assistant(
-    v: &Value,
-    stats: &mut ParseStats,
-    file: &str,
-    line_no: u32,
-) -> Option<UsageRecordInput> {
-    let message = match v.get("message") {
-        Some(m) => m,
-        None => {
-            stats.record_error(file, line_no, "missing message");
-            return None;
+    /// Heuristic provider name from model identifier.  Claude Code's
+    /// `message.model` does not carry a top-level `provider` field.
+    /// First consult `pricing.json` via `PricingService` — if the model is
+    /// listed there, return its `provider` verbatim (e.g. `gpt-4o` →
+    /// `"OpenAI"`).  Otherwise fall back to prefix matching on the model
+    /// name (`claude-*` → `anthropic`, `gpt-*` / `oN-*` → `openai`,
+    /// `MiniMax-*` → `minimax-cn-coding-plan`, `vendor/model` → `vendor`).
+    /// Returns `"unknown"` when nothing matches (will price as $0 until
+    /// PricingService grows an entry).
+    fn derive_provider(&self, model: &str) -> String {
+        if let Some(provider) = self.pricing.lookup_provider_by_model(model) {
+            return provider;
         }
-    };
-
-    let model = match message.get("model").and_then(|m| m.as_str()) {
-        Some(m) => m.to_string(),
-        None => {
-            stats.record_error(file, line_no, "missing message.model");
-            return None;
+        if model.starts_with("claude-") {
+            return "anthropic".into();
         }
-    };
-
-    let usage = match message.get("usage") {
-        Some(u) => u,
-        None => {
-            stats.record_error(file, line_no, "missing message.usage");
-            return None;
+        if model.starts_with("gpt-")
+            || model.starts_with("o1-")
+            || model.starts_with("o3-")
+            || model.starts_with("o4-")
+        {
+            return "openai".into();
         }
-    };
-
-    let ts_str = match v.get("timestamp").and_then(|t| t.as_str()) {
-        Some(t) => t,
-        None => {
-            stats.record_error(file, line_no, "missing top-level timestamp");
-            return None;
+        if model.starts_with("MiniMax-") {
+            return "minimax-cn-coding-plan".into();
         }
-    };
-
-    let occurred_at = match chrono::DateTime::parse_from_rfc3339(ts_str) {
-        Ok(dt) => dt.timestamp_millis(),
-        Err(e) => {
-            stats.record_error(file, line_no, &format!("timestamp: {e}"));
-            return None;
+        if let Some((prefix, _)) = model.split_once('/') {
+            return prefix.to_string();
         }
-    };
-
-    let input_tokens = usage.get("input_tokens").and_then(|x| x.as_i64()).unwrap_or(0);
-    let output_tokens = usage.get("output_tokens").and_then(|x| x.as_i64()).unwrap_or(0);
-    let cache_read = usage
-        .get("cache_read_input_tokens")
-        .and_then(|x| x.as_i64())
-        .unwrap_or(0);
-    let cache_creation = usage
-        .get("cache_creation_input_tokens")
-        .and_then(|x| x.as_i64())
-        .unwrap_or(0);
-
-    let provider_name = derive_provider(&model);
-
-    let session_id = v.get("sessionId").and_then(|x| x.as_str()).map(String::from);
-    let request_id = v.get("uuid").and_then(|x| x.as_str()).map(String::from);
-
-    Some(UsageRecordInput {
-        agent_type: "claude-code".into(),
-        model,
-        provider_name,
-        occurred_at,
-        session_id,
-        request_id,
-        input_tokens,
-        output_tokens,
-        cache_read_input_tokens: cache_read,
-        cache_creation_input_tokens: cache_creation,
-        reasoning_tokens: 0,
-        usage_details: None,
-    })
-}
-
-/// Heuristic provider name from model identifier.  Claude Code's `message.model`
-/// does not carry a top-level `provider` field — derive from prefix.
-/// Falls back to "unknown" when the model name doesn't match any known pattern
-/// (will price as $0 until PricingService grows an entry).
-fn derive_provider(model: &str) -> String {
-    if model.starts_with("claude-") {
-        return "anthropic".into();
+        "unknown".into()
     }
-    if model.starts_with("gpt-")
-        || model.starts_with("o1-")
-        || model.starts_with("o3-")
-        || model.starts_with("o4-")
-    {
-        return "openai".into();
-    }
-    if model.starts_with("MiniMax-") {
-        return "minimax-cn-coding-plan".into();
-    }
-    if let Some((prefix, _)) = model.split_once('/') {
-        return prefix.to_string();
-    }
-    "unknown".into()
 }
 
 // ---------- Tests ----------
@@ -274,6 +291,10 @@ mod tests {
 {not even json
 "#;
 
+    fn test_pricing() -> Arc<PricingService> {
+        Arc::new(PricingService::new())
+    }
+
     #[test]
     fn parses_synthetic_fixture() {
         let tmp = std::env::temp_dir().join(format!("keypilot-test-{}", std::process::id()));
@@ -282,7 +303,7 @@ mod tests {
         let jsonl_path = tmp.join("synth.jsonl");
         std::fs::write(&jsonl_path, SAMPLE.trim_start()).unwrap();
 
-        let parser = ClaudeCodeParser::with_path(tmp.clone());
+        let parser = ClaudeCodeParser::with_path(tmp.clone(), test_pricing());
         assert!(parser.is_available());
 
         let outcome = parser.parse().unwrap();
@@ -312,11 +333,34 @@ mod tests {
     fn parse_returns_empty_when_path_missing() {
         let tmp = std::env::temp_dir().join(format!("keypilot-noexist-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
-        let parser = ClaudeCodeParser::with_path(tmp);
+        let parser = ClaudeCodeParser::with_path(tmp, test_pricing());
         assert!(!parser.is_available());
 
         let outcome = parser.parse().unwrap();
         assert!(outcome.records.is_empty());
         assert_eq!(outcome.stats.files_scanned, 0);
+    }
+
+    /// Task 4 SubTask 4.6 — verify `derive_provider` consults
+    /// `pricing.json` first, then falls back to prefix matching.
+    /// Uses the real (static-Lazy-backed) `PricingService`, so the test
+    /// reflects the exact same lookup path production code uses.
+    #[test]
+    fn derive_provider_uses_pricing_lookup() {
+        let parser = ClaudeCodeParser::with_path(PathBuf::from("/nonexistent"), test_pricing());
+
+        // 1. pricing.json hit — `gpt-4o` is listed with provider "OpenAI".
+        //    Prefix matcher would have returned "openai"; pricing lookup
+        //    overrides with the canonical "OpenAI".
+        assert_eq!(parser.derive_provider("gpt-4o"), "OpenAI");
+
+        // 2. pricing.json miss + prefix match — `claude-future-99-test`
+        //    is not in pricing.json, so the `claude-` prefix rule fires
+        //    and returns "anthropic".
+        assert_eq!(parser.derive_provider("claude-future-99-test"), "anthropic");
+
+        // 3. completely unknown — no pricing entry, no recognised prefix,
+        //    no `vendor/model` slash → "unknown".
+        assert_eq!(parser.derive_provider("totally-new-vendor-xyz"), "unknown");
     }
 }

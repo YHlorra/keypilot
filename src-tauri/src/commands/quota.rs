@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::provider::{adapter_for, QuotaError};
 use crate::store::AppState;
-use crate::types::QuotaSnapshot;
+use crate::types::{LimitSource, LimitStatus, QuotaSnapshot};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -116,16 +116,70 @@ pub async fn fetch_quota_by_state(
         return Err(AppError::ProviderQuotaUnsupported(preset));
     }
 
-    let snapshot = adapter
-        .fetch_quota(&base_url, &api_key)
-        .await
-        .map_err(|e| match e {
-            QuotaError::Network(msg) => AppError::Http(msg),
-            QuotaError::Parse(msg) => AppError::Http(msg),
-            QuotaError::Unsupported => AppError::ProviderQuotaUnsupported(preset),
-        })?;
+    // 把 QuotaError 映射为带状态机的 QuotaSnapshot(不抛错,让前端能展示)
+    let snapshot = match adapter.fetch_quota(&base_url, &api_key).await {
+        Ok(s) => s,
+        Err(QuotaError::Network(_msg)) => QuotaSnapshot {
+            total: None,
+            used: 0.0,
+            remaining: None,
+            unit: "USD".to_string(),
+            level: None,
+            reset_at: None,
+            windows: Vec::new(),
+            status: LimitStatus::Unavailable,
+            source: LimitSource::Api,
+            source_detail: "app".to_string(),
+            account_label: None,
+            account_email: None,
+            region: None,
+            balance: None,
+            used_amount: None,
+            balance_usd: None,
+            used_usd: None,
+        },
+        Err(QuotaError::Parse(msg)) => QuotaSnapshot {
+            total: None,
+            used: 0.0,
+            remaining: None,
+            unit: "USD".to_string(),
+            level: None,
+            reset_at: None,
+            windows: Vec::new(),
+            status: LimitStatus::Error,
+            source: LimitSource::Api,
+            source_detail: format!("parse error: {}", msg),
+            account_label: None,
+            account_email: None,
+            region: None,
+            balance: None,
+            used_amount: None,
+            balance_usd: None,
+            used_usd: None,
+        },
+        Err(QuotaError::Unsupported) => QuotaSnapshot {
+            total: None,
+            used: 0.0,
+            remaining: None,
+            unit: "USD".to_string(),
+            level: None,
+            reset_at: None,
+            windows: Vec::new(),
+            status: LimitStatus::NotConfigured,
+            source: LimitSource::Api,
+            source_detail: "unknown".to_string(),
+            account_label: None,
+            account_email: None,
+            region: None,
+            balance: None,
+            used_amount: None,
+            balance_usd: None,
+            used_usd: None,
+        },
+    };
 
     // Phase C: write cache (sync SQLite op, short lock) — adapter fetches are auto source
+    // 即使是 NotConfigured / Error 状态也写入缓存,避免短时间内反复重试
     {
         let db = state.db.lock().unwrap();
         let now = now_secs();

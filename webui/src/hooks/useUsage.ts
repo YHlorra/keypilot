@@ -4,6 +4,7 @@ import {
   getLastAutoImport,
   getPricing,
   getUsageSummary,
+  getUsagePeriodsSummary,
   importUsage,
   listUsageRecords,
 } from "@/lib/api";
@@ -12,6 +13,7 @@ import type {
   ImportFormat,
   ImportResult,
   PaginatedResponse,
+  PeriodsSummary,
   PricingEntry,
   UsageFilter,
   UsageRecord,
@@ -19,6 +21,8 @@ import type {
 } from "@/types/api";
 
 // useUsageSummary -- REQ-TOKEN-003.3
+// @deprecated since token-monitor-alignment Part A #1 -- 新代码应使用 useUsagePeriodsSummary
+// (单 IPC 拿 today/month/allTime 三周期 + client_models + limits)。保留以兼容旧调用点。
 export function useUsageSummary(
   filter: UsageFilter
 ): UseQueryResult<UsageSummary> {
@@ -26,6 +30,18 @@ export function useUsageSummary(
     queryKey: ["usage", "summary", filter],
     queryFn: () => getUsageSummary(filter),
     staleTime: 5 * 60 * 1000, // 5 min
+  });
+}
+
+// useUsagePeriodsSummary -- token-monitor-alignment Part A #1
+// 一次返回 today/month/allTime 三周期 + client_models + limits,不再双 useQuery
+export function useUsagePeriodsSummary(
+  filter: UsageFilter
+): UseQueryResult<PeriodsSummary> {
+  return useQuery({
+    queryKey: ["usage", "periods", filter],
+    queryFn: () => getUsagePeriodsSummary(filter),
+    staleTime: 60 * 1000, // 1 min(对齐 token-monitor usage.js 主数据契约)
   });
 }
 
@@ -70,17 +86,28 @@ export function usePricing(): UseQueryResult<PricingEntry[]> {
 
 // useLastAutoImport -- reads `meta.last_auto_import` JSON on App mount.
 // Returns null if no run has been recorded yet, or the parsed summary otherwise.
+//
+// Auto-import now runs in `spawn_blocking` (non-blocking to webview creation,
+// see lib.rs setup).  On cold start the meta row may not be written yet when
+// the query first fires — we poll briefly inside queryFn so a slow scan still
+// surfaces its summary toast without relying on React Query's retry (which
+// only triggers on queryFn rejection, not on a null return).
 export function useLastAutoImport(): UseQueryResult<AutoImportSummary | null> {
   return useQuery({
     queryKey: ["usage", "last-auto-import"],
     queryFn: async () => {
-      const raw = await getLastAutoImport();
-      if (!raw) return null;
-      try {
-        return JSON.parse(raw) as AutoImportSummary;
-      } catch {
-        return null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const raw = await getLastAutoImport();
+        if (raw) {
+          try {
+            return JSON.parse(raw) as AutoImportSummary;
+          } catch {
+            return null;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 300));
       }
+      return null;
     },
     staleTime: Infinity, // one-shot — we only fire on cold start
     gcTime: 60 * 1000,

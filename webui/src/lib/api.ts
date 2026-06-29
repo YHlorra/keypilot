@@ -17,6 +17,7 @@ import type {
   UsageRecordInput, UsageRecord, UsageFilter, UsageSummary,
   ImportFormat, ImportResult, PricingEntry, PaginatedResponse,
   QuotaSnapshot,
+  PeriodsSummary,
 } from "@/types/api";
 import { executeAction } from "@/lib/action-registry";
 
@@ -102,6 +103,12 @@ export async function listUsageRecords(
 
 export async function getUsageSummary(filter: UsageFilter): Promise<UsageSummary> {
   return invoke<UsageSummary>("get_usage_summary", { filter });
+}
+
+// getUsagePeriodsSummary -- token-monitor-alignment Part A #1
+// 一次返回 today/month/allTime 三周期 + client_models + limits(对齐 token-monitor usage.js 主数据契约)
+export async function getUsagePeriodsSummary(filter: UsageFilter): Promise<PeriodsSummary> {
+  return invoke<PeriodsSummary>("get_usage_periods_summary", { filter });
 }
 
 export async function importUsage(

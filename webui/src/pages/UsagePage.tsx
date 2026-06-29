@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { UsageTimeSeries } from "@/components/UsageTimeSeries";
 import { UsageHeatmapCalendar } from "@/components/UsageHeatmapCalendar";
 import { UsageDetailPanel } from "@/components/UsageDetailPanel";
-import { useUsageSummary } from "@/hooks/useUsage";
+import { useUsagePeriodsSummary } from "@/hooks/useUsage";
 import { UsageKpiCards } from "@/components/UsageKpiCards";
 import { UsageStatsSidebar } from "@/components/UsageStatsSidebar";
 import type { AgentPair, UsageFilter } from "@/types/api";
@@ -24,79 +24,67 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
   const [selectedRange, setSelectedRange] = useState<RangeOption>("30d");
   const [selectedPair, setSelectedPair] = useState<AgentPair | null>(null);
 
-  // Trend filter (windowed by selectedRange)
-  const trendFilter = useMemo((): UsageFilter => {
-    const now = new Date();
-    const start = new Date(now);
-    start.setDate(start.getDate() - (selectedRange === "7d" ? 7 : 30));
-    return {
-      start_date: start.toISOString().split("T")[0],
-      end_date: now.toISOString().split("T")[0],
-      ...(filterProviderName ? { provider: filterProviderName } : {}),
-    };
-  }, [selectedRange, filterProviderName]);
-
-  // Lifetime filter (no date range -- fetches all-time data)
-  const lifetimeFilter = useMemo((): UsageFilter => {
+  // 单 IPC:一次拿 today/month/allTime + client_models + limits
+  // 注:filter 只用于 provider 维度过滤,日期由后端按 period_windows 算
+  const periodsFilter = useMemo((): UsageFilter => {
     return filterProviderName ? { provider: filterProviderName } : {};
   }, [filterProviderName]);
 
-  const { data: trendSummary, isLoading: trendLoading } = useUsageSummary(trendFilter);
-  const { data: lifetimeSummary, isLoading: lifetimeLoading } = useUsageSummary(lifetimeFilter);
+  const { data: periodsData, isLoading: periodsLoading } = useUsagePeriodsSummary(periodsFilter);
 
-  // Compute derived stats from LIFETIME daily_series (all-time, Fix 3)
-  const { todayTotal, last7dTotal, last30dTotal, dateMap, peakDay, peakDayLabel, activeDays } =
-    useMemo(() => {
-      const series = lifetimeSummary?.daily_series ?? [];
-      const now = new Date();
-      const todayISO = now.toISOString().split("T")[0];
+  // 三周期直接读
+  const todaySummary = periodsData?.periods.today;
+  const monthSummary = periodsData?.periods.month;
+  const allTimeSummary = periodsData?.periods.all_time;
 
-      const last7d = new Date(now);
-      last7d.setDate(last7d.getDate() - 7);
-      const last7dISO = last7d.toISOString().split("T")[0];
+  // Trend chart 用 today+month 拼出窗口数据
+  // (或直接用 month 的 daily_series 显示当月趋势)
+  const trendDailySeries = monthSummary?.daily_series ?? [];
 
-      const last30d = new Date(now);
-      last30d.setDate(last30d.getDate() - 30);
-      const last30dISO = last30d.toISOString().split("T")[0];
+  // Lifetime daily_series 用于 heatmap(all-time)
+  const heatmapDateMap = useMemo(() => {
+    const series = allTimeSummary?.daily_series ?? [];
+    const map = new Map<string, number>();
+    for (const point of series) {
+      map.set(point.date, point.request_count ?? 0);
+    }
+    return map;
+  }, [allTimeSummary]);
 
-      let todayTotal = 0;
-      let last7dTotal = 0;
-      let last30dTotal = 0;
-      let peakDay = 0;
-      let peakDayLabel = "";
-      let activeDays = 0;
-      const dateMap = new Map<string, number>();
-
-      for (const point of series) {
-        const count = point.request_count ?? 0;
-        dateMap.set(point.date, count);
-
-        if (point.date === todayISO) todayTotal += count;
-        if (point.date >= last7dISO) last7dTotal += count;
-        if (point.date >= last30dISO) last30dTotal += count;
-
-        if (count > peakDay) {
-          peakDay = count;
-          peakDayLabel = point.date;
-        }
-        if (count > 0) activeDays++;
+  // Peak day / active days (from all-time)
+  const { peakDay, peakDayLabel, activeDays } = useMemo(() => {
+    const series = allTimeSummary?.daily_series ?? [];
+    let peak = 0;
+    let peakLabel = "";
+    let active = 0;
+    for (const point of series) {
+      const count = point.request_count ?? 0;
+      if (count > peak) {
+        peak = count;
+        peakLabel = point.date;
       }
+      if (count > 0) active++;
+    }
+    return { peakDay: peak, peakDayLabel: peakLabel, activeDays: active };
+  }, [allTimeSummary]);
 
-      return { todayTotal, last7dTotal, last30dTotal, dateMap, peakDay, peakDayLabel, activeDays };
-    }, [lifetimeSummary]);
-
-  // Lifetime total (backend-computed from all-time query)
-  const lifetimeTotal = lifetimeSummary?.total_requests ?? 0;
-
-  // Period total (from windowed trend query, Fix 3 bonus)
-  const periodTotal = trendSummary?.total_requests ?? 0;
-
-  // Top agent pairs sorted by tokens (from trend window)
+  // Top agent pairs (from month summary)
   const topAgentPairs = useMemo(() => {
-    return [...(trendSummary?.agent_pairs ?? [])]
+    return [...(monthSummary?.agent_pairs ?? [])]
       .sort((a, b) => b.total_tokens - a.total_tokens)
       .slice(0, 5);
-  }, [trendSummary]);
+  }, [monthSummary]);
+
+  const monthTotal = monthSummary?.total_requests ?? 0;
+  const allTimeTotal = allTimeSummary?.total_requests ?? 0;
+
+  // 兼容 selectedRange:仅用于 trend chart 显示 7d/30d 切片(从 month.daily_series 切片)
+  const slicedTrendSeries = useMemo(() => {
+    const series = trendDailySeries;
+    if (series.length === 0) return [];
+    const days = selectedRange === "7d" ? 7 : 30;
+    return series.slice(-days);
+  }, [trendDailySeries, selectedRange]);
 
   return (
     <div className="flex flex-col h-full">
@@ -122,8 +110,12 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
 
       {/* Page content */}
       <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 flex flex-col gap-6">
-        {/* KPI cards */}
-        <UsageKpiCards todayTotal={todayTotal} last7dTotal={last7dTotal} last30dTotal={last30dTotal} />
+        {/* KPI cards: today / month / all-time 三档 */}
+        <UsageKpiCards
+          today={todaySummary}
+          month={monthSummary}
+          allTime={allTimeSummary}
+        />
 
         {/* Body: trend chart + sidebar */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
@@ -132,7 +124,12 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
             {/* Trend chart */}
             <section>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-foreground">Trend</h2>
+                <div className="flex flex-col">
+                  <h2 className="text-sm font-semibold text-foreground">Trend</h2>
+                  <span className="text-[10px] text-muted-foreground mt-0.5">
+                    {selectedRange === "7d" ? "Last 7 days" : "Last 30 days"} (from month daily series)
+                  </span>
+                </div>
                 {/* Range toggle */}
                 <div className="inline-flex items-center rounded-pill border border-border p-0.5 gap-0.5">
                   {RANGE_OPTIONS.map((opt) => (
@@ -153,15 +150,15 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
                 </div>
               </div>
 
-              {trendLoading ? (
+              {periodsLoading ? (
                 <div className="h-48 animate-pulse bg-muted rounded" />
-              ) : (trendSummary?.daily_series ?? []).length === 0 ? (
+              ) : slicedTrendSeries.length === 0 ? (
                 <div className="h-48 flex items-center justify-center text-sm text-muted-foreground">
                   No data in selected range
                 </div>
               ) : (
                 <UsageTimeSeries
-                  dailySeries={trendSummary?.daily_series ?? []}
+                  dailySeries={slicedTrendSeries}
                   range={selectedRange}
                   isLoading={false}
                 />
@@ -170,11 +167,14 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
 
             {/* Activity heatmap */}
             <section>
-              <h2 className="text-sm font-semibold text-foreground mb-3">Activity</h2>
-              {lifetimeLoading ? (
+              <div className="flex flex-col mb-3">
+                <h2 className="text-sm font-semibold text-foreground">Activity</h2>
+                <span className="text-[10px] text-muted-foreground mt-0.5">Last 26 weeks (all-time, not affected by range)</span>
+              </div>
+              {periodsLoading ? (
                 <div className="h-48 animate-pulse bg-muted rounded" />
               ) : (
-                <UsageHeatmapCalendar dateMap={dateMap} />
+                <UsageHeatmapCalendar dateMap={heatmapDateMap} />
               )}
             </section>
           </div>
@@ -182,13 +182,14 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
           {/* Sidebar */}
           <aside>
             <UsageStatsSidebar
-              lifetimeTotal={lifetimeTotal}
-              periodTotal={periodTotal}
+              lifetimeTotal={allTimeTotal}
+              periodTotal={monthTotal}
               selectedRange={selectedRange}
               peakDay={peakDay}
               peakDayLabel={peakDayLabel}
               activeDays={activeDays}
               topAgentPairs={topAgentPairs}
+              clientModels={periodsData?.client_models}
             />
           </aside>
         </div>

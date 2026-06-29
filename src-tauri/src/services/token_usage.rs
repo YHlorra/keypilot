@@ -12,8 +12,9 @@ use crate::database::Database;
 use crate::error::AppError;
 use crate::services::pricing::PricingService;
 use crate::types::{
-    DailySeries, ImportError, ImportResult, TokenUsageRecord, UsageFilter,
-    UsageRecordInput, UsageSummary, UsageSummaryAgentPair,
+    DailySeries, ImportError, ImportResult, LimitProvider, LimitsSummary, PeriodWindow,
+    PeriodWindowsPair, PeriodsSummary, PeriodsTriplet, RecomputeResult, TokenUsageRecord,
+    UsageFilter, UsageRecordInput, UsageSummary, UsageSummaryAgentPair,
 };
 
 // ---------- FNV-1a 64-bit hash (deterministic, no extra dep) ----------
@@ -27,13 +28,43 @@ fn fnv1a_64(bytes: &[u8]) -> u64 {
     hash
 }
 
-fn deterministic_id(agent: &str, model: &str, occurred_at: i64, input: i64, output: i64) -> String {
-    let key = format!("{agent}|{model}|{occurred_at}|{input}|{output}");
+/// Deterministic 64-bit ID for dedup.  Includes `provider_name` so that the
+/// same model used through different providers (e.g. `claude-sonnet-4` via
+/// Anthropic vs AWS Bedrock) is NOT collapsed into one row.
+///
+/// Breaking change (2026-06-28): existing V0.1 DBs must be re-imported once
+/// after upgrade — old rows keyed without provider_name will be re-inserted
+/// with new IDs.  This is the single source of truth; `auto_import.rs` calls
+/// this function instead of maintaining its own FNV-1a copy.
+pub fn deterministic_id(input: &UsageRecordInput) -> String {
+    let key = format!(
+        "{}|{}|{}|{}|{}|{}",
+        input.agent_type,
+        input.model,
+        input.occurred_at,
+        input.input_tokens,
+        input.output_tokens,
+        input.provider_name
+    );
     format!("{:016x}", fnv1a_64(key.as_bytes()))
 }
 
+/// Normalize raw agent string to short name (照抄 token-monitor normalizeClientName).
+/// "ClaudeCode" / "claude-code" / "claude code" / "CLAUDE" → "claude"
+pub fn normalize_agent_type(raw: &str) -> String {
+    let lower = raw.to_lowercase();
+    if lower.contains("claude") { "claude".to_string() }
+    else if lower.contains("codex") { "codex".to_string() }
+    else if lower.contains("cursor") { "cursor".to_string() }
+    else if lower.contains("gemini") { "gemini".to_string() }
+    else if lower.contains("hermes") { "hermes".to_string() }
+    else if lower.contains("opencode") { "opencode".to_string() }
+    else if lower.contains("aider") { "aider".to_string() }
+    else { "unknown".to_string() }
+}
+
 fn iso_date(epoch: i64) -> String {
-    chrono::DateTime::from_timestamp(epoch, 0)
+    chrono::DateTime::from_timestamp_millis(epoch)
         .map(|dt| dt.format("%Y-%m-%d").to_string())
         .unwrap_or_else(|| "1970-01-01".to_string())
 }
@@ -41,6 +72,7 @@ fn iso_date(epoch: i64) -> String {
 // ---------- JSONL row shapes ----------
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ClaudeUsage {
     input_tokens: Option<i64>,
     output_tokens: Option<i64>,
@@ -244,6 +276,12 @@ impl TokenUsageService {
         Self { db, pricing }
     }
 
+    /// Share the underlying `PricingService` with downstream consumers
+    /// (e.g. `default_parsers` for `ClaudeCodeParser` provider lookup).
+    pub fn pricing(&self) -> Arc<PricingService> {
+        self.pricing.clone()
+    }
+
     pub fn count_records(&self) -> Result<u64, AppError> {
         let db = self.db.lock().map_err(|e| {
             AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
@@ -278,8 +316,9 @@ impl TokenUsageService {
         let total_tokens = input.input_tokens
             + input.output_tokens
             + input.cache_read_input_tokens
-            + input.cache_creation_input_tokens
-            + input.reasoning_tokens;
+            + input.cache_creation_input_tokens;
+
+        let agent_type = normalize_agent_type(&input.agent_type);
 
         let usage_details_json = input.usage_details.clone().unwrap_or_else(|| "{}".into());
 
@@ -299,15 +338,13 @@ impl TokenUsageService {
 
         let record = TokenUsageRecord {
             id: id.to_string(),
-            agent_type: input.agent_type.clone(),
+            agent_type: agent_type.clone(),
             model: input.model.clone(),
             provider_name: input.provider_name.clone(),
             occurred_at: input.occurred_at,
-            recorded_at: chrono::Utc::now().timestamp(),
+            recorded_at: chrono::Utc::now().timestamp_millis(),
             session_id: input.session_id.clone(),
             request_id: input.request_id.clone(),
-            prompt_tokens: input.input_tokens,
-            completion_tokens: input.output_tokens,
             input_tokens: input.input_tokens,
             output_tokens: input.output_tokens,
             total_tokens,
@@ -367,16 +404,18 @@ impl TokenUsageService {
             AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
         })?;
 
-        // Collect distinct dates in range from daily_agent_model_usage
+        // Collect distinct dates in range from daily_agent_model_usage.
+        // Use ? placeholders so params bind correctly (called by get_periods_summary
+        // with date filters — string interpolation + unused params would error in rusqlite).
         let (date_clause, date_params): (String, Vec<String>) = if filter.date_from.is_some() || filter.date_to.is_some() {
             let mut s = String::from(" WHERE 1=1");
             let mut p = Vec::new();
             if let Some(from) = filter.date_from {
-                s.push_str(&format!(" AND date >= '{}'", iso_date(from)));
+                s.push_str(" AND date >= ?");
                 p.push(iso_date(from));
             }
             if let Some(to) = filter.date_to {
-                s.push_str(&format!(" AND date <= '{}'", iso_date(to)));
+                s.push_str(" AND date <= ?");
                 p.push(iso_date(to));
             }
             (s, p)
@@ -437,6 +476,231 @@ impl TokenUsageService {
             agent_pairs: pair_rows,
             daily_series: daily_rows,
         })
+    }
+
+    /// 三周期 PeriodsSummary 主入口(对齐 token-monitor usage.js 主数据契约)。
+    ///
+    /// 用 `chrono::Local::now()` 算 today / month 边界(本地时区),3 次调
+    /// `get_summary`,构造 `period_windows`,再调 `aggregate_client_models`
+    /// + `aggregate_limits_summary` 填充五元结构。
+    pub fn get_periods_summary(&self, filter: &UsageFilter) -> Result<PeriodsSummary, AppError> {
+        use chrono::{Datelike, Local, TimeZone};
+
+        let now = Local::now();
+        let today_start = now
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .map(|dt| Local.from_local_datetime(&dt).unwrap())
+            .unwrap_or(now);
+        let today_end = today_start + chrono::Duration::days(1);
+
+        // Month start: 本月 1 日 00:00
+        let month_start = now
+            .date_naive()
+            .with_day(1)
+            .and_then(|d| d.and_hms_opt(0, 0, 0))
+            .map(|dt| Local.from_local_datetime(&dt).unwrap())
+            .unwrap_or(now);
+        // Month end: 下月 1 日 00:00(用 +32 天再 with_day(1) 跨月)
+        let month_end = (month_start + chrono::Duration::days(32))
+            .date_naive()
+            .with_day(1)
+            .and_then(|d| d.and_hms_opt(0, 0, 0))
+            .map(|dt| Local.from_local_datetime(&dt).unwrap())
+            .unwrap_or(now);
+
+        let today_start_ms = today_start.timestamp_millis();
+        let today_end_ms = today_end.timestamp_millis();
+        let month_start_ms = month_start.timestamp_millis();
+        let month_end_ms = month_end.timestamp_millis();
+
+        // 三周期 filter(以传入 filter 为基础,override date_from/date_to)
+        let today_filter = UsageFilter {
+            date_from: Some(today_start_ms),
+            date_to: Some(today_end_ms),
+            agent_type: filter.agent_type.clone(),
+            model: filter.model.clone(),
+            provider_name: filter.provider_name.clone(),
+        };
+        let month_filter = UsageFilter {
+            date_from: Some(month_start_ms),
+            date_to: Some(month_end_ms),
+            agent_type: filter.agent_type.clone(),
+            model: filter.model.clone(),
+            provider_name: filter.provider_name.clone(),
+        };
+        // all_time:不限制 date(用传入 filter,但去掉 date 范围)
+        let all_time_filter = UsageFilter {
+            date_from: None,
+            date_to: None,
+            agent_type: filter.agent_type.clone(),
+            model: filter.model.clone(),
+            provider_name: filter.provider_name.clone(),
+        };
+
+        let today_summary = self.get_summary(today_filter)?;
+        let month_summary = self.get_summary(month_filter)?;
+        let all_time_summary = self.get_summary(all_time_filter)?;
+
+        let period_windows = PeriodWindowsPair {
+            today: PeriodWindow {
+                key: today_start.format("%Y-%m-%d").to_string(),
+                ends_at: today_end.to_rfc3339(),
+            },
+            month: PeriodWindow {
+                key: month_start.format("%Y-%m").to_string(),
+                ends_at: month_end.to_rfc3339(),
+            },
+        };
+
+        let client_models = self.aggregate_client_models(filter)?;
+        let limits = self.aggregate_limits_summary()?;
+
+        Ok(PeriodsSummary {
+            periods: PeriodsTriplet {
+                today: today_summary,
+                month: month_summary,
+                all_time: all_time_summary,
+            },
+            period_windows,
+            client_models,
+            limits,
+        })
+    }
+
+    /// client × model 二维聚合:agent_type → model → total_tokens
+    /// 用 BTreeMap 保证 key 排序稳定(对齐 token-monitor clientModels)。
+    ///
+    /// 注意:`daily_agent_model_usage` 表没有 cache_read/creation 列,
+    /// 所以用 `SUM(total_tokens)`(total_tokens 在 record_usage 时已包含 cache 维度)。
+    pub fn aggregate_client_models(
+        &self,
+        filter: &UsageFilter,
+    ) -> Result<std::collections::BTreeMap<String, std::collections::BTreeMap<String, i64>>, AppError>
+    {
+        use std::collections::BTreeMap;
+
+        let db = self.db.lock().map_err(|e| {
+            AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        })?;
+        let conn = db.conn();
+
+        // daily_agent_model_usage 无 cache_read/creation 列,total_tokens 已含 cache 维度。
+        let mut sql = String::from(
+            "SELECT agent_type, model, SUM(total_tokens) AS total
+             FROM daily_agent_model_usage WHERE 1=1",
+        );
+        let mut params: Vec<String> = Vec::new();
+        if let Some(from) = filter.date_from {
+            sql.push_str(" AND date >= ?");
+            params.push(iso_date(from));
+        }
+        if let Some(to) = filter.date_to {
+            sql.push_str(" AND date <= ?");
+            params.push(iso_date(to));
+        }
+        if let Some(ref agent) = filter.agent_type {
+            sql.push_str(" AND agent_type = ?");
+            params.push(agent.clone());
+        }
+        if let Some(ref model) = filter.model {
+            sql.push_str(" AND model = ?");
+            params.push(model.clone());
+        }
+        sql.push_str(" GROUP BY agent_type, model ORDER BY agent_type, model");
+
+        let mut stmt = conn.prepare(&sql).map_err(AppError::Database)?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(params.iter()), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })
+            .map_err(AppError::Database)?;
+
+        let mut result: BTreeMap<String, BTreeMap<String, i64>> = BTreeMap::new();
+        for row in rows {
+            let (agent, model, total) = row.map_err(AppError::Database)?;
+            result
+                .entry(agent)
+                .or_insert_with(BTreeMap::new)
+                .insert(model, total);
+        }
+        Ok(result)
+    }
+
+    /// 聚合 quota_cache 全表为 LimitsSummary(对齐 token-monitor aggregateLimits)。
+    /// quota_cache 为空时返回 None。
+    ///
+    /// schema: quota_cache(provider_id PK, snapshot_json, fetched_at, source)
+    /// provider_name 通过 LEFT JOIN providers 拿(可能 NULL → "Unknown")。
+    pub fn aggregate_limits_summary(&self) -> Result<Option<LimitsSummary>, AppError> {
+        let db = self.db.lock().map_err(|e| {
+            AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        })?;
+        let conn = db.conn();
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT qc.snapshot_json, qc.fetched_at, p.name AS provider_name
+                 FROM quota_cache qc
+                 LEFT JOIN providers p ON p.id = qc.provider_id
+                 ORDER BY p.name ASC",
+            )
+            .map_err(AppError::Database)?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            })
+            .map_err(AppError::Database)?;
+
+        let mut providers = Vec::new();
+        let mut latest_updated = 0i64;
+        for row in rows {
+            let (json, fetched_at, name_opt) = row.map_err(AppError::Database)?;
+            let provider_name = name_opt.unwrap_or_else(|| "Unknown".to_string());
+
+            // 反序列化为 QuotaSnapshot;损坏 JSON 跳过。
+            let snap: crate::types::QuotaSnapshot = match serde_json::from_str(&json) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+
+            providers.push(LimitProvider {
+                provider: provider_name,
+                windows: snap.windows,
+                status: snap.status,
+                source: snap.source,
+                source_detail: snap.source_detail,
+                account_label: snap.account_label,
+                account_email: snap.account_email,
+                region: snap.region,
+                balance: snap.balance,
+                used_amount: snap.used_amount,
+                balance_usd: snap.balance_usd,
+                used_usd: snap.used_usd,
+            });
+
+            if fetched_at > latest_updated {
+                latest_updated = fetched_at;
+            }
+        }
+
+        if providers.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(LimitsSummary {
+                providers,
+                updated_at: latest_updated,
+            }))
+        }
     }
 
     pub fn import_jsonl(
@@ -526,13 +790,7 @@ impl TokenUsageService {
 
             match parsed {
                 Ok(input) => {
-                    let id = deterministic_id(
-                        &input.agent_type,
-                        &input.model,
-                        input.occurred_at,
-                        input.input_tokens,
-                        input.output_tokens,
-                    );
+                    let id = deterministic_id(&input);
                     match self.record_usage(&id, input) {
                         Ok(_) => imported += 1,
                         Err(AppError::TokenUsageDuplicate(_)) => skipped += 1,
@@ -623,13 +881,7 @@ impl TokenUsageService {
 
             match parsed {
                 Ok(input) => {
-                    let id = deterministic_id(
-                        &input.agent_type,
-                        &input.model,
-                        input.occurred_at,
-                        input.input_tokens,
-                        input.output_tokens,
-                    );
+                    let id = deterministic_id(&input);
                     match self.record_usage(&id, input) {
                         Ok(_) => imported += 1,
                         Err(AppError::TokenUsageDuplicate(_)) => skipped += 1,
@@ -695,8 +947,8 @@ impl TokenUsageService {
             .and_hms_opt(0, 0, 0)
             .unwrap()
             .and_utc()
-            .timestamp();
-        let end = start + 86400;
+            .timestamp_millis();
+        let end = start + 86400 * 1000;
 
         // Recompute from raw records
         let mut stmt = tx.prepare(
@@ -770,6 +1022,117 @@ impl TokenUsageService {
         tx.commit().map_err(AppError::Database)?;
         Ok(())
     }
+
+    /// 重算 [from_epoch, to_epoch) 范围内的所有 token_usage_records 的成本字段。
+    /// 联动重算受影响日期的 daily_*_usage 汇总表。
+    /// 返回 (recomputed 行数, dates_refreshed 日期数)。
+    pub fn recompute_costs(&self, from_epoch: i64, to_epoch: i64) -> Result<RecomputeResult, AppError> {
+        if from_epoch > to_epoch {
+            return Err(AppError::TokenUsageInvalidFormat(
+                "from_date must be <= to_date".into(),
+            ));
+        }
+
+        // 1. 查询所有受影响记录
+        let rows: Vec<(String, String, i64, i64, i64, i64, i64, i64)> = {
+            let db = self.db.lock().map_err(|e| {
+                AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            })?;
+            let conn = db.conn();
+            let mut stmt = conn.prepare(
+                "SELECT id, model, input_tokens, output_tokens, cache_read_input_tokens,
+                        cache_creation_input_tokens, reasoning_tokens, occurred_at
+                 FROM token_usage_records
+                 WHERE occurred_at >= ?1 AND occurred_at < ?2",
+            ).map_err(AppError::Database)?;
+            let rows = stmt
+                .query_map(rusqlite::params![from_epoch, to_epoch], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, i64>(4)?,
+                        row.get::<_, i64>(5)?,
+                        row.get::<_, i64>(6)?,
+                        row.get::<_, i64>(7)?,
+                    ))
+                })
+                .map_err(AppError::Database)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(AppError::Database)?;
+            rows
+        };
+
+        if rows.is_empty() {
+            return Ok(RecomputeResult { recomputed: 0, dates_refreshed: 0 });
+        }
+
+        let pricing_version = self.pricing.version().to_string();
+        let mut recomputed: u32 = 0;
+        let mut affected_dates: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        {
+            let db = self.db.lock().map_err(|e| {
+                AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            })?;
+            let conn = db.conn();
+            for (id, model, input, output, cache_read, cache_creation, reasoning, occurred_at) in &rows {
+                let cost = self.pricing.calculate_token_usage_cost(
+                    model, *input, *output, *cache_read, *cache_creation, *reasoning,
+                )?;
+
+                let cost_details = serde_json::json!({
+                    "currency": cost.currency,
+                    "input": cost.input_cost,
+                    "output": cost.output_cost,
+                    "cache_read": cost.cache_read_cost,
+                    "cache_creation": cost.cache_creation_cost,
+                    "reasoning": cost.reasoning_cost,
+                    "total": cost.total_cost,
+                    "pricing_missing_for": cost.pricing_missing_for,
+                })
+                .to_string();
+
+                conn.execute(
+                    "UPDATE token_usage_records
+                     SET prompt_cost = ?1, completion_cost = ?2,
+                         cache_read_cost = ?3, cache_creation_cost = ?4,
+                         reasoning_cost = ?5,
+                         total_cost = ?6,
+                         pricing_version = ?7, cost_details = ?8
+                     WHERE id = ?9",
+                    rusqlite::params![
+                        cost.input_cost,
+                        cost.output_cost,
+                        cost.cache_read_cost,
+                        cost.cache_creation_cost,
+                        cost.reasoning_cost,
+                        cost.total_cost,
+                        pricing_version,
+                        cost_details,
+                        id,
+                    ],
+                )
+                .map_err(AppError::Database)?;
+                recomputed += 1;
+
+                // 累计受影响日期(从 occurred_at epoch 秒算 ISO 日期)
+                if let Some(dt) = chrono::DateTime::from_timestamp_millis(*occurred_at) {
+                    let date_str = dt.format("%Y-%m-%d").to_string();
+                    affected_dates.insert(date_str);
+                }
+            }
+        }
+
+        // 重算受影响日期的 daily rollups
+        let dates_refreshed = affected_dates.len() as u32;
+        for date in &affected_dates {
+            self.refresh_daily_rollups(date)?;
+        }
+
+        Ok(RecomputeResult { recomputed, dates_refreshed })
+    }
 }
 
 // ---------- Tests ----------
@@ -806,7 +1169,7 @@ mod tests {
     #[test]
     fn record_usage_happy_path() {
         let svc = make_service();
-        let input = make_input("gpt-4o", 1000, 500, 1700000000);
+        let input = make_input("gpt-4o", 1000, 500, 1700000000000);
         let rec = svc.record_usage("rec-1", input).unwrap();
         assert_eq!(rec.id, "rec-1");
         assert_eq!(rec.input_tokens, 1000);
@@ -817,7 +1180,7 @@ mod tests {
     #[test]
     fn record_usage_duplicate() {
         let svc = make_service();
-        let input = make_input("gpt-4o", 1000, 500, 1700000000);
+        let input = make_input("gpt-4o", 1000, 500, 1700000000000);
         svc.record_usage("rec-dup", input.clone()).unwrap();
         let err = svc.record_usage("rec-dup", input).unwrap_err();
         assert!(matches!(err, AppError::TokenUsageDuplicate(_)));
@@ -827,7 +1190,7 @@ mod tests {
     fn cost_calculation_known_model() {
         let svc = make_service();
         // gpt-4o: input $2.50/1M, output $10.00/1M, cache_read $1.25/1M, cache_creation $2.50/1M
-        let input = make_input("gpt-4o", 1_000_000, 1_000_000, 1700000000);
+        let input = make_input("gpt-4o", 1_000_000, 1_000_000, 1700000000000);
         let rec = svc.record_usage("rec-cost", input).unwrap();
         // expected: 2.50 + 10.00 = 12.50
         assert!((rec.total_cost - 12.50).abs() < 0.001);
@@ -852,7 +1215,7 @@ mod tests {
     #[test]
     fn cost_calculation_unknown_model() {
         let svc = make_service();
-        let input = make_input("unknown-model-xyz", 1000, 500, 1700000000);
+        let input = make_input("unknown-model-xyz", 1000, 500, 1700000000000);
         let rec = svc.record_usage("rec-unknown", input).unwrap();
         // All per-dim costs 0, total 0, cost_details still emitted with pricing_missing_for
         assert_eq!(rec.prompt_cost, 0.0);
@@ -872,7 +1235,7 @@ mod tests {
     fn cost_calculation_with_cache_read() {
         let svc = make_service();
         // gpt-4o: cache_read $1.25/1M; 1M cache_read tokens = $1.25
-        let mut input = make_input("gpt-4o", 0, 0, 1700000000);
+        let mut input = make_input("gpt-4o", 0, 0, 1700000000000);
         input.cache_read_input_tokens = 1_000_000;
         let rec = svc.record_usage("rec-cache-read", input).unwrap();
         assert!((rec.cache_read_cost - 1.25).abs() < 0.001);
@@ -890,7 +1253,7 @@ mod tests {
     fn cost_calculation_with_cache_creation() {
         let svc = make_service();
         // gpt-4o: cache_creation $2.50/1M; 1M cache_creation tokens = $2.50
-        let mut input = make_input("gpt-4o", 0, 0, 1700000000);
+        let mut input = make_input("gpt-4o", 0, 0, 1700000000000);
         input.cache_creation_input_tokens = 1_000_000;
         let rec = svc.record_usage("rec-cache-create", input).unwrap();
         assert!((rec.cache_creation_cost - 2.50).abs() < 0.001);
@@ -905,13 +1268,13 @@ mod tests {
     #[test]
     fn list_records_filtered_by_date() {
         let svc = make_service();
-        svc.record_usage("a", make_input("gpt-4o", 100, 50, 1700000000)).unwrap();
-        svc.record_usage("b", make_input("gpt-4o", 100, 50, 1700100000)).unwrap();
-        svc.record_usage("c", make_input("gpt-4o", 100, 50, 1700200000)).unwrap();
+        svc.record_usage("a", make_input("gpt-4o", 100, 50, 1700000000000)).unwrap();
+        svc.record_usage("b", make_input("gpt-4o", 100, 50, 1700100000000)).unwrap();
+        svc.record_usage("c", make_input("gpt-4o", 100, 50, 1700200000000)).unwrap();
 
         let filter = UsageFilter {
-            date_from: Some(1700050000),
-            date_to: Some(1700150000),
+            date_from: Some(1700050000000),
+            date_to: Some(1700150000000),
             ..Default::default()
         };
         let recs = svc.list_records(filter, 1, 10).unwrap();
@@ -922,11 +1285,11 @@ mod tests {
     #[test]
     fn list_records_filtered_by_agent() {
         let svc = make_service();
-        let mut i1 = make_input("gpt-4o", 100, 50, 1700000000);
+        let mut i1 = make_input("gpt-4o", 100, 50, 1700000000000);
         i1.agent_type = "claude-code".into();
         svc.record_usage("x", i1).unwrap();
 
-        let mut i2 = make_input("gpt-4o", 100, 50, 1700000000);
+        let mut i2 = make_input("gpt-4o", 100, 50, 1700000000000);
         i2.agent_type = "codex".into();
         svc.record_usage("y", i2).unwrap();
 
@@ -942,8 +1305,8 @@ mod tests {
     #[test]
     fn get_summary_aggregates_correctly() {
         let svc = make_service();
-        svc.record_usage("s1", make_input("gpt-4o", 1000, 500, 1700000000)).unwrap();
-        svc.record_usage("s2", make_input("gpt-4o", 2000, 1000, 1700003600)).unwrap(); // +1h, same day
+        svc.record_usage("s1", make_input("gpt-4o", 1000, 500, 1700000000000)).unwrap();
+        svc.record_usage("s2", make_input("gpt-4o", 2000, 1000, 1700003600000)).unwrap(); // +1h, same day
         let summary = svc.get_summary(UsageFilter::default()).unwrap();
         assert_eq!(summary.total_requests, 2);
         assert_eq!(summary.total_tokens, 4500);
@@ -952,10 +1315,189 @@ mod tests {
     }
 
     #[test]
+    fn get_periods_summary_returns_three_periods() {
+        let svc = make_service();
+
+        let now = chrono::Local::now();
+        let now_ms = now.timestamp_millis();
+
+        // Today record: right now (unambiguously within today's window).
+        let today_input = make_input("gpt-4o", 100, 50, now_ms);
+        let _ = svc.record_usage(&deterministic_id(&today_input), today_input);
+
+        // Month record: noon on the 15th (or 1st if today is near the 15th).
+        // Pick a day at least 2 days from today so TZ offset (≤14h) can't make
+        // the month record's UTC date collide with today's UTC date window.
+        use chrono::{Datelike, TimeZone};
+        let today_day = now.date_naive().day();
+        let pick_day: u32 = if today_day <= 12 { 15 } else { 1 };
+        let month_pick = now
+            .date_naive()
+            .with_day(1)
+            .unwrap()
+            .with_day(pick_day)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        let month_ago_ms = chrono::Local
+            .from_local_datetime(&month_pick)
+            .unwrap()
+            .timestamp_millis();
+        let month_input = make_input("gpt-4o", 200, 100, month_ago_ms);
+        let _ = svc.record_usage(&deterministic_id(&month_input), month_input);
+
+        // Year record: 400 days ago (definitely outside this month).
+        let year_ago_ms = now_ms - 400 * 24 * 3600 * 1000;
+        let year_input = make_input("gpt-4o", 1000, 500, year_ago_ms);
+        let _ = svc.record_usage(&deterministic_id(&year_input), year_input);
+
+        let filter = UsageFilter::default();
+        let summary = svc.get_periods_summary(&filter).unwrap();
+
+        // today 应只有 1 条(150 token)
+        assert_eq!(summary.periods.today.total_requests, 1);
+        // month 应有 2 条(today + month_ago)
+        assert_eq!(summary.periods.month.total_requests, 2);
+        // all_time 应有 3 条
+        assert_eq!(summary.periods.all_time.total_requests, 3);
+
+        // period_windows.key 格式
+        let today_key = chrono::Local::now().format("%Y-%m-%d").to_string();
+        assert_eq!(summary.period_windows.today.key, today_key);
+        let month_key = chrono::Local::now().format("%Y-%m").to_string();
+        assert_eq!(summary.period_windows.month.key, month_key);
+
+        // ends_at 是 ISO 字符串(包含时区)
+        assert!(summary.period_windows.today.ends_at.contains("T"));
+
+        // limits 为 None(未注入 quota_cache 数据)
+        assert!(summary.limits.is_none());
+    }
+
+    #[test]
+    fn aggregate_client_models_groups_by_agent_and_model() {
+        let svc = make_service();
+        let now_ms = chrono::Local::now().timestamp_millis();
+
+        // claude-code + gpt-4o (make_input defaults agent_type to "claude-code",
+        // which record_usage normalizes to "claude")
+        let i1 = make_input("gpt-4o", 100, 50, now_ms);
+        let _ = svc.record_usage(&deterministic_id(&i1), i1);
+
+        // codex + gpt-4o
+        let mut i2 = make_input("gpt-4o", 200, 100, now_ms);
+        i2.agent_type = "codex".into();
+        let _ = svc.record_usage(&deterministic_id(&i2), i2);
+
+        // codex + gpt-4-turbo
+        let mut i3 = make_input("gpt-4-turbo", 300, 150, now_ms);
+        i3.agent_type = "codex".into();
+        let _ = svc.record_usage(&deterministic_id(&i3), i3);
+
+        let filter = UsageFilter::default();
+        let result = svc.aggregate_client_models(&filter).unwrap();
+
+        // 应有 2 个 agent_type("claude" 是 "claude-code" 规范化后的结果)
+        assert_eq!(result.len(), 2);
+        assert!(result.contains_key("claude"));
+        assert!(result.contains_key("codex"));
+
+        // codex 应有 2 个 model
+        let codex_models = result.get("codex").unwrap();
+        assert_eq!(codex_models.len(), 2);
+        assert!(codex_models.contains_key("gpt-4o"));
+        assert!(codex_models.contains_key("gpt-4-turbo"));
+
+        // claude 的 gpt-4o 总 token = 100 + 50 = 150
+        let claude_models = result.get("claude").unwrap();
+        assert_eq!(claude_models.get("gpt-4o"), Some(&150));
+    }
+
+    #[test]
+    fn aggregate_limits_summary_returns_none_when_empty() {
+        let svc = make_service();
+        let result = svc.aggregate_limits_summary().unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn aggregate_limits_summary_handles_usd_and_cny() {
+        let svc = make_service();
+
+        // 直接 INSERT 2 条 quota_cache 测试数据
+        let openai_snap = serde_json::json!({
+            "total": 100.0, "used": 30.0, "remaining": 70.0, "unit": "USD", "level": "green", "reset_at": null,
+            "windows": [], "status": "ok", "source": "api", "source_detail": "app",
+            "balance_usd": 70.0, "used_usd": 30.0
+        })
+        .to_string();
+        let deepseek_snap = serde_json::json!({
+            "total": 200.0, "used": 50.0, "remaining": 150.0, "unit": "CNY", "level": "green", "reset_at": null,
+            "windows": [], "status": "ok", "source": "api", "source_detail": "app",
+            "balance": {"amount": 150.0, "currency": "CNY"},
+            "used_amount": {"amount": 50.0, "currency": "CNY"}
+        })
+        .to_string();
+
+        {
+            let db = svc.db.lock().unwrap();
+            db.conn()
+                .execute(
+                    "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
+                     VALUES ('OpenAI', 'openai', 1, 1, 0, 1, 0, 0)",
+                    [],
+                )
+                .unwrap();
+            db.conn()
+                .execute(
+                    "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
+                     VALUES ('DeepSeek', 'deepseek', 1, 1, 0, 2, 0, 0)",
+                    [],
+                )
+                .unwrap();
+            db.conn()
+                .execute(
+                    "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
+                     VALUES (1, ?1, 1000, 'auto')",
+                    rusqlite::params![openai_snap],
+                )
+                .unwrap();
+            db.conn()
+                .execute(
+                    "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
+                     VALUES (2, ?1, 2000, 'auto')",
+                    rusqlite::params![deepseek_snap],
+                )
+                .unwrap();
+        }
+
+        let result = svc.aggregate_limits_summary().unwrap().unwrap();
+        assert_eq!(result.providers.len(), 2);
+        // ORDER BY p.name ASC → "DeepSeek" before "OpenAI"
+        assert_eq!(result.providers[0].provider, "DeepSeek");
+        assert_eq!(result.providers[1].provider, "OpenAI");
+        // updated_at = max(fetched_at) = 2000
+        assert_eq!(result.updated_at, 2000);
+        // OpenAI's balance_usd from JSON
+        assert_eq!(result.providers[1].balance_usd, Some(70.0));
+        assert_eq!(result.providers[1].used_usd, Some(30.0));
+        // DeepSeek's balance (CNY MoneyAmount)
+        assert!(result.providers[0].balance.is_some());
+        assert_eq!(
+            result.providers[0]
+                .balance
+                .as_ref()
+                .unwrap()
+                .currency,
+            "CNY"
+        );
+    }
+
+    #[test]
     fn import_jsonl_claude_format() {
         let svc = make_service();
-        let jsonl = r#"{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000,"usage":{"input_tokens":100,"output_tokens":50}}
-{"agent":"claude-code","model":"gpt-4o","timestamp":1700003600,"usage":{"input_tokens":200,"output_tokens":100}}
+        let jsonl = r#"{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000000,"usage":{"input_tokens":100,"output_tokens":50}}
+{"agent":"claude-code","model":"gpt-4o","timestamp":1700003600000,"usage":{"input_tokens":200,"output_tokens":100}}
 "#;
         let r = svc.import_jsonl(jsonl, None).unwrap();
         assert_eq!(r.imported, 2);
@@ -966,7 +1508,7 @@ mod tests {
     #[test]
     fn import_jsonl_codex_format() {
         let svc = make_service();
-        let jsonl = r#"{"agent":"codex","model":"gpt-4o","timestamp":1700000000,"usage":{"prompt_tokens":300,"completion_tokens":150}}
+        let jsonl = r#"{"agent":"codex","model":"gpt-4o","timestamp":1700000000000,"usage":{"prompt_tokens":300,"completion_tokens":150}}
 "#;
         let r = svc.import_jsonl(jsonl, None).unwrap();
         assert_eq!(r.imported, 1);
@@ -974,10 +1516,35 @@ mod tests {
     }
 
     #[test]
+    fn import_jsonl_codex_format_with_cache() {
+        // Codex JSONL only carries prompt_tokens / completion_tokens; the
+        // cache_read / cache_creation / reasoning dimensions do not exist
+        // in the Codex schema and must be persisted as 0.
+        let svc = make_service();
+        let jsonl = r#"{"agent":"codex","model":"gpt-4o","timestamp":1700000000000,"usage":{"prompt_tokens":300,"completion_tokens":150}}"#;
+
+        let r = svc.import_jsonl(jsonl, None).unwrap();
+        assert_eq!(r.imported, 1, "should import 1 record");
+        assert!(r.errors.is_empty(), "errors: {:?}", r.errors);
+
+        let records = svc.list_records(UsageFilter::default(), 1, 10).unwrap();
+        assert_eq!(records.len(), 1);
+        let rec = &records[0];
+
+        assert_eq!(rec.agent_type, "codex");
+        assert_eq!(rec.model, "gpt-4o");
+        assert_eq!(rec.input_tokens, 300, "input_tokens should map from prompt_tokens");
+        assert_eq!(rec.output_tokens, 150, "output_tokens should map from completion_tokens");
+        assert_eq!(rec.cache_read_input_tokens, 0, "cache_read should be 0 for Codex");
+        assert_eq!(rec.cache_creation_input_tokens, 0, "cache_creation should be 0 for Codex");
+        assert_eq!(rec.reasoning_tokens, 0, "reasoning should be 0 for Codex");
+    }
+
+    #[test]
     fn import_jsonl_dedup() {
         let svc = make_service();
-        let jsonl = r#"{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000,"usage":{"input_tokens":100,"output_tokens":50}}
-{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000,"usage":{"input_tokens":100,"output_tokens":50}}
+        let jsonl = r#"{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000000,"usage":{"input_tokens":100,"output_tokens":50}}
+{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000000,"usage":{"input_tokens":100,"output_tokens":50}}
 "#;
         let r = svc.import_jsonl(jsonl, None).unwrap();
         assert_eq!(r.imported, 1);
@@ -987,7 +1554,7 @@ mod tests {
     #[test]
     fn import_csv_basic() {
         let svc = make_service();
-        let csv = "timestamp,agent_type,model,provider_name,input_tokens,output_tokens\n1700000000,claude-code,gpt-4o,openai,500,250\n1700003600,claude-code,gpt-4o,openai,700,300\n";
+        let csv = "timestamp,agent_type,model,provider_name,input_tokens,output_tokens\n1700000000000,claude-code,gpt-4o,openai,500,250\n1700003600000,claude-code,gpt-4o,openai,700,300\n";
         let r = svc.import_csv(csv).unwrap();
         assert_eq!(r.imported, 2);
         assert_eq!(r.errors.len(), 0);
@@ -1006,9 +1573,9 @@ mod tests {
     #[test]
     fn refresh_daily_rollups_recomputes() {
         let svc = make_service();
-        svc.record_usage("r1", make_input("gpt-4o", 1000, 500, 1700000000)).unwrap();
-        svc.record_usage("r2", make_input("gpt-4o", 2000, 1000, 1700000000)).unwrap();
-        let date = "2023-11-14"; // 1700000000 epoch
+        svc.record_usage("r1", make_input("gpt-4o", 1000, 500, 1700000000000)).unwrap();
+        svc.record_usage("r2", make_input("gpt-4o", 2000, 1000, 1700000000000)).unwrap();
+        let date = "2023-11-14"; // 1700000000000 millis
 
         // First get summary to confirm rollup exists
         let before = svc.get_summary(UsageFilter::default()).unwrap();
@@ -1097,5 +1664,128 @@ mod tests {
         let svc = make_service();
         let r = svc.import_opencode_db(std::path::Path::new("Z:/nonexistent/kp_opencode_xyz.db"));
         assert!(r.is_err());
+    }
+
+    #[test]
+    fn recompute_costs_invalid_range_returns_error() {
+        let svc = make_service();
+        let err = svc.recompute_costs(200, 100).unwrap_err();
+        match err {
+            AppError::TokenUsageInvalidFormat(msg) => {
+                assert_eq!(msg, "from_date must be <= to_date");
+            }
+            other => panic!("expected TokenUsageInvalidFormat, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn recompute_costs_updates_unknown_model_pricing_missing_for_null() {
+        // Scenario: pricing.json upgrade makes an unknown model known.
+        // Before recompute: cost_details.pricing_missing_for = "unknown-model-xyz", costs = 0.
+        // After recompute:  cost_details.pricing_missing_for = null, costs > 0.
+        use crate::types::PricingEntry;
+
+        let svc = make_service();
+        let occurred_at = 1700000000000; // 2023-11-14
+        svc.record_usage(
+            "rec-recompute-unk",
+            make_input("unknown-model-xyz", 1_000_000, 500_000, occurred_at),
+        )
+        .unwrap();
+
+        // Verify initial state: pricing_missing_for is Some, costs are 0.
+        let recs_before = svc.list_records(UsageFilter::default(), 1, 10).unwrap();
+        assert_eq!(recs_before.len(), 1);
+        let details_before: serde_json::Value =
+            serde_json::from_str(recs_before[0].cost_details.as_ref().unwrap()).unwrap();
+        assert_eq!(details_before["pricing_missing_for"], "unknown-model-xyz");
+        assert_eq!(details_before["total"], 0.0);
+        assert_eq!(recs_before[0].total_cost, 0.0);
+
+        // Build a new service sharing the same db but with custom pricing that
+        // now recognises "unknown-model-xyz".
+        let custom_pricing = PricingService::from_models(vec![PricingEntry {
+            model: "unknown-model-xyz".into(),
+            provider: "TestProvider".into(),
+            input_price_per_1m: Some(2.0),
+            output_price_per_1m: Some(8.0),
+            cache_read_price_per_1m: None,
+            cache_creation_price_per_1m: None,
+            reasoning_price_per_1m: None,
+        }]);
+        let svc2 = TokenUsageService::new(svc.db.clone(), Arc::new(custom_pricing));
+
+        let result = svc2.recompute_costs(occurred_at, occurred_at + 86400 * 1000).unwrap();
+        assert_eq!(result.recomputed, 1);
+        assert_eq!(result.dates_refreshed, 1);
+
+        // Read back and verify pricing_missing_for is now null, costs populated.
+        let recs_after = svc2.list_records(UsageFilter::default(), 1, 10).unwrap();
+        assert_eq!(recs_after.len(), 1);
+        let details_after: serde_json::Value =
+            serde_json::from_str(recs_after[0].cost_details.as_ref().unwrap()).unwrap();
+        assert!(
+            details_after.get("pricing_missing_for").is_some(),
+            "key should still exist (as null)"
+        );
+        assert!(
+            details_after["pricing_missing_for"].is_null(),
+            "should be null after recompute, got: {details_after}"
+        );
+        // 1M input * $2/1M = $2; 500k output * $8/1M = $4; total $6.
+        assert!(
+            (details_after["total"].as_f64().unwrap() - 6.0).abs() < 0.001,
+            "total cost mismatch"
+        );
+        assert!(
+            (recs_after[0].total_cost - 6.0).abs() < 0.001,
+            "total_cost column mismatch"
+        );
+        assert!(
+            (recs_after[0].prompt_cost - 2.0).abs() < 0.001,
+            "prompt_cost mismatch"
+        );
+        assert!(
+            (recs_after[0].completion_cost - 4.0).abs() < 0.001,
+            "completion_cost mismatch"
+        );
+
+        // Daily rollups should reflect the new cost.
+        let summary = svc2.get_summary(UsageFilter::default()).unwrap();
+        assert!((summary.total_cost - 6.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn recompute_costs_empty_range_returns_zero() {
+        // No records in range → recomputed=0, dates_refreshed=0, no error.
+        let svc = make_service();
+        let result = svc.recompute_costs(100, 100).unwrap();
+        assert_eq!(result.recomputed, 0);
+        assert_eq!(result.dates_refreshed, 0);
+    }
+
+    #[test]
+    fn normalize_agent_type_claude_variants() {
+        assert_eq!(normalize_agent_type("ClaudeCode"), "claude");
+        assert_eq!(normalize_agent_type("claude-code"), "claude");
+        assert_eq!(normalize_agent_type("claude code"), "claude");
+        assert_eq!(normalize_agent_type("CLAUDE"), "claude");
+    }
+
+    #[test]
+    fn normalize_agent_type_codex() {
+        assert_eq!(normalize_agent_type("codex"), "codex");
+        assert_eq!(normalize_agent_type("Codex"), "codex");
+        assert_eq!(normalize_agent_type("CODEX-CLI"), "codex");
+    }
+
+    #[test]
+    fn normalize_agent_type_unknown() {
+        assert_eq!(normalize_agent_type("some-new-tool"), "unknown");
+    }
+
+    #[test]
+    fn normalize_agent_type_empty() {
+        assert_eq!(normalize_agent_type(""), "unknown");
     }
 }

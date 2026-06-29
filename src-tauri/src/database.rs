@@ -54,7 +54,7 @@ impl Database {
             [],
         )?;
         conn.execute(
-            "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '3')",
+            "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '5')",
             [],
         )?;
         conn.execute(
@@ -160,6 +160,80 @@ impl Database {
             )?;
         }
 
+        // token_usage_records (v5 schema — no prompt_tokens / completion_tokens
+        // legacy cols; those are dropped from v4→v5 migration for old DBs)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS token_usage_records (
+                id TEXT PRIMARY KEY,
+                agent_type TEXT NOT NULL,
+                model TEXT NOT NULL,
+                provider_name TEXT NOT NULL,
+                occurred_at INTEGER NOT NULL,
+                recorded_at INTEGER NOT NULL,
+                session_id TEXT,
+                request_id TEXT,
+                input_tokens INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                cache_read_input_tokens INTEGER DEFAULT 0,
+                cache_creation_input_tokens INTEGER DEFAULT 0,
+                reasoning_tokens INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                prompt_cost REAL DEFAULT 0.0,
+                completion_cost REAL DEFAULT 0.0,
+                cache_read_cost REAL DEFAULT 0.0,
+                cache_creation_cost REAL DEFAULT 0.0,
+                reasoning_cost REAL DEFAULT 0.0,
+                total_cost REAL DEFAULT 0.0,
+                currency TEXT DEFAULT 'USD',
+                pricing_version TEXT,
+                usage_details TEXT DEFAULT '{}',
+                cost_details TEXT DEFAULT NULL
+            )",
+            [],
+        )?;
+
+        // daily_agent_model_usage (rollup by date+agent+model+provider)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS daily_agent_model_usage (
+                date TEXT NOT NULL,
+                agent_type TEXT NOT NULL,
+                model TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                request_count INTEGER DEFAULT 0,
+                input_tokens INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                total_cost REAL DEFAULT 0.0,
+                PRIMARY KEY (date, agent_type, model, provider)
+            )",
+            [],
+        )?;
+
+        // daily_model_usage (rollup by date+model+provider)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS daily_model_usage (
+                date TEXT NOT NULL,
+                model TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                request_count INTEGER DEFAULT 0,
+                input_tokens INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                total_cost REAL DEFAULT 0.0,
+                PRIMARY KEY (date, model, provider)
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_token_usage_occurred ON token_usage_records(occurred_at)",
+            [],
+        )?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_token_usage_agent_model ON token_usage_records(agent_type, model, occurred_at)",
+            [],
+        )?;
+
         Ok(())
     }
 
@@ -174,6 +248,13 @@ impl Database {
             self.conn.execute_batch(sql)?;
             self.conn.execute(
                 "UPDATE meta SET value = '4' WHERE key = 'schema_version'",
+                [],
+            )?;
+        } else if current == "4" {
+            let sql = include_str!("../data/migrations/v4_to_v5.sql");
+            self.conn.execute_batch(sql)?;
+            self.conn.execute(
+                "UPDATE meta SET value = '5' WHERE key = 'schema_version'",
                 [],
             )?;
         }
@@ -276,21 +357,21 @@ impl Database {
         let tx = self.conn.unchecked_transaction()?;
         tx.execute(
             "INSERT INTO token_usage_records (id, agent_type, model, provider_name, occurred_at, recorded_at,
-             session_id, request_id, prompt_tokens, completion_tokens, total_tokens,
-             cache_read_input_tokens, cache_creation_input_tokens, reasoning_tokens,
-             input_tokens, output_tokens, prompt_cost, completion_cost, cache_read_cost,
-             cache_creation_cost, reasoning_cost, total_cost, currency, pricing_version, usage_details, cost_details)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26)",
+             session_id, request_id, input_tokens, output_tokens,
+             cache_read_input_tokens, cache_creation_input_tokens, reasoning_tokens, total_tokens,
+             prompt_cost, completion_cost, cache_read_cost, cache_creation_cost, reasoning_cost, total_cost,
+             currency, pricing_version, usage_details, cost_details)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
             rusqlite::params![
                 record.id, record.agent_type, record.model, record.provider_name, record.occurred_at, record.recorded_at,
-                record.session_id, record.request_id, record.prompt_tokens, record.completion_tokens, record.total_tokens,
-                record.cache_read_input_tokens, record.cache_creation_input_tokens, record.reasoning_tokens,
-                record.input_tokens, record.output_tokens, record.prompt_cost, record.completion_cost, record.cache_read_cost,
-                record.cache_creation_cost, record.reasoning_cost, record.total_cost, record.currency, record.pricing_version,
+                record.session_id, record.request_id, record.input_tokens, record.output_tokens,
+                record.cache_read_input_tokens, record.cache_creation_input_tokens, record.reasoning_tokens, record.total_tokens,
+                record.prompt_cost, record.completion_cost, record.cache_read_cost, record.cache_creation_cost,
+                record.reasoning_cost, record.total_cost, record.currency, record.pricing_version,
                 record.usage_details, record.cost_details,
             ],
         )?;
-        let day = chrono::DateTime::from_timestamp(record.occurred_at, 0)
+        let day = chrono::DateTime::from_timestamp_millis(record.occurred_at)
             .unwrap_or_default()
             .format("%Y-%m-%d")
             .to_string();
@@ -327,8 +408,8 @@ impl Database {
     pub fn list_token_usage_records(&self, offset: i64, limit: i64) -> Result<Vec<TokenUsageRecord>, AppError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, agent_type, model, provider_name, occurred_at, recorded_at, session_id, request_id,
-             prompt_tokens, completion_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens,
-             reasoning_tokens, input_tokens, output_tokens, prompt_cost, completion_cost, cache_read_cost,
+             input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens,
+             reasoning_tokens, total_tokens, prompt_cost, completion_cost, cache_read_cost,
              cache_creation_cost, reasoning_cost, total_cost, currency, pricing_version, usage_details, cost_details
              FROM token_usage_records ORDER BY occurred_at DESC LIMIT ?1 OFFSET ?2"
         )?;
@@ -342,24 +423,22 @@ impl Database {
                 recorded_at: row.get(5)?,
                 session_id: row.get(6)?,
                 request_id: row.get(7)?,
-                prompt_tokens: row.get(8)?,
-                completion_tokens: row.get(9)?,
-                total_tokens: row.get(10)?,
-                cache_read_input_tokens: row.get(11)?,
-                cache_creation_input_tokens: row.get(12)?,
-                reasoning_tokens: row.get(13)?,
-                input_tokens: row.get(14)?,
-                output_tokens: row.get(15)?,
-                prompt_cost: row.get(16)?,
-                completion_cost: row.get(17)?,
-                cache_read_cost: row.get(18)?,
-                cache_creation_cost: row.get(19)?,
-                reasoning_cost: row.get(20)?,
-                total_cost: row.get(21)?,
-                currency: row.get(22)?,
-                pricing_version: row.get(23)?,
-                usage_details: row.get(24)?,
-                cost_details: row.get(25)?,
+                input_tokens: row.get(8)?,
+                output_tokens: row.get(9)?,
+                cache_read_input_tokens: row.get(10)?,
+                cache_creation_input_tokens: row.get(11)?,
+                reasoning_tokens: row.get(12)?,
+                total_tokens: row.get(13)?,
+                prompt_cost: row.get(14)?,
+                completion_cost: row.get(15)?,
+                cache_read_cost: row.get(16)?,
+                cache_creation_cost: row.get(17)?,
+                reasoning_cost: row.get(18)?,
+                total_cost: row.get(19)?,
+                currency: row.get(20)?,
+                pricing_version: row.get(21)?,
+                usage_details: row.get(22)?,
+                cost_details: row.get(23)?,
             })
         })?.collect::<Result<Vec<_>, _>>().map_err(AppError::Database)?;
         Ok(records)
@@ -377,8 +456,8 @@ impl Database {
     ) -> Result<Vec<TokenUsageRecord>, AppError> {
         let mut sql = String::from(
             "SELECT id, agent_type, model, provider_name, occurred_at, recorded_at, session_id, request_id,
-             prompt_tokens, completion_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens,
-             reasoning_tokens, input_tokens, output_tokens, prompt_cost, completion_cost, cache_read_cost,
+             input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens,
+             reasoning_tokens, total_tokens, prompt_cost, completion_cost, cache_read_cost,
              cache_creation_cost, reasoning_cost, total_cost, currency, pricing_version, usage_details, cost_details
              FROM token_usage_records WHERE 1=1"
         );
@@ -418,24 +497,22 @@ impl Database {
                 recorded_at: row.get(5)?,
                 session_id: row.get(6)?,
                 request_id: row.get(7)?,
-                prompt_tokens: row.get(8)?,
-                completion_tokens: row.get(9)?,
-                total_tokens: row.get(10)?,
-                cache_read_input_tokens: row.get(11)?,
-                cache_creation_input_tokens: row.get(12)?,
-                reasoning_tokens: row.get(13)?,
-                input_tokens: row.get(14)?,
-                output_tokens: row.get(15)?,
-                prompt_cost: row.get(16)?,
-                completion_cost: row.get(17)?,
-                cache_read_cost: row.get(18)?,
-                cache_creation_cost: row.get(19)?,
-                reasoning_cost: row.get(20)?,
-                total_cost: row.get(21)?,
-                currency: row.get(22)?,
-                pricing_version: row.get(23)?,
-                usage_details: row.get(24)?,
-                cost_details: row.get(25)?,
+                input_tokens: row.get(8)?,
+                output_tokens: row.get(9)?,
+                cache_read_input_tokens: row.get(10)?,
+                cache_creation_input_tokens: row.get(11)?,
+                reasoning_tokens: row.get(12)?,
+                total_tokens: row.get(13)?,
+                prompt_cost: row.get(14)?,
+                completion_cost: row.get(15)?,
+                cache_read_cost: row.get(16)?,
+                cache_creation_cost: row.get(17)?,
+                reasoning_cost: row.get(18)?,
+                total_cost: row.get(19)?,
+                currency: row.get(20)?,
+                pricing_version: row.get(21)?,
+                usage_details: row.get(22)?,
+                cost_details: row.get(23)?,
             })
         })?.collect::<Result<Vec<_>, _>>().map_err(AppError::Database)?;
         Ok(records)
@@ -444,8 +521,8 @@ impl Database {
     pub fn get_token_usage_record_by_id(&self, id: &str) -> Result<Option<TokenUsageRecord>, AppError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, agent_type, model, provider_name, occurred_at, recorded_at, session_id, request_id,
-             prompt_tokens, completion_tokens, total_tokens, cache_read_input_tokens, cache_creation_input_tokens,
-             reasoning_tokens, input_tokens, output_tokens, prompt_cost, completion_cost, cache_read_cost,
+             input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens,
+             reasoning_tokens, total_tokens, prompt_cost, completion_cost, cache_read_cost,
              cache_creation_cost, reasoning_cost, total_cost, currency, pricing_version, usage_details, cost_details
              FROM token_usage_records WHERE id = ?1"
         )?;
@@ -460,24 +537,22 @@ impl Database {
                 recorded_at: row.get(5)?,
                 session_id: row.get(6)?,
                 request_id: row.get(7)?,
-                prompt_tokens: row.get(8)?,
-                completion_tokens: row.get(9)?,
-                total_tokens: row.get(10)?,
-                cache_read_input_tokens: row.get(11)?,
-                cache_creation_input_tokens: row.get(12)?,
-                reasoning_tokens: row.get(13)?,
-                input_tokens: row.get(14)?,
-                output_tokens: row.get(15)?,
-                prompt_cost: row.get(16)?,
-                completion_cost: row.get(17)?,
-                cache_read_cost: row.get(18)?,
-                cache_creation_cost: row.get(19)?,
-                reasoning_cost: row.get(20)?,
-                total_cost: row.get(21)?,
-                currency: row.get(22)?,
-                pricing_version: row.get(23)?,
-                usage_details: row.get(24)?,
-                cost_details: row.get(25)?,
+                input_tokens: row.get(8)?,
+                output_tokens: row.get(9)?,
+                cache_read_input_tokens: row.get(10)?,
+                cache_creation_input_tokens: row.get(11)?,
+                reasoning_tokens: row.get(12)?,
+                total_tokens: row.get(13)?,
+                prompt_cost: row.get(14)?,
+                completion_cost: row.get(15)?,
+                cache_read_cost: row.get(16)?,
+                cache_creation_cost: row.get(17)?,
+                reasoning_cost: row.get(18)?,
+                total_cost: row.get(19)?,
+                currency: row.get(20)?,
+                pricing_version: row.get(21)?,
+                usage_details: row.get(22)?,
+                cost_details: row.get(23)?,
             }))
         } else {
             Ok(None)
@@ -560,6 +635,19 @@ impl Database {
     pub fn delete_preset_providers(&self) -> Result<usize> {
         let n = self.conn.execute("DELETE FROM providers WHERE is_preset = 1", [])?;
         Ok(n)
+    }
+
+    /// Delete `source='auto'` quota_cache rows whose `fetched_at` is older than
+    /// `now - older_than_secs`. `source='manual'` rows are always preserved.
+    /// Returns the number of rows deleted.
+    pub fn purge_expired_quota_cache(&self, older_than_secs: i64) -> Result<usize, AppError> {
+        let now_secs = chrono::Utc::now().timestamp();
+        let cutoff = now_secs - older_than_secs;
+        let deleted = self.conn.execute(
+            "DELETE FROM quota_cache WHERE source = 'auto' AND fetched_at < ?1",
+            rusqlite::params![cutoff],
+        )?;
+        Ok(deleted)
     }
 
     pub fn get_model_usage_summary(&self, date: &str) -> Result<Vec<DailyModelUsage>, AppError> {
@@ -677,5 +765,100 @@ mod tests {
             .unwrap();
         assert_eq!(source, "manual");
         assert!(json.contains("manual"));
+    }
+
+    /// purge_expired_quota_cache must only delete `source='auto'` rows older
+    /// than the cutoff. Manual rows (regardless of age) and recent auto rows
+    /// must be preserved.
+    #[test]
+    fn purge_keeps_manual_and_recent_auto() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        db.seed_preset_providers().unwrap();
+
+        let now = chrono::Utc::now().timestamp();
+        const DAY: i64 = 86400;
+
+        // quota_cache.provider_id is PRIMARY KEY (one row per provider), so we
+        // create 3 distinct providers to host the 3 test rows.
+        db.conn.execute(
+            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
+             VALUES ('purge-test-A', NULL, 0, 1, 0, 100, ?1, ?1)",
+            [now],
+        )
+        .unwrap();
+        let pid_manual_old: i64 = db.conn.last_insert_rowid();
+        db.conn.execute(
+            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
+             VALUES ('purge-test-B', NULL, 0, 1, 0, 101, ?1, ?1)",
+            [now],
+        )
+        .unwrap();
+        let pid_auto_old: i64 = db.conn.last_insert_rowid();
+        db.conn.execute(
+            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
+             VALUES ('purge-test-C', NULL, 0, 1, 0, 102, ?1, ?1)",
+            [now],
+        )
+        .unwrap();
+        let pid_auto_new: i64 = db.conn.last_insert_rowid();
+
+        // Row A: source='manual', 30 days old → kept (manual is never purged)
+        db.conn
+            .execute(
+                "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
+                 VALUES (?1, '{}', ?2, 'manual')",
+                rusqlite::params![pid_manual_old, now - 30 * DAY],
+            )
+            .unwrap();
+        // Row B: source='auto', 8 days old → purged (older than 7-day cutoff)
+        db.conn
+            .execute(
+                "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
+                 VALUES (?1, '{}', ?2, 'auto')",
+                rusqlite::params![pid_auto_old, now - 8 * DAY],
+            )
+            .unwrap();
+        // Row C: source='auto', 1 day old → kept (within 7-day cutoff)
+        db.conn
+            .execute(
+                "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
+                 VALUES (?1, '{}', ?2, 'auto')",
+                rusqlite::params![pid_auto_new, now - 1 * DAY],
+            )
+            .unwrap();
+
+        let deleted = db.purge_expired_quota_cache(7 * DAY).unwrap();
+        assert_eq!(deleted, 1, "only the stale auto row should be deleted");
+
+        let manual_old_count: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM quota_cache WHERE provider_id = ?1",
+                [pid_manual_old],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(manual_old_count, 1, "manual old row must be preserved");
+
+        let auto_old_count: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM quota_cache WHERE provider_id = ?1",
+                [pid_auto_old],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(auto_old_count, 0, "stale auto row must be purged");
+
+        let auto_new_count: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM quota_cache WHERE provider_id = ?1",
+                [pid_auto_new],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(auto_new_count, 1, "recent auto row must be preserved");
     }
 }
