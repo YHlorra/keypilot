@@ -1,5 +1,22 @@
 // src-tauri/src/actions/token_usage.rs
 // Token Usage domain actions — record, list, summary, import, pricing.
+//
+// Dual-entry boundary (2026-06-28):
+//   This file defines `ActionDef` metadata for the Action Registry — actions
+//   are invoked via `execute_action` IPC (commands/action.rs) from inline UI
+//   buttons (e.g. ProviderCard's "View usage" → `token_usage.summary`).
+//
+//   The MAIN data path for the Usage page is the dedicated Tauri commands in
+//   `commands/token_usage.rs` (record_usage, list_usage_records,
+//   get_usage_summary, import_usage, import_opencode_db, get_last_auto_import,
+//   get_pricing, recompute_costs).  Those commands expose 3 extra ops
+//   (import_opencode_db / get_last_auto_import / recompute_costs) that have
+//   no ActionDef here, because they are not triggered from inline buttons.
+//
+//   Field names are aligned: both paths accept `start_date`/`end_date`/
+//   `agent_type`/`model`/`provider`/`status` on the summary filter.  Do NOT
+//   add a new token_usage op to only one of the two files without updating
+//   the other — divergence creates silent dead entries.
 
 use super::ActionDef;
 use serde_json::json;

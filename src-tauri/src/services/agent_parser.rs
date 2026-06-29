@@ -1,15 +1,17 @@
 //! Agent parser abstraction — one parser per agent source.
 //!
 //! Adding a new agent = (1) implement `AgentParser` for it, (2) add ONE line
-//! to `default_parsers()`.  Frontend, heatmap, and display components do NOT
+//! to `default_parsers(pricing)`.  Frontend, heatmap, and display components do NOT
 //! change — they consume the canonical `UsageRecordInput` shape regardless of
 //! source.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
+use crate::services::pricing::PricingService;
 use crate::types::UsageRecordInput;
 
 /// Scanner-level observability counters.  Surfaced via `last_auto_import`
@@ -72,9 +74,15 @@ pub trait AgentParser: Send + Sync {
 }
 
 /// Factory — one parser instance per supported agent.
-pub fn default_parsers() -> Vec<Box<dyn AgentParser>> {
+///
+/// `pricing` is injected so `ClaudeCodeParser` can resolve the canonical
+/// provider name for each model via `pricing.json` before falling back to
+/// prefix matching.  `OpencodeParser` does not need it — it reads the
+/// provider column straight from `opencode.db`.
+pub fn default_parsers(pricing: Arc<PricingService>) -> Vec<Box<dyn AgentParser>> {
     vec![
         Box::new(crate::services::agent_parser_opencode::OpencodeParser::new()),
-        Box::new(crate::services::agent_parser_claude_code::ClaudeCodeParser::new()),
+        Box::new(crate::services::agent_parser_claude_code::ClaudeCodeParser::new(pricing.clone())),
+        Box::new(crate::services::agent_parser_codex::CodexParser::new(pricing)),
     ]
 }

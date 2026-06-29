@@ -20,11 +20,19 @@ use keypilot_lib::commands::provider::{
 };
 use keypilot_lib::commands::quota::{fetch_quota, set_manual_quota, SetManualQuotaRequest};
 use keypilot_lib::commands::token_usage::{
-    record_usage, list_usage_records, get_usage_summary, import_usage, get_pricing,
+    record_usage, list_usage_records, get_usage_summary, get_usage_periods_summary,
+    get_usage_periods_summary_by_state,
+    import_usage, get_pricing,
     RecordUsageRequest, ListUsageRecordsRequest, UsageFilterIpc, UsageRecordInputIpc,
     TokenBreakdownIpc,
 };
-use keypilot_lib::types::{Theme, QuotaSnapshot, Visibility};
+use keypilot_lib::services::token_usage::{TokenUsageService, deterministic_id};
+use keypilot_lib::types::{
+    Theme, QuotaSnapshot, Visibility,
+    UsageFilter as RustUsageFilter,
+    UsageRecordInput as RustUsageRecordInput,
+    PeriodsSummary,
+};
 use serde::de::DeserializeOwned;
 use tauri::State;
 
@@ -199,14 +207,14 @@ fn e2e_set_manual_quota_persists_and_fetch_returns_it() {
     let state = build_test_state();
     let req = SetManualQuotaRequest {
         id: 1, // OpenAI preset
-        snapshot: QuotaSnapshot {
-            total: Some(100.0),
-            used: 25.0,
-            remaining: Some(75.0),
-            unit: "USD".to_string(),
-            level: Some("green".to_string()),
-            reset_at: None,
-        },
+        snapshot: QuotaSnapshot::legacy(
+            Some(100.0),
+            25.0,
+            Some(75.0),
+            "USD",
+            Some("green".to_string()),
+            None,
+        ),
     };
 
     call_unit("set_manual_quota", block_on(set_manual_quota(as_state(&state), req)));
@@ -225,14 +233,14 @@ fn e2e_set_manual_quota_provider_not_found() {
     let state = build_test_state();
     let req = SetManualQuotaRequest {
         id: 99999, // not seeded
-        snapshot: QuotaSnapshot {
-            total: None,
-            used: 0.0,
-            remaining: None,
-            unit: "token".to_string(),
-            level: None,
-            reset_at: None,
-        },
+        snapshot: QuotaSnapshot::legacy(
+            None,
+            0.0,
+            None,
+            "token",
+            None,
+            None,
+        ),
     };
     let result = block_on(set_manual_quota(as_state(&state), req));
     assert!(result.is_err(), "Expected error for non-existent provider id");
@@ -358,7 +366,7 @@ fn e2e_record_usage_happy_path() {
     assert!(!response.id.is_empty());
     assert_eq!(response.provider, "openai");
     assert_eq!(response.model, "gpt-4o");
-    assert_eq!(response.agent_type, "claude-code");
+    assert_eq!(response.agent_type, "claude");
     assert_eq!(response.total_tokens, 1700);
 }
 
@@ -449,16 +457,120 @@ fn e2e_get_usage_summary_aggregates() {
     assert_eq!(summary.total_requests, 1);
     assert_eq!(summary.total_tokens, 1500);
     assert_eq!(summary.agent_pairs.len(), 1);
-    assert_eq!(summary.agent_pairs[0].agent_type, "claude-code");
+    assert_eq!(summary.agent_pairs[0].agent_type, "claude");
     assert_eq!(summary.agent_pairs[0].model, "gpt-4o");
     assert_eq!(summary.agent_pairs[0].provider, "openai");
 }
 
 #[test]
+fn e2e_get_usage_periods_summary() {
+    let state = build_test_state();
+
+    // 注入 1 条"今天"的测试数据(直接构造 TokenUsageService 调用底层
+    // record_usage,绕过 IPC ISO 字符串解析,直接用 epoch 毫秒)
+    let now_ms = chrono::Local::now().timestamp_millis();
+    let input = RustUsageRecordInput {
+        agent_type: "claude-code".into(),
+        model: "gpt-4o".into(),
+        provider_name: "openai".into(),
+        occurred_at: now_ms,
+        session_id: Some("s1".into()),
+        request_id: Some("r1".into()),
+        input_tokens: 100,
+        output_tokens: 50,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        reasoning_tokens: 0,
+        usage_details: None,
+    };
+    let svc = TokenUsageService::new(state.db.clone(), state.pricing.clone());
+    let id = deterministic_id(&input);
+    svc.record_usage(&id, input).expect("record_usage should succeed");
+
+    // 通过 by_state 入口调用(避免 transmute State 的复杂度)
+    let filter = UsageFilterIpc::default();
+    let summary: PeriodsSummary = call_ok(
+        "get_usage_periods_summary",
+        block_on(get_usage_periods_summary_by_state(&state, filter)),
+    );
+
+    // today 应有 1 条
+    assert_eq!(summary.periods.today.total_requests, 1,
+        "today period should have 1 request");
+    // month 应有 1 条(今天也在本月范围内)
+    assert_eq!(summary.periods.month.total_requests, 1,
+        "month period should have 1 request");
+    // all_time 应有 1 条
+    assert_eq!(summary.periods.all_time.total_requests, 1,
+        "all_time period should have 1 request");
+
+    // period_windows 应有 today + month
+    assert!(!summary.period_windows.today.key.is_empty(),
+        "today window key should not be empty");
+    assert!(!summary.period_windows.month.key.is_empty(),
+        "month window key should not be empty");
+    // ends_at 是 ISO 8601 字符串(包含 "T" 分隔符)
+    assert!(summary.period_windows.today.ends_at.contains("T"),
+        "today ends_at should be ISO 8601 with 'T' separator, got: {}",
+        summary.period_windows.today.ends_at);
+    assert!(summary.period_windows.month.ends_at.contains("T"),
+        "month ends_at should be ISO 8601 with 'T' separator, got: {}",
+        summary.period_windows.month.ends_at);
+
+    // client_models 应有 "claude"("claude-code" 被 normalize_agent_type 规范化为 "claude")
+    assert!(!summary.client_models.is_empty(),
+        "client_models should not be empty");
+    assert!(summary.client_models.contains_key("claude"),
+        "client_models should contain 'claude' (normalized from 'claude-code'), got: {:?}",
+        summary.client_models.keys().collect::<Vec<_>>());
+
+    // limits 应为 None(无 quota_cache 数据)
+    assert!(summary.limits.is_none(),
+        "limits should be None when quota_cache is empty");
+}
+
+#[test]
+fn e2e_get_usage_periods_summary_via_ipc_command() {
+    // 同样场景但通过 #[tauri::command] 入口(as_state transmute)验证
+    // generate_handler! 注册路径可用。
+    let state = build_test_state();
+
+    let now_ms = chrono::Local::now().timestamp_millis();
+    let input = RustUsageRecordInput {
+        agent_type: "claude-code".into(),
+        model: "gpt-4o".into(),
+        provider_name: "openai".into(),
+        occurred_at: now_ms,
+        session_id: Some("s2".into()),
+        request_id: Some("r2".into()),
+        input_tokens: 200,
+        output_tokens: 100,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        reasoning_tokens: 0,
+        usage_details: None,
+    };
+    let svc = TokenUsageService::new(state.db.clone(), state.pricing.clone());
+    let id = deterministic_id(&input);
+    svc.record_usage(&id, input).expect("record_usage should succeed");
+
+    let filter = UsageFilterIpc::default();
+    let summary = call_ok(
+        "get_usage_periods_summary (IPC)",
+        block_on(get_usage_periods_summary(as_state(&state), filter)),
+    );
+    assert_eq!(summary.periods.today.total_requests, 1);
+    assert_eq!(summary.periods.month.total_requests, 1);
+    assert_eq!(summary.periods.all_time.total_requests, 1);
+    assert!(summary.client_models.contains_key("claude"));
+    assert!(summary.limits.is_none());
+}
+
+#[test]
 fn e2e_import_usage_jsonl_dedup() {
     let state = build_test_state();
-    let jsonl = r#"{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000,"usage":{"input_tokens":100,"output_tokens":50}}
-{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000,"usage":{"input_tokens":100,"output_tokens":50}}
+    let jsonl = r#"{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000000,"usage":{"input_tokens":100,"output_tokens":50}}
+{"agent":"claude-code","model":"gpt-4o","timestamp":1700000000000,"usage":{"input_tokens":100,"output_tokens":50}}
 "#;
     let result = call_ok("import_usage", block_on(import_usage(as_state(&state), jsonl.into(), "jsonl".into(), None)));
     assert_eq!(result.imported, 1);

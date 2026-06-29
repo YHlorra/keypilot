@@ -64,13 +64,13 @@ impl super::ProviderAdapter for PostgresAdapter {
         let bytes: i64 = row.get(0);
         let size_gb = bytes as f64 / (1024.0 * 1024.0 * 1024.0);
 
-        Ok(QuotaSnapshot {
-            total: None,
-            used: size_gb,
-            remaining: None,
-            unit: "GB".to_string(),
-            level: None,
-            reset_at: None,
-        })
+        Ok(QuotaSnapshot::legacy(
+            None,
+            size_gb,
+            None,
+            "GB",
+            None,
+            None,
+        ))
     }
 }

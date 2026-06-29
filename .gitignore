@@ -58,5 +58,11 @@ docs/references/
 .tauri.err
 .vite.err
 
+# TRAE IDE specs workspace — committed on `docs` branch only, ignored everywhere else
+.trae/
+
+# Root-only debug output from ad-hoc cargo/tsc invocations (transient)
+*.txt
+
 # Icon generation scratch (final icons live under src-tauri/icons/)
 src-tauri/icons/_candidates/

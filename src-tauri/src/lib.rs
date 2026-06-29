@@ -30,6 +30,11 @@ pub fn run() {
             let db = Database::open(&db_path)?;
             db.setup_schema()?;
             db.migrate()?;
+            // Purge stale auto-fetched quota_cache rows (older than 7 days).
+            // Manual entries are preserved. Failure is non-fatal — app still starts.
+            if let Err(e) = db.purge_expired_quota_cache(7 * 86400) {
+                eprintln!("quota_cache purge failed: {}", e);
+            }
             // One-time cleanup: remove seeded preset providers so app starts empty per user feedback (2026-06-26).
             // Safe to run on every startup -- only deletes is_preset=1 rows.
             match db.delete_preset_providers() {
@@ -46,10 +51,16 @@ pub fn run() {
             app.manage(state);
 
             // Run auto-import across all available agent parsers (opencode.db,
-            // claude-code jsonl files, etc.) before the UI is shown.  This
-            // populates token_usage_records from existing agent data so the
-            // heatmap and KPI cards are non-empty on first launch.
-            {
+            // claude-code jsonl files, etc.) in a BACKGROUND thread so webview
+            // creation is not blocked by a potentially long JSONL scan (Claude
+            // Code projects can be hundreds of MB).  This populates
+            // token_usage_records from existing agent data so the heatmap and
+            // KPI cards are non-empty on first launch.
+            //
+            // Frontend polls `get_last_auto_import` on mount with a brief
+            // internal retry window (see useUsage.ts::useLastAutoImport) so a
+            // slow scan still surfaces its summary toast.
+            tauri::async_runtime::spawn_blocking(move || {
                 let svc = TokenUsageService::new(db_for_import.clone(), pricing_for_import);
                 let summary = auto_import::scan_and_import_if_empty(&svc);
                 let json = serde_json::to_string(&summary).unwrap_or_default();
@@ -59,7 +70,7 @@ pub fn run() {
                 // ponytail: previously emitted `auto_import_completed` here, but
                 // emit() ran before WebviewWindowBuilder.build() — listener dead
                 // on arrival.  Frontend now queries `get_last_auto_import` on mount.
-            }
+            });
 
             // Stage 5: Initialize system tray
             let _tray = tray::init_tray(app.handle())?;
@@ -106,10 +117,12 @@ pub fn run() {
     commands::token_usage::record_usage,
     commands::token_usage::list_usage_records,
     commands::token_usage::get_usage_summary,
+    commands::token_usage::get_usage_periods_summary,
     commands::token_usage::import_usage,
     commands::token_usage::import_opencode_db,
     commands::token_usage::get_last_auto_import,
     commands::token_usage::get_pricing,
+    commands::token_usage::recompute_costs,
     // Action Registry (Stage 10)
     commands::action::list_actions,
     commands::action::execute_action,

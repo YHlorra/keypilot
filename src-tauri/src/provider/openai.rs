@@ -1,10 +1,10 @@
 use async_trait::async_trait;
-use chrono::{Months, NaiveDate, Utc};
+use chrono::{Datelike, Months, NaiveDate, TimeZone, Utc};
 use serde::Deserialize;
 use std::time::Duration;
 
 use crate::provider::adapter::{QuotaError, ValidateError};
-use crate::types::QuotaSnapshot;
+use crate::types::{LimitSource, LimitStatus, LimitWindow, LimitWindowKind, MoneyAmount, QuotaSnapshot};
 
 pub struct OpenAiAdapter;
 
@@ -137,13 +137,61 @@ impl super::ProviderAdapter for OpenAiAdapter {
             _ => "ruby",
         };
 
+        // 计算百分比与 ISO 重置时间(月度结算窗口)
+        let used_percent = if hard_limit > 0.0 {
+            Some((used / hard_limit) * 100.0)
+        } else {
+            None
+        };
+        let remaining_percent = if hard_limit > 0.0 {
+            Some((remaining / hard_limit) * 100.0)
+        } else {
+            None
+        };
+        // 月度窗口:下个月 1 号 00:00 UTC
+        let resets_at_iso = {
+            let now = Utc::now();
+            // 加 1 个月,然后把日改为 1 号;若失败 fallback 到加 1 月的日期
+            let next_month = now.date_naive().checked_add_months(Months::new(1));
+            next_month.and_then(|d| d.with_day(1)).map(|d| {
+                d.and_hms_opt(0, 0, 0)
+                    .map(|dt| Utc.from_utc_datetime(&dt).to_rfc3339())
+                    .unwrap_or_default()
+            })
+        };
+
         Ok(QuotaSnapshot {
+            // 旧字段(向后兼容)
             total: Some(hard_limit),
             used,
             remaining: Some(remaining),
             unit: "USD".to_string(),
             level: Some(level.to_string()),
             reset_at: None,
+            // 新字段(对齐 token-monitor normalizeLimitProvider 输出)
+            windows: vec![LimitWindow {
+                kind: LimitWindowKind::Billing,
+                label: "Monthly".to_string(),
+                used,
+                limit: Some(hard_limit),
+                remaining: Some(remaining),
+                used_percent,
+                remaining_percent,
+                resets_at: resets_at_iso.clone(),
+                window_minutes: None,
+                reset_description: String::new(),
+                show_meter: true,
+            }],
+            status: LimitStatus::Ok,
+            source: LimitSource::Api,
+            source_detail: "app".to_string(),
+            account_label: None,
+            account_email: None,
+            region: None,
+            balance: Some(MoneyAmount { amount: remaining, currency: "USD".to_string(), ..Default::default() }),
+            used_amount: Some(MoneyAmount { amount: used, currency: "USD".to_string(), ..Default::default() }),
+            balance_usd: Some(remaining),
+            used_usd: Some(used),
         })
     }
 }

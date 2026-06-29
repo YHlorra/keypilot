@@ -18,6 +18,7 @@ use crate::types::{
     ImportResult as RustImportResult,
     PricingEntry as RustPricingEntry,
     TokenUsageRecord,
+    PeriodsSummary,
 };
 
 // ---------- IPC DTOs (mirror webui/src/types/api.ts) ----------
@@ -168,16 +169,49 @@ pub struct PricingEntryResponse {
     pub supports_reasoning: bool,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct RecomputeCostsRequest {
+    pub from_date: String, // ISO date "YYYY-MM-DD"
+    pub to_date: String,   // ISO date "YYYY-MM-DD" (inclusive; +1 day when converting to epoch)
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RecomputeCostsResponse {
+    pub recomputed: u32,
+    pub dates_refreshed: u32,
+}
+
 // ---------- Conversion helpers ----------
 
 fn iso_to_epoch(iso: &str) -> Result<i64, AppError> {
     chrono::DateTime::parse_from_rfc3339(iso)
-        .map(|dt| dt.timestamp())
+        .map(|dt| dt.timestamp_millis())
         .map_err(|e| AppError::TokenUsageInvalidFormat(format!("invalid ISO8601 '{iso}': {e}")))
 }
 
+/// Parse an ISO calendar date "YYYY-MM-DD" into epoch seconds at 00:00:00 UTC.
+///
+/// When `exclusive` is true, advance one day so the caller can build a
+/// half-open interval `[from_epoch, to_epoch_exclusive)` where `to_date`
+/// covers the full calendar day (e.g. "2026-06-28" → 2026-06-29 00:00 UTC).
+fn iso_date_to_epoch(date_str: &str, exclusive: bool) -> Result<i64, AppError> {
+    let date = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+        .map_err(|e| AppError::TokenUsageInvalidFormat(format!("invalid date '{date_str}': {e}")))?;
+    let actual = if exclusive {
+        date.succ_opt()
+            .ok_or_else(|| AppError::TokenUsageInvalidFormat("date overflow".into()))?
+    } else {
+        date
+    };
+    Ok(actual
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
+        .and_utc()
+        .timestamp_millis())
+}
+
 fn epoch_to_iso(epoch: i64) -> String {
-    chrono::DateTime::from_timestamp(epoch, 0)
+    chrono::DateTime::from_timestamp_millis(epoch)
         .map(|dt| dt.to_rfc3339())
         .unwrap_or_else(|| "1970-01-01T00:00:00Z".into())
 }
@@ -524,4 +558,61 @@ pub async fn get_last_auto_import_by_state(
     .await
     .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
     Ok(result)
+}
+
+/// Recompute cost snapshots for usage records whose `occurred_at` falls within
+/// `[from_date 00:00, to_date+1day 00:00)` (UTC).  Both endpoints are
+/// inclusive calendar days; `to_date` is advanced by one day internally to
+/// form the half-open upper bound required by `TokenUsageService::recompute_costs`.
+#[tauri::command]
+pub async fn recompute_costs(
+    state: State<'_, AppState>,
+    req: RecomputeCostsRequest,
+) -> Result<RecomputeCostsResponse, AppError> {
+    recompute_costs_by_state(&state, req).await
+}
+
+pub async fn recompute_costs_by_state(
+    state: &AppState,
+    req: RecomputeCostsRequest,
+) -> Result<RecomputeCostsResponse, AppError> {
+    let from_epoch = iso_date_to_epoch(&req.from_date, false)?;
+    let to_epoch_exclusive = iso_date_to_epoch(&req.to_date, true)?;
+
+    let svc = TokenUsageService::new(state.db.clone(), state.pricing.clone());
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        svc.recompute_costs(from_epoch, to_epoch_exclusive)
+    })
+    .await
+    .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
+
+    Ok(RecomputeCostsResponse {
+        recomputed: result.recomputed,
+        dates_refreshed: result.dates_refreshed,
+    })
+}
+
+/// `get_usage_periods_summary` IPC — 三周期 PeriodsSummary 一次性返回。
+///
+/// 对齐 token-monitor usage.js 主数据契约,前端发 1 次请求拿全
+/// today/month/allTime + client_models + limits。
+///
+/// 接收 `UsageFilterIpc`(与 `get_usage_summary` 一致),内部转 `RustUsageFilter`。
+#[tauri::command]
+pub async fn get_usage_periods_summary(
+    state: State<'_, AppState>,
+    filter: UsageFilterIpc,
+) -> Result<PeriodsSummary, AppError> {
+    get_usage_periods_summary_by_state(&state, filter).await
+}
+
+pub async fn get_usage_periods_summary_by_state(
+    state: &AppState,
+    filter: UsageFilterIpc,
+) -> Result<PeriodsSummary, AppError> {
+    let rust_filter = ipc_to_rust_filter(filter)?;
+    let svc = TokenUsageService::new(state.db.clone(), state.pricing.clone());
+    tauri::async_runtime::spawn_blocking(move || svc.get_periods_summary(&rust_filter))
+        .await
+        .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?
 }

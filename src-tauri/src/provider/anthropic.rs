@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use crate::provider::adapter::{QuotaError, ValidateError};
-use crate::types::QuotaSnapshot;
+use crate::types::{LimitSource, LimitStatus, QuotaSnapshot};
 
 pub struct AnthropicAdapter;
 
@@ -15,7 +15,9 @@ impl super::ProviderAdapter for AnthropicAdapter {
     }
 
     fn can_fetch_quota(&self) -> bool {
-        false // Anthropic doesn't expose quota API
+        // 改为 true:虽然 Anthropic 没有 quota API,但我们现在总是返回
+        // 一个 NotConfigured 状态的 QuotaSnapshot,让前端能展示提示
+        true
     }
 
     async fn validate_key(&self, base_url: &str, api_key: &str) -> Result<(), ValidateError> {
@@ -52,7 +54,30 @@ impl super::ProviderAdapter for AnthropicAdapter {
     }
 
     async fn fetch_quota(&self, _base_url: &str, _api_key: &str) -> Result<QuotaSnapshot, QuotaError> {
-        // Anthropic doesn't expose quota API
-        Err(QuotaError::Unsupported)
+        // Anthropic 不暴露 quota API,但不再返回错误 — 而是返回一个
+        // NotConfigured 状态的 QuotaSnapshot,让前端能显示
+        // "Anthropic: not configured, set manually"。
+        // 用户可以通过 set_manual_quota 命令覆盖此快照。
+        Ok(QuotaSnapshot {
+            // 旧字段(空值)
+            total: None,
+            used: 0.0,
+            remaining: None,
+            unit: "USD".to_string(),
+            level: None,
+            reset_at: None,
+            // 新字段(对齐 token-monitor normalizeLimitProvider 输出)
+            windows: Vec::new(),
+            status: LimitStatus::NotConfigured,
+            source: LimitSource::Manual,
+            source_detail: "unknown".to_string(),
+            account_label: None,
+            account_email: None,
+            region: None,
+            balance: None,
+            used_amount: None,
+            balance_usd: None,
+            used_usd: None,
+        })
     }
 }
