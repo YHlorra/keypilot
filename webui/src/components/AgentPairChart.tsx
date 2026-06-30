@@ -1,17 +1,9 @@
 import type { AgentPair } from "@/types/api";
+import { formatTokens } from "@/lib/format";
 
 export interface AgentPairChartProps {
   pairs: AgentPair[];
   maxRows?: number;
-}
-
-// formatTokens -- abbreviates token counts
-// 12345 → "12.3K" | 1234567 → "1.2M" | 1234567890 → "1.2B"
-export function formatTokens(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
 }
 
 function formatCost(costUsd: number): string {

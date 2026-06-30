@@ -71,12 +71,31 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
   // Top agent pairs (from month summary)
   const topAgentPairs = useMemo(() => {
     return [...(monthSummary?.agent_pairs ?? [])]
+      .filter((p) => p.total_tokens > 0)
       .sort((a, b) => b.total_tokens - a.total_tokens)
       .slice(0, 5);
   }, [monthSummary]);
 
   const monthTotal = monthSummary?.total_requests ?? 0;
   const allTimeTotal = allTimeSummary?.total_requests ?? 0;
+
+  const monthLabel = useMemo(() => {
+    const series = monthSummary?.daily_series ?? [];
+    if (series.length === 0) return "";
+    const days = new Set(series.map((p) => p.date)).size;
+    return `${days} ${days === 1 ? "day" : "days"}`;
+  }, [monthSummary]);
+
+  const allTimeLabel = useMemo(() => {
+    const series = allTimeSummary?.daily_series ?? [];
+    if (series.length === 0) return "";
+    if (series.length === 1) return "1 day";
+    const dates = series.map((p) => p.date).sort();
+    const first = new Date(dates[0]);
+    const last = new Date(dates[dates.length - 1]);
+    const spanDays = Math.max(1, Math.round((last.getTime() - first.getTime()) / 86400000) + 1);
+    return `${spanDays} days`;
+  }, [allTimeSummary]);
 
   // 兼容 selectedRange:仅用于 trend chart 显示 7d/30d 切片(从 month.daily_series 切片)
   const slicedTrendSeries = useMemo(() => {
@@ -115,6 +134,8 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
           today={todaySummary}
           month={monthSummary}
           allTime={allTimeSummary}
+          monthLabel={monthLabel}
+          allTimeLabel={allTimeLabel}
         />
 
         {/* Body: trend chart + sidebar */}

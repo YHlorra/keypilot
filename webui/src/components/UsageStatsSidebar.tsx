@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { AgentPair } from "@/types/api";
 import { StatCard } from "./UsageKpiCards";
+import { formatTokens } from "@/lib/format";
 
 interface UsageStatsSidebarProps {
   lifetimeTotal: number;
@@ -18,13 +19,6 @@ interface UsageStatsSidebarProps {
   clientModels?: Record<string, Record<string, number>>;
 }
 
-function formatNumber(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return n.toLocaleString();
-  return String(n);
-}
-
 export const UsageStatsSidebar = React.memo(function UsageStatsSidebar({
   lifetimeTotal,
   periodTotal,
@@ -35,20 +29,12 @@ export const UsageStatsSidebar = React.memo(function UsageStatsSidebar({
   topAgentPairs = [],
   clientModels,
 }: UsageStatsSidebarProps) {
-  // 占位:Task 10 在此渲染 Tool x Model 表格。当前只观察 prop 流通情况。
-  React.useEffect(() => {
-    if (clientModels && Object.keys(clientModels).length > 0) {
-      // eslint-disable-next-line no-console
-      console.log("[UsageStatsSidebar] clientModels received (render deferred to Task 10)", clientModels);
-    }
-  }, [clientModels]);
-
   return (
     <div className="flex flex-col gap-3">
-      <StatCard label="All-time" value={formatNumber(lifetimeTotal)} />
-      <StatCard label="Period" value={formatNumber(periodTotal)} subLabel={selectedRange} />
-      <StatCard label="Peak day" value={formatNumber(peakDay)} subLabel={peakDayLabel} />
-      <StatCard label="Active days" value={activeDays.toLocaleString()} />
+      <StatCard label="All-time" value={lifetimeTotal} unit="requests" />
+      <StatCard label="Period" value={periodTotal} unit="requests" subLabel={selectedRange} />
+      <StatCard label="Peak day" value={peakDay} unit="requests" subLabel={peakDayLabel} />
+      <StatCard label="Active days" value={activeDays} unit="days" />
 
       {topAgentPairs.length > 0 && (
         <div className="flex flex-col rounded-sm border border-border bg-card px-4 py-3">
@@ -59,9 +45,16 @@ export const UsageStatsSidebar = React.memo(function UsageStatsSidebar({
             {topAgentPairs.slice(0, 5).map((pair, idx) => (
               <div key={idx} className="flex items-center gap-2 min-w-0">
                 <span className="text-xs text-muted-foreground shrink-0 w-4">{idx + 1}</span>
-                <span className="text-xs font-medium truncate">{pair.agent_type}</span>
+                <span className="flex flex-col min-w-0 flex-1">
+                  <span className="text-xs font-medium truncate" title={pair.model}>
+                    {pair.model || pair.agent_type || "(unknown)"}
+                  </span>
+                  {pair.model && pair.agent_type && (
+                    <span className="text-[var(--font-size-2xs)] text-muted-foreground truncate">{pair.agent_type}</span>
+                  )}
+                </span>
                 <span className="text-xs text-muted-foreground font-mono shrink-0">
-                  {formatNumber(pair.total_tokens)}
+                  {formatTokens(pair.total_tokens)} <span className="text-[var(--font-size-2xs)]">tok</span>
                 </span>
               </div>
             ))}
@@ -75,7 +68,7 @@ export const UsageStatsSidebar = React.memo(function UsageStatsSidebar({
           <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
             Tool x Model Breakdown
           </span>
-          <span className="text-[10px] text-muted-foreground mt-1">(rendered in Task 10)</span>
+          <span className="text-[var(--font-size-2xs)] text-muted-foreground mt-1">(rendered in Task 10)</span>
         </div>
       )}
     </div>
