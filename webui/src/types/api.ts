@@ -234,6 +234,23 @@ export interface UsageRecord extends UsageRecordInput {
   id: string;
 }
 
+// === Real-time tick (Bug #3 fix 2026-06-29) ===
+//
+// Mirrors `services::incremental_import::TokenUsageTickPayload`.  Emitted by
+// the Rust file watcher after each successful incremental JSONL append so
+// the frontend can refresh KPI cards / heatmap / popover (Task 2) without
+// polling.  Field names are snake_case per the convention documented at
+// the top of this file (api.ts:187-191).
+
+export interface TokenUsageTickPayload {
+  agent_type: string;
+  imported: number;
+  skipped: number;
+  latest_at: number | null;
+  total_today_tokens: number;
+  total_today_cost_usd: number;
+}
+
 // UsageFilter -- shared by list_usage_records and get_usage_summary
 export interface UsageFilter {
   start_date?: string;
@@ -298,12 +315,15 @@ export interface PricingEntry {
   supports_reasoning?: boolean;
 }
 
-// PaginatedResponse<T> -- standard pagination shape
+// PaginatedResponse<T> -- standard pagination shape.
+// Bug #2 fix 2026-06-29: field names are snake_case to match Rust
+// `PaginatedResponseIpc` (no `#[serde(rename_all = "camelCase")]` on the
+// Rust side, so the wire format uses `per_page`).  Renamed from `perPage`.
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
   page: number;
-  perPage: number;
+  per_page: number;
 }
 
 // UsageError -- error detail for a failed import row

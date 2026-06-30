@@ -247,8 +247,9 @@ cd webui && pnpm tsc --noEmit
 # 验证硬约束(提交前)
 grep -E "argon2|chacha20|ChaCha20Poly1305|aes-gcm" src-tauri/Cargo.toml  # 应空(V0.1 不加密)
 grep -rn "fs::write" src-tauri/src/  # 路径应在白名单
-grep "visibility TEXT NOT NULL DEFAULT 'visible'" src-tauri/src/database.rs  # schema v3 必有
+grep "visibility TEXT NOT NULL DEFAULT 'visible'" src-tauri/src/database.rs  # visibility 列必有
 grep "value TEXT" src-tauri/src/database.rs  # provider_fields.value 必有
+grep "agent_file_cursor" src-tauri/src/database.rs  # schema v6 增量游标表必有
 ```
 
 完整 init/verify 走 `./init.sh`,见 §10。
@@ -322,11 +323,13 @@ Stage 1: Tauri 2 脚手架 + SQLite 数据层
 
 ### 10.2 硬约束 grep
 
-- [ ] `grep "visibility TEXT NOT NULL DEFAULT 'visible'" src-tauri/src/database.rs` 有结果(schema v3)
-- [ ] `grep "value TEXT" src-tauri/src/database.rs` 有结果(provider_fields.value)
+- [ ] `grep "visibility TEXT NOT NULL DEFAULT 'visible'" src-tauri/src/database.rs` 有结果(provider_fields.visibility 列)
+- [ ] `grep "value TEXT" src-tauri/src/database.rs` 有结果(provider_fields.value 列)
 - [ ] `grep "preset TEXT" src-tauri/src/database.rs` 有结果(preset 列)
 - [ ] `grep "category_id INTEGER NOT NULL" src-tauri/src/database.rs` 有结果(category_id FK)
+- [ ] `grep "agent_file_cursor" src-tauri/src/database.rs` 有结果(schema v6 增量游标表)
 - [ ] `grep -E "argon2|chacha20|ChaCha20Poly1305|aes-gcm|sodiumoxide|^age " src-tauri/Cargo.toml` 为空(无加密 crate)
+- [ ] `grep "notify-debouncer-full\|notify =" src-tauri/Cargo.toml` 有结果(实时增量 watcher 依赖)
 - [ ] `grep -rn "fs::write" src-tauri/src/` 所有路径不在 CLI 配置白名单外(§3.1)
 
 ### 10.3 行为
@@ -377,4 +380,4 @@ Stage 1: Tauri 2 脚手架 + SQLite 数据层
 
 ---
 
-*最后更新: 2026-06-28(stage-g: Claude parser schema 修正 + auto-import 可观测性 + 前端 toast + §4.4 bd worktree 规则救回)*
+*最后更新: 2026-06-30(token-usage-history bug-fix batch: `agent_file_cursor` 增量游标 + notify watcher + force_rescan_all IPC + `token_usage_tick` event;§10.2 grep 加 schema v6 表存在性检查。详细机制见 `docs/quota-token-reference.md §4.6`)*

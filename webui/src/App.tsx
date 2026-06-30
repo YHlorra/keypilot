@@ -13,6 +13,7 @@ import { useTheme } from "./hooks/useTheme";
 import { useProviders } from "./hooks/useProviders";
 import { useCategories } from "./hooks/useCategories";
 import { useLastAutoImport } from "./hooks/useUsage";
+import { useUsageTick } from "./hooks/useUsageTick";
 import { useToast } from "./components/Icon";
 import {
   copyCredential,
@@ -74,6 +75,12 @@ export default function App() {
   // toast iff imported > 0 or parse errors > 0.  Replaces the prior
   // `auto_import_completed` Tauri event which had an emit-before-window race.
   const { data: autoImport } = useLastAutoImport();
+
+  // Real-time file-watcher tick listener (Bug #3 fix 2026-06-29).
+  // Side-effect-only hook — no value returned.  Invalidates the usage
+  // queries when the Rust watcher detects a new JSONL append so KPI cards
+  // and heatmap refresh in <100ms.
+  useUsageTick();
   useEffect(() => {
     if (!autoImport) return;
     const { total_imported, total_errors } = autoImport;

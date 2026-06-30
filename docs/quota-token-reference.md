@@ -36,12 +36,12 @@ KeyPilot 把 CCswitch 的"额度查询 + 用量统计"能力,翻译成 **Rust tr
         ┌──────────────────┴──────────────────┐
         ▼                                     ▼
    SQLite (单一真相源)                  pricing.json (静态价格表)
-   schema v4, 7 张表                   include_str!() 编译期内联
+   schema v6, 8 张表                   include_str!() 编译期内联
 ```
 
 ---
 
-## 1. SQLite Schema 详解 (当前 v4)
+## 1. SQLite Schema 详解 (当前 v6)
 
 ### 1.1 表清单
 
@@ -55,6 +55,7 @@ KeyPilot 把 CCswitch 的"额度查询 + 用量统计"能力,翻译成 **Rust tr
 | `token_usage_records` | Token 用量原始记录 | 1 row = 1 次 LLM 调用 |
 | `daily_agent_model_usage` | 按 (date, agent, model, provider) 日汇总 | 1 row = 1 日 1 组合 |
 | `daily_model_usage` | 按 (date, model, provider) 日汇总 (跨 agent) | 1 row = 1 日 1 组合 |
+| `agent_file_cursor` (v6 新增) | 文件级 byte-cursor 增量追踪 | 1 row = 1 个 agent 数据源文件 |
 
 ### 1.2 Quota 相关表
 
@@ -754,6 +755,82 @@ fn parse_assistant(v: &Value, ...) -> Option<UsageRecordInput> {
 }
 ```
 
+### 4.6 实时增量导入 — `agent_file_cursor` + notify-debouncer-full (schema v6 新增)
+
+**问题**:`scan_and_import_if_empty` 是"一次性扫描 + DB > 100 行后 no-op",Claude Code / Codex 用户每条新会话都进不来,体感"链断了"。
+
+**方案**:替换为 **文件级 byte-cursor + notify watcher + 实时 emit**。
+
+#### 4.6.1 `agent_file_cursor` 表 (新, schema v6)
+
+```sql
+CREATE TABLE agent_file_cursor (
+    agent_type    TEXT NOT NULL,        -- 'claude-code' | 'codex' | 'opencode'
+    file_path     TEXT NOT NULL,
+    byte_offset   INTEGER NOT NULL DEFAULT 0,
+    file_size     INTEGER NOT NULL DEFAULT 0,
+    last_scan_at  INTEGER NOT NULL DEFAULT 0,
+    last_event_at INTEGER,
+    PRIMARY KEY (agent_type, file_path)
+) WITHOUT ROWID;
+```
+
+- `byte_offset`: 上次解析到的字节位置;下次 watcher 触发时 seek 到此位置继续解析
+- `file_size`: 用于 truncation 检测(`current_size < offset` → 重置 offset 为 0,全文件重扫;FNV-1a dedup 兜底)
+- WITHOUT ROWID: 主键即天然 key,省 4-8 bytes/row
+
+#### 4.6.2 notify-debouncer-full 监听
+
+```rust
+// services/incremental_import.rs (~430 行)
+let mut debouncer = new_debouncer(
+    Duration::from_millis(300),  // debounce window (一行的多次 Modify 事件合并)
+    None,                        // tick_rate = auto = timeout/4 = 75ms
+    move |result: DebounceEventResult| {
+        // 解析 JSONL 增量 → record_usage → upsert_cursor
+        // → emit "token_usage_tick" event
+    },
+)?;
+for path in watch_paths {
+    debouncer.watch(path, RecursiveMode::Recursive)?;  // ~/.claude/projects + ~/.codex/sessions
+}
+```
+
+Windows 后端 `ReadDirectoryChangesW`(notify 8.x 默认),无需配置。
+
+#### 4.6.3 30s 兜底轮询
+
+Windows `ReadDirectoryChangesW` 在 buffer overflow 时丢事件,所以后台线程每 30s 扫一次所有 cursor,跟 watcher 并行不冲突。
+
+#### 4.6.4 `token_usage_tick` 事件
+
+```rust
+pub const TOKEN_USAGE_TICK_EVENT: &str = "token_usage_tick";
+
+#[derive(Serialize)]
+pub struct TokenUsageTickPayload {
+    pub agent_type: String,
+    pub imported: u32,                  // 本次新增
+    pub skipped: u32,                   // FNV-1a 已存在
+    pub latest_at: Option<i64>,         // 最新一条 occurred_at
+    pub total_today_tokens: i64,       // 今日累计(V0.1 占位 = 0,前端 invalidate 兜底)
+    pub total_today_cost_usd: f64,
+}
+```
+
+**前端接入**:`webui/src/hooks/useUsageTick.ts` `listen("token_usage_tick")` → `invalidateQueries(["usage", "periods"])` → 1s 内 KPI / 热力图刷新。
+
+#### 4.6.5 `force_rescan_all` IPC (escape hatch)
+
+```rust
+#[tauri::command]
+pub async fn force_rescan_all(state) -> Result<ForceRescanResponse, AppError>
+```
+
+清空 `agent_file_cursor` 所有行,下次 watcher 触发 / 兜底轮询时所有已知 JSONL 文件从 byte 0 重新解析。FNV-1a dedup 保证已存在的 row 不会被重复插入。
+
+**何时调用**:价格表升级 / 怀疑数据遗漏 / Settings UI 加按钮触发。
+
 ---
 
 ## 5. 数据流图 (端到端)
@@ -958,20 +1035,24 @@ conn.execute(
 | [services/agent_parser.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/agent_parser.rs) | AgentParser trait + ParseStats | ~80 |
 | [services/agent_parser_claude_code.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/agent_parser_claude_code.rs) | Claude Code JSONL 解析 | ~320 |
 | [services/agent_parser_opencode.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/agent_parser_opencode.rs) | opencode.db 解析 | ~100 |
-| [services/auto_import.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/auto_import.rs) | 启动时自动扫描 + 导入 | ~230 |
+| [services/auto_import.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/auto_import.rs) | 启动时一次性扫描 (旧路径,留作兜底) | ~230 |
+| [services/incremental_import.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/incremental_import.rs) | notify watcher + 30s fallback + token_usage_tick emit (Bug #3 fix) | ~430 |
 | [commands/quota.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/commands/quota.rs) | fetch_quota + set_manual_quota (三阶段锁) | ~190 |
-| [commands/token_usage.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/commands/token_usage.rs) | record/list/summary/import IPC | ~530 |
-| [database.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/database.rs) | SQLite schema v4 + 5 张表 DDL | ~600 |
-| [types.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/types.rs) | QuotaSnapshot / TokenUsageRecord / PricingEntry / ... | ~280 |
+| [commands/token_usage.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/commands/token_usage.rs) | record/list/summary/periods/import/force_rescan IPC | ~660 |
+| [database.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/database.rs) | SQLite schema v6 + 8 张表 DDL + cursor CRUD | ~660 |
+| [types.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/types.rs) | QuotaSnapshot / TokenUsageRecord / PricingEntry / PeriodsSummary / ... | ~660 |
 | [data/pricing.json](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/data/pricing.json) | 静态价格表 (Top 50 模型) | ~500 |
 | [data/migrations/v3_to_v4.sql](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/data/migrations/v3_to_v4.sql) | token_usage 三张表 DDL | ~56 |
+| [data/migrations/v4_to_v5.sql](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/data/migrations/v4_to_v5.sql) | 删 prompt_tokens / completion_tokens 遗留列 | ~60 |
+| [data/migrations/v5_to_v6.sql](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/data/migrations/v5_to_v6.sql) | agent_file_cursor 表 (声明性;CREATE 在 setup_schema) | ~12 |
 
 ### 前端 (React/TS)
 
 | 文件 | 角色 |
 |---|---|
 | [hooks/useQuota.ts](file:///e:/Desktop/workspace/keypilot-dev/webui/src/hooks/useQuota.ts) | TanStack Query 包 fetch_quota |
-| [hooks/useUsage.ts](file:///e:/Desktop/workspace/keypilot-dev/webui/src/hooks/useUsage.ts) | TanStack Query 包 usage summary/list |
+| [hooks/useUsage.ts](file:///e:/Desktop/workspace/keypilot-dev/webui/src/hooks/useUsage.ts) | TanStack Query 包 usage summary/list/periods |
+| [hooks/useUsageTick.ts](file:///e:/Desktop/workspace/keypilot-dev/webui/src/hooks/useUsageTick.ts) | listen `token_usage_tick` 事件 + invalidate queries (Bug #3 fix) |
 | [components/QuotaBadge.tsx](file:///e:/Desktop/workspace/keypilot-dev/webui/src/components/QuotaBadge.tsx) | 额度徽章 (green/amber/red/ruby) |
 | [components/ManualQuotaModal.tsx](file:///e:/Desktop/workspace/keypilot-dev/webui/src/components/ManualQuotaModal.tsx) | Anthropic 手动输入弹窗 |
 | [components/UsageDetailPanel.tsx](file:///e:/Desktop/workspace/keypilot-dev/webui/src/components/UsageDetailPanel.tsx) | 5 维成本展开 |

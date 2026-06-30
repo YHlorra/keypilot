@@ -177,5 +177,23 @@ pub fn actions() -> Vec<ActionDef> {
                 }
             }),
         },
+        ActionDef {
+            id: "token_usage.force_rescan_all".into(),
+            name: "Force Rescan All Agents".into(),
+            description: "Reset all per-file cursor offsets so the next scan re-ingests every known JSONL file from byte 0. FNV-1a dedup makes this safe — already-stored rows are silently skipped. Use when token totals look wrong or after upgrading pricing.json.".into(),
+            category: "token_usage".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+            output_schema: json!({
+                "type": "object",
+                "properties": {
+                    "cursors_reset": { "type": "integer", "description": "Number of cursor rows deleted" },
+                    "total_records": { "type": "integer", "description": "Current total token_usage_records count" }
+                }
+            }),
+        },
     ]
 }

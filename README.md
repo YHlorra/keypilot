@@ -10,6 +10,8 @@
 - **CopyButton 3-state**: visible → masked → revealed
 - **Detail + Tray Quota**: Single quota_cache data source, 5-min staleTime
 - **Plaintext Storage**: V0.1 不加密 (明文 SQLite + Windows ACL)
+- **Token Usage History**: OpenCode / Claude Code / Codex sessions 自动解析,`agent_file_cursor` 增量追踪 + notify-debouncer-full 实时推送 `token_usage_tick` 事件
+- **Usage Page**: 三周期 PeriodsSummary(today/month/all_time)+ 26 周热力图 + 趋势折线 + agent 配对排行
 
 ## Tech Stack
 
@@ -90,18 +92,20 @@ keypilot-dev/
 ├── src-tauri/           # Rust backend (Tauri 2)
 │   └── src/
 │       ├── main.rs      # Entry point
-│       ├── lib.rs       # App setup + IPC handlers
-│       ├── database.rs  # SQLite schema v3 + preset seed
+│       ├── lib.rs       # App setup + IPC handlers + watcher spawn
+│       ├── database.rs  # SQLite schema v6 (8 tables) + cursor CRUD
 │       ├── provider/    # 5 preset adapters
-│       ├── commands/    # IPC command handlers
+│       ├── services/    # Token usage + agent parsers + incremental_import (file watcher)
+│       ├── commands/    # IPC command handlers (incl. force_rescan_all)
 │       └── tray.rs      # System tray integration
 ├── webui/               # React frontend
 │   └── src/
-│       ├── components/  # UI components
-│       ├── hooks/       # TanStack Query hooks
-│       └── lib/api.ts   # Tauri IPC invoke wrappers
-└── docs/
+│       ├── components/  # UI components (incl. UsageHeatmapCalendar, UsageKpiCards, UsageTimeSeries)
+    │       ├── hooks/       # TanStack Query hooks + useUsageTick (real-time event listener)
+    │       └── lib/api.ts   # Tauri IPC invoke wrappers
+    └── docs/
     ├── screenshots/    # App screenshots
+    ├── quota-token-reference.md  # Quota + token usage 架构 / schema / IPC 参考
     └── v0.1-acceptance.md  # Acceptance checklist
 ```
 

@@ -238,3 +238,66 @@ Claude parser was written against a hypothesized schema (`{agent, model, timesta
 ---
 
 <!-- 2026-06-27 之前的 session 记录由 git log 持有, 不在本文件重复 -->
+
+---
+
+## 2026-06-30
+
+**Session scope**: token-usage-history bug-fix batch (Bug #1 / #2 / #3 + 实时增量导入)
+**Files changed**: 12 改 + 3 新 — `src-tauri/src/commands/token_usage.rs` / `services/{token_usage,incremental_import}.rs`(新) / `database.rs` / `lib.rs` / `actions/{mod,token_usage}.rs` / `Cargo.toml`;`webui/src/{App,types,lib}.ts(x)` / `hooks/useUsageTick.ts`(新) / `tests/usage-page.spec.ts`;`src-tauri/data/migrations/v5_to_v6.sql`(新);`docs/{quota-token-reference,v0.1-acceptance}.md`;`AGENTS.md` + `CLAUDE.md`(同步);`README.md`;`session-handoff.md`
+
+### Bug #1(★★★)— `get_usage_periods_summary` IPC DTO 字段不匹配
+
+**Root cause**: Rust handler 直接返回 `crate::types::PeriodsSummary`,内部 `UsageSummary.total_cost` + `UsageSummaryAgentPair` 无 `token_breakdown` 字段;前端 `UsageKpiCards` / `UsageTimeSeries` / `UsageDetailPanel` / `AgentPairChart` 读 `total_cost_usd` / `token_breakdown` 全部 `undefined`。主链路 5 个 UI 组件受害。
+
+**Fix**: 新增 `PeriodsSummaryResponse` / `PeriodsTripletResponseIpc` / `PeriodWindowResponseIpc` / `PeriodWindowsPairResponseIpc` + 转换函数。复用现有 `UsageSummaryResponse`(已有 `total_cost_usd` + `token_breakdown`)。
+
+### Bug #2(★★★)— `list_usage_records` IPC 入参 + `PaginatedResponse` 命名
+
+**Root cause**: Tauri 2 严格按参数名匹配,Rust 签名 `req: ListUsageRecordsRequest` 需要 `{ req: {...} }`;前端发的是 flat `{ filter, page, per_page }` → 反序列化失败 → IPC 拒绝。另外 `PaginatedResponse.perPage` 是 camelCase 与 Rust `per_page` snake_case 不一致(契约注释自己警告过)。
+
+**Fix**: `webui/src/lib/api.ts` 包 `{ req: { filter, page, per_page } }`;`webui/src/types/api.ts` `perPage` → `per_page`。
+
+### Bug #3(★★★ 核心)— `scan_and_import_if_empty` 首次后 no-op + 数据流断裂
+
+**Root cause**: 函数 `if db_has_records(svc, 100) return empty`,首次成功后 DB 永久 > 100 行,后续启动不再扫描。本地 Claude Code / Codex 生成的 JSONL 永远进不来。
+
+**Fix**(本次 session 最大变更):
+- 新增 `agent_file_cursor` 表(schema v5→v6 迁移):`(agent_type, file_path, byte_offset, file_size, last_scan_at, last_event_at) PRIMARY KEY`
+- 新增 `src-tauri/src/services/incremental_import.rs`(~430 行):notify-debouncer-full watcher(300ms debounce)+ 30s 兜底轮询(Windows `ReadDirectoryChangesW` buffer overflow 兜底)+ 文件级 byte-cursor 增量解析 + truncation 检测(`current_size < offset` → 重置)
+- 新增 Tauri event `token_usage_tick` emit,前端 `webui/src/hooks/useUsageTick.ts` `listen()` → `invalidateQueries(["usage", "periods"])`,1s 内 KPI / 热力图刷新
+- 新增 `force_rescan_all` IPC + Action(`token_usage.force_rescan_all`),escape hatch:清空所有 cursor → 下次扫描全文件重扫,FNV-1a dedup 兜底
+- 新增前端 deps:`notify = "8"` + `notify-debouncer-full = "0.7"`(稳定版,0.8 是 rc)
+- 新增 TS 类型 `TokenUsageTickPayload` 在 `webui/src/types/api.ts`
+
+### 验证
+
+```
+Rust  cargo test --lib     → 117 passed; 0 failed (新增 cursor_roundtrip_via_db)
+Rust  cargo check          → 0 warning
+TS    pnpm tsc --noEmit    → 0 error
+```
+
+E2E(Playwright)需要 `pnpm tauri dev` 才能跑。`webui/tests/usage-page.spec.ts` mock 已重写对齐生产 IPC(`get_usage_periods_summary` + `force_rescan_all`)。
+
+### 手动烟测步骤
+
+```bash
+cd keypilot-dev
+pnpm tauri dev
+# 1. 主窗口 → Usage 页 → KPI 卡应显示真实 cost(不再是 0.00 USD)
+# 2. 打开另一个终端:
+#    echo '{"type":"assistant","message":{"model":"claude-test","usage":{"input_tokens":100,"output_tokens":50}},"timestamp":"'"$(date -Iseconds)"'","sessionId":"s1","uuid":"u1"}' >> ~/.claude/projects/test/session.jsonl
+#    → 主窗口 KPI 数字应在 1s 内刷新(force_rescan_all 兜底 30s 内)
+# 3. 在 Claude Code/Codex 里正常用 → JSONL 追加触发 watcher,前端实时更新
+```
+
+### Task 2 状态(待 Task 1 验证后)
+
+**不做**: 托盘 popover 动画(右小窗 + rAF 数字翻牌 + flash)— 等用户手动验证 Task 1 数据流正常 + 看到 KPI 卡 cost 不再是 0.00 → 再开。
+
+### 下一步
+
+- 等用户手动烟测 Task 1 数据流
+- 通过 → 开 Task 2(popover 动画)
+- 不通过 → 先补 Task 1 bug,再决定 Task 2

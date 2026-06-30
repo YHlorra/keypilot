@@ -4,6 +4,18 @@ use crate::error::AppError;
 use std::time::Duration;
 use crate::types::{TokenUsageRecord, DailyAgentModelUsage, DailyModelUsage};
 
+/// Per-file cursor row used by the incremental JSONL importer
+/// (services/incremental_import.rs).  See Bug #3 fix 2026-06-29.
+#[derive(Debug, Clone)]
+pub struct AgentFileCursor {
+    pub agent_type: String,
+    pub file_path: String,
+    pub byte_offset: i64,
+    pub file_size: i64,
+    pub last_scan_at: i64,
+    pub last_event_at: Option<i64>,
+}
+
 pub struct Database {
     pub conn: Connection,
 }
@@ -54,7 +66,7 @@ impl Database {
             [],
         )?;
         conn.execute(
-            "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '5')",
+            "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', '6')",
             [],
         )?;
         conn.execute(
@@ -234,6 +246,25 @@ impl Database {
             [],
         )?;
 
+        // agent_file_cursor (v6 schema -- Bug #3 fix 2026-06-29)
+        // Per-file byte-offset cursor for incremental JSONL append detection.
+        // notify-debouncer-full emits Modify events on .jsonl appends; we seek
+        // to `byte_offset` from the previous scan and parse only the new bytes.
+        // Truncation detected by `file_size < byte_offset` -> reset to 0.
+        // WITHOUT ROWID because (agent_type, file_path) is the natural PK.
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS agent_file_cursor (
+                agent_type    TEXT NOT NULL,
+                file_path     TEXT NOT NULL,
+                byte_offset   INTEGER NOT NULL DEFAULT 0,
+                file_size     INTEGER NOT NULL DEFAULT 0,
+                last_scan_at  INTEGER NOT NULL DEFAULT 0,
+                last_event_at INTEGER,
+                PRIMARY KEY (agent_type, file_path)
+            ) WITHOUT ROWID",
+            [],
+        )?;
+
         Ok(())
     }
 
@@ -255,6 +286,13 @@ impl Database {
             self.conn.execute_batch(sql)?;
             self.conn.execute(
                 "UPDATE meta SET value = '5' WHERE key = 'schema_version'",
+                [],
+            )?;
+        } else if current == "5" {
+            let sql = include_str!("../data/migrations/v5_to_v6.sql");
+            self.conn.execute_batch(sql)?;
+            self.conn.execute(
+                "UPDATE meta SET value = '6' WHERE key = 'schema_version'",
                 [],
             )?;
         }
@@ -668,6 +706,105 @@ impl Database {
             })
         })?.collect::<Result<Vec<_>, _>>().map_err(AppError::Database)?;
         Ok(rows)
+    }
+
+    // ---------- agent_file_cursor CRUD (Bug #3 fix 2026-06-29) ----------
+
+    pub fn get_cursor(&self, agent_type: &str, file_path: &str) -> Result<Option<AgentFileCursor>, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent_type, file_path, byte_offset, file_size, last_scan_at, last_event_at
+             FROM agent_file_cursor WHERE agent_type = ?1 AND file_path = ?2",
+        ).map_err(AppError::Database)?;
+        let mut rows = stmt.query_map(rusqlite::params![agent_type, file_path], |row| {
+            Ok(AgentFileCursor {
+                agent_type: row.get(0)?,
+                file_path: row.get(1)?,
+                byte_offset: row.get(2)?,
+                file_size: row.get(3)?,
+                last_scan_at: row.get(4)?,
+                last_event_at: row.get(5)?,
+            })
+        }).map_err(AppError::Database)?;
+        match rows.next() {
+            Some(r) => Ok(Some(r.map_err(AppError::Database)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Upsert cursor.  Called after a successful incremental parse so a crash
+    /// mid-scan re-processes the same bytes next time (idempotent via FNV-1a).
+    pub fn upsert_cursor(&self, c: &AgentFileCursor) -> Result<(), AppError> {
+        self.conn.execute(
+            "INSERT INTO agent_file_cursor
+                (agent_type, file_path, byte_offset, file_size, last_scan_at, last_event_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(agent_type, file_path) DO UPDATE SET
+                byte_offset = excluded.byte_offset,
+                file_size = excluded.file_size,
+                last_scan_at = excluded.last_scan_at,
+                last_event_at = excluded.last_event_at",
+            rusqlite::params![
+                c.agent_type, c.file_path, c.byte_offset, c.file_size,
+                c.last_scan_at, c.last_event_at
+            ],
+        ).map_err(AppError::Database)?;
+        Ok(())
+    }
+
+    pub fn list_all_cursors(&self) -> Result<Vec<AgentFileCursor>, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent_type, file_path, byte_offset, file_size, last_scan_at, last_event_at
+             FROM agent_file_cursor",
+        ).map_err(AppError::Database)?;
+        let rows = stmt.query_map([], |row| {
+            Ok(AgentFileCursor {
+                agent_type: row.get(0)?,
+                file_path: row.get(1)?,
+                byte_offset: row.get(2)?,
+                file_size: row.get(3)?,
+                last_scan_at: row.get(4)?,
+                last_event_at: row.get(5)?,
+            })
+        }).map_err(AppError::Database)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(AppError::Database)?;
+        Ok(rows)
+    }
+
+    pub fn list_cursors_for_agent(&self, agent_type: &str) -> Result<Vec<AgentFileCursor>, AppError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent_type, file_path, byte_offset, file_size, last_scan_at, last_event_at
+             FROM agent_file_cursor WHERE agent_type = ?1",
+        ).map_err(AppError::Database)?;
+        let rows = stmt.query_map([agent_type], |row| {
+            Ok(AgentFileCursor {
+                agent_type: row.get(0)?,
+                file_path: row.get(1)?,
+                byte_offset: row.get(2)?,
+                file_size: row.get(3)?,
+                last_scan_at: row.get(4)?,
+                last_event_at: row.get(5)?,
+            })
+        }).map_err(AppError::Database)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(AppError::Database)?;
+        Ok(rows)
+    }
+
+    pub fn delete_cursor(&self, agent_type: &str, file_path: &str) -> Result<(), AppError> {
+        self.conn.execute(
+            "DELETE FROM agent_file_cursor WHERE agent_type = ?1 AND file_path = ?2",
+            rusqlite::params![agent_type, file_path],
+        ).map_err(AppError::Database)?;
+        Ok(())
+    }
+
+    /// Delete all cursors.  Used by `force_rescan_all` to wipe incremental
+    /// state so the next scan re-parses every known JSONL from byte 0.
+    pub fn delete_all_cursors(&self) -> Result<usize, AppError> {
+        let n = self.conn.execute("DELETE FROM agent_file_cursor", [])
+            .map_err(AppError::Database)?;
+        Ok(n)
     }
 }
 
