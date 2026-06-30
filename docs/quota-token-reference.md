@@ -483,7 +483,7 @@ total_cost = (input_price    × input_tokens
 | `import_csv` | content | ImportResult | 批量导入 CSV |
 | `import_opencode_db` | db_path | ImportResult | 从 opencode.db 导入 |
 | `refresh_daily_rollups` | date | () | 重算某天的日汇总 |
-| `count_records` | — | u64 | 检查是否已有数据 (>100 跳过自动导入) |
+| `count_records` | — | u64 | token_usage_records 行数(stage-13.2 后不再用于 auto-import gate,保留用于 stats / debug) |
 | `recompute_costs` | from_epoch + to_epoch | RecomputeResult | 批量重算成本 + 联动 daily rollups |
 
 #### `record_usage` 完整流程
@@ -662,15 +662,13 @@ pub fn refresh_daily_rollups(&self, date: &str) -> Result<(), AppError> {
 完整代码: [services/auto_import.rs](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/auto_import.rs)
 
 ```rust
+// stage-13.2 (2026-06-30): gate removed — see §4.4.1 below
 pub fn scan_and_import_if_empty(svc: &TokenUsageService) -> AutoImportSummary {
-    if db_has_records(svc, 100) {
-        return AutoImportSummary::empty();   // 已有数据,跳过
-    }
     scan_and_import(svc)
 }
 
 pub fn scan_and_import(svc: &TokenUsageService) -> AutoImportSummary {
-    let parsers = default_parsers();  // [OpencodeParser, ClaudeCodeParser]
+    let parsers = default_parsers();  // [OpencodeParser, ClaudeCodeParser, CodexParser]
     for parser in parsers {
         if !parser.is_available() { continue; }
         let outcome = parser.parse()?;     // 返回 (records, ParseStats)
@@ -726,8 +724,63 @@ pub fn default_parsers() -> Vec<Box<dyn AgentParser>> {
 ```
 
 **已有实现**:
-- [OpencodeParser](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/agent_parser_opencode.rs): 读 `opencode.db` SQLite (`session` 表)
+- [OpencodeParser](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/agent_parser_opencode.rs): 读 `opencode.db` SQLite (`session` 表) — 多候选路径 + JSON `model` 字段解包,详见 §4.5.1
 - [ClaudeCodeParser](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/agent_parser_claude_code.rs): walk `~/.claude/projects/**/*.jsonl`,只解析 `type:"assistant"` 行的 `message.usage`
+
+#### 4.4.1 Auto-import gate 演进 (stage-13.2 拆 100-row 阈值)
+
+**历史**:`scan_and_import_if_empty` 在 stage-f 引入时带 `if db_has_records(svc, 100) return empty` 阈值,意图"DB 已满就 skip 避免重扫"。**这个 gate 在 2026-06-30 被拆**,因为它是 **按总行数** 而非 **按 agent_type** 算的:
+
+- 用户 3763 行 `claude` OAuth 凭据(来自 `claude_oauth.rs` quota 源)→ 永久挡门
+- opencode parser 永远轮不到,即使 `OpencodeParser` 把 5.95GB db 解析得对(`is_available()==true`,但 `scan_and_import` 不被调)
+- 用户报"opencode 数据仍然没有加入"实际根因 = 这个 gate(不是 path 错)
+
+**修复后行为**:
+- `scan_and_import_if_empty` 直接调 `scan_and_import`,FNV-1a dedup(`token_usage.rs:39` deterministic_id 包含 `agent_type` 等 6 字段)兜底重复插入
+- 1.3k opencode 行 ≈ 10ms,5.95GB SQLite 单次全扫成本可接受
+- 涨到 100k+ 行时,需 per-agent-type `max(time_created)` cursor 加速(stage-future 工作)
+
+**Ponytail 决策**:
+- `db_has_records` 标 `#[allow(dead_code)]` 保留(可能未来 per-agent-type gate 复用),不删
+- 不引入"settings toggle to disable auto-import per-agent"(YAGNI — 用户没要求)
+- `force_rescan_all` 仍保留(JSONL cursor escape hatch),但 opencode SQLite 不走 cursor(全文件读 + dedup 天然 idempotent)
+
+#### 4.5.1 `OpencodeParser` 详解 (stage-f 引入,stage-13.2 修)
+
+**多候选路径发现** (对齐 token-monitor `discoverDbPaths`):
+
+```rust
+pub(crate) fn candidate_paths() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(p) = std::env::var("LOCALAPPDATA") {
+        dirs.push(PathBuf::from(p).join("opencode"));
+    }
+    if let Some(home) = dirs::home_dir() {
+        dirs.push(home.join(".local/share/opencode"));
+    }
+    // ... read_dir + glob "opencode*.db" (accepts "opencode.db" + "opencode-<channel>.db")
+}
+```
+
+opencode Go CLI v1.17+ 在 Windows 也用 XDG 路径 (`~/.local/share/opencode/`,因 `HOME` 解析),所以两个候选都扫。WAL/SHM 边文件 (`opencode.db-wal` / `opencode.db-shm`) 被 `ends_with(".db")` 过滤掉。
+
+抽 `filter_db_files(base_dir)` 为纯函数(env-independent test)以避开 `dirs::home_dir()` 在 Windows 上走 `SHGetKnownFolderPath` 不读 `HOME` env 的问题。
+
+**JSON `model` 字段解包**:
+
+opencode Go v1.17+ 把 `session.model` 存为 JSON 字符串:
+
+```json
+{"id":"kimi-k2.7-code","providerID":"opencode-go","variant":"max"}
+```
+
+而不是早期版本的 `vendor/model` slash 字符串。`parse_opencode_db_records` 优先按 JSON 解析,提取 `providerID` + `id`;legacy slash 仍兼容;`model = NULL` 时 fallback 到 `("opencode", "unknown")`。
+
+**`is_available()` 与 `parse()`**:
+
+`is_available()` 走 `candidates.iter().any(|p| p.exists())` — 任一候选存在即 true。`parse()` 遍历所有 candidate,partial parse 失败 (`schema drift on a single channel`) 进 `stats.sample_errors` 不 abort 整批。
+
+**`opencode_go_limits::discover_db_paths`** 与上面是相同 5 行扫描逻辑(stage-13.2 一并改),不复用 — 2 个 caller,ponytail 倾向复制不抽。
 
 **ClaudeCodeParser 关键逻辑** ([agent_parser_claude_code.rs L159-235](file:///e:/Desktop/workspace/keypilot-dev/src-tauri/src/services/agent_parser_claude_code.rs#L159-L235)):
 
@@ -757,7 +810,7 @@ fn parse_assistant(v: &Value, ...) -> Option<UsageRecordInput> {
 
 ### 4.6 实时增量导入 — `agent_file_cursor` + notify-debouncer-full (schema v6 新增)
 
-**问题**:`scan_and_import_if_empty` 是"一次性扫描 + DB > 100 行后 no-op",Claude Code / Codex 用户每条新会话都进不来,体感"链断了"。
+**问题**:Claude Code / Codex 用户每条新会话都进不来,体感"链断了"。`scan_and_import_if_empty` 是 startup 一次性扫描,无法持续拉新行(stage-13.2 进一步拆了"DB > 100 行就 skip" 的反向 gate,见 §4.4.1)。
 
 **方案**:替换为 **文件级 byte-cursor + notify watcher + 实时 emit**。
 
@@ -873,9 +926,9 @@ commands::quota::fetch_quota_by_state(state, id)
          ▼
 scan_and_import_if_empty(svc)
          │
-         ├─ svc.count_records() > 100? → 跳过
-         │
-         └─ scan_and_import(svc):
+         │  (stage-13.2: gate removed, always runs)
+         ▼
+scan_and_import(svc):
               │
               ├─ OpencodeParser.parse()
               │     └─ parse_opencode_db_records(db_path) → Vec<UsageRecordInput>

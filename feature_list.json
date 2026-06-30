@@ -590,6 +590,32 @@
       "assignee": "designer+fixer+oracle",
       "notes": "Deepwork workflow: Phase 0 plan drafted with 5 lanes → Phase 0 oracle review (APPROVE WITH CHANGES, reconciled to 4 lanes) → Phase 1 parallel implementation (L1 designer chart, L2 fixer KPI+page, L3 fixer sidebar+format, L4 fixer test) → Phase 2 reconciliation (L3 left StatCard unit gap, dispatched L5 fixup) → Phase 5 validation (tsc+build+cargo+playwright all green) → Phase 3 oracle visual review (8 actionable issues, dispatched L6 fixup) → Phase 6 documentation sync.\n\nKey design decisions:\n  - formatTokens: 1-decimal abbrev (K/M/B), not locale-string; matches existing AgentPairChart signature\n  - formatNumber: locale-string separator for ≥1k, no decimals; dropped dead 1B branch\n  - KPI units: 'requests' (matches total_requests field semantics); sidebar Period/All-time/Peak day also 'requests' (same field); Active days = 'days' (different field)\n  - Top agents: model-as-primary, agent_type-as-secondary — chosen because single-agent users have constant agent_type\n  - Chart: pixel-coordinate SVG (no viewBox) + ResizeObserver + 'nice' tick + straight polyline + Kaku tokens\n  - D1.c: pure-number subLabels. Cost visibility lost in KPI cards; sidebar Period card was supposed to carry it but kept request count for consistency (cost display in sidebar deferred to future stage)\n\nOut of scope (deferred):\n  - QuotaBadge.tsx:21 + TrayHoverCard.tsx:29 own format impl (future 'format-number-debt' stage)\n  - Sidebar Period card cost sublabel (future stage)\n  - Tool × Model breakdown table (Task 10)\n  - Tray popover animation (Task 2, blocked behind user smoke test)\n  - Design system overhaul\n\nPlan + review trail: .slim/deepwork/stage-13-1-usage-page-fix.md",
       "openspec_ref": null
+    },
+    {
+      "id": "stage-13.2",
+      "name": "opencode 数据导入 3-bug fix batch (path / gate / JSON model)",
+      "description": "用户报 'opencode 数据仍然没有加入',根因 3 个串联 bug 一次修:\n  - Bug A: OpencodeParser::default_path() 硬编码 %LOCALAPPDATA%,opencode Go CLI v1.17+ 实际用 XDG 路径 ~/.local/share/opencode/\n  - Bug B (实际 blocker): scan_and_import_if_empty 100-row 阈值闸 — 3763 行 claude OAuth 凭据永久挡门,opencode parser 永远轮不到\n  - Bug C: opencode Go 把 session.model 存为 JSON '{\"id\":...,\"providerID\":...,\"variant\":...}' 不是 slash 字符串,parser 之前当 string 存导致 UI 显示整段 JSON\n\nopencode_go_limits.rs 同样修(Bug A 同 root cause — 共享 cfg! windows 分支的 Windows 错假设)。",
+      "files": [
+        "src-tauri/src/services/agent_parser_opencode.rs",
+        "src-tauri/src/services/opencode_go_limits.rs",
+        "src-tauri/src/services/auto_import.rs",
+        "src-tauri/src/services/token_usage.rs",
+        "feature_list.json",
+        "progress.md",
+        "session-handoff.md",
+        "docs/quota-token-reference.md"
+      ],
+      "depends_on": [
+        "stage-f",
+        "stage-g"
+      ],
+      "status": "done",
+      "evidence": "cargo check --lib: 0 errors\ncargo test --lib: 129/129 PASS (5 new: filter_db_files_matches_opencode_db, filter_db_files_matches_channel_db, filter_db_files_excludes_wal_and_shm, filter_db_files_ignores_non_opencode_dbs, filter_db_files_returns_empty_on_missing_dir, scan_and_import_if_empty_runs_when_db_already_populated, import_opencode_db_unwraps_json_model, import_opencode_db_handles_invalid_json_model — net +5 after removing 3 env-dependent candidate_paths_* tests)\npnpm tsc --noEmit: 0 errors\n\nE2E (cargo tauri dev):\n  - keypilot.db: 18853 claude + 1166 opencode = 20019 total rows (was 3763 claude + 0 opencode)\n  - last_auto_import meta: 15091 imported / 5569 skipped / 0 errors (含 1 + 1164 dedup 碰撞 — FNV-1a 行为正常)\n  - opencode (model, provider) 分布: MiniMax-M2.7 / minimax-cn-coding-plan × 539; MiniMax-M3 × 321; unknown × 216 (model 字段 null); deepseek-v4-flash-free / opencode × 47; kimi-k2.7-code / opencode-go × 1 (确认 JSON 解包工作)\n\nHard constraints: 0 encryption crates (grep empty), 0 fs::write outside APPDATA whitelist (新代码只走 Connection::open_with_flags READ ONLY), schema v6 不动 (8 张表全保), 0 new IPC commands, 0 webui 改动",
+      "started_at": "2026-06-30",
+      "ended_at": "2026-06-30",
+      "assignee": "fixer+orchestrator",
+      "notes": "3 个 bug 实际是同一个症状的不同层。Bug A (路径错) 用户最先观察到 'opencode 数据没进来',但根因是 Bug B (gate 阻塞)。如果只修 A 而不动 B,3763 claude 凭据的环境下 opencode 仍然 0 行。如果只修 B 不动 A,新装环境(用户实机)还是 0 行 — 因为 ~/.local/share/opencode 不在 candidate 里。两个都修才彻底。Bug C 是 quality of life,不影响行数但影响 UI 显示。\n\nPonytail 决策:\n  - 'agent_type' 已在 deterministic_id (token_usage.rs:39) 字段里,FNV-1a dedup 天然处理跨 agent_type 碰撞,不需要新加 dedup 层\n  - 'candidate_paths' 和 'opencode_go_limits::discover_db_paths' 复制 5 行扫描逻辑而非抽公共函数 — 2 个 caller,ponytail 倾向复制不抽\n  - 'db_has_records' 标 #[allow(dead_code)] 保留(可能未来 per-agent-type gate 复用),不删\n  - 'incremental_import.rs:487' 已注释 SQLite 不走 byte-stream watcher (全文件读);5.95GB 1.3k 行 ≈ 10ms 暂不优化,但涨到 100k+ 时需 per-agent-type max(time_created) cursor\n\nOut of scope (deferred):\n  - pricing.json 补 6 个 opencode model (MiniMax-M2.7 / M3 / kimi-k2.7-code / step-3.7-flash / mimo-v2.5-pro / deepseek-v4-flash-free) — cost 显示需要\n  - claude-code::derive_provider 加 kimi- prefix — provider 字段从 'unknown' 改 'moonshot'\n  - scan_and_import 5.95GB 全文件读 — 等 100k+ 行再加 cursor",
+      "openspec_ref": null
     }
   ]
 }
