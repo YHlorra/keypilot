@@ -126,12 +126,17 @@ test('UsagePage layout + data', async ({ page }) => {
   const todayNum = parseInt(todayMatch![0].replace(/,/g, ''), 10);
   expect(todayNum).toBeGreaterThan(0);
 
-  // Regression guard: Bug #1 — `total_cost_usd` field must render in KPI sublabels.
-  // Before the fix the wire format was `total_cost` (undefined on TS side)
-  // so every "0.00 USD" was visible.  Assert a real dollar amount shows up.
+  // Regression guard: Bug #1 -- `total_requests` field must render in KPI.
+  // D1.c moved USD display off the KPI cards (cost lives in sidebar Period card
+  // in a future stage). Here we assert the `requests` unit appears AND a real
+  // non-zero count is visible.
   const monthCard = page.locator('text=This Month').first().locator('..');
   const monthCardText = await monthCard.textContent();
-  expect(monthCardText).toMatch(/\d+\.\d{2}\s*USD/, 'This Month KPI shows a real USD cost (not 0.00)');
+  expect(monthCardText).toMatch(/\d[\d,]*\s*requests/, 'This Month KPI shows request count with "requests" unit');
+  const monthNumMatch = monthCardText?.match(/([\d,]+)\s*requests/);
+  expect(monthNumMatch).toBeTruthy();
+  const monthNum = parseInt(monthNumMatch![1].replace(/,/g, ''), 10);
+  expect(monthNum).toBeGreaterThan(0);
 
   // Regression guard: Bug #3 — `force_rescan_all` IPC reachable, returns the
   // expected shape.  Asserting on a direct invoke catches payload contract

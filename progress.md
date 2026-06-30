@@ -5,6 +5,90 @@
 
 <!-- 2026-06-28 -->
 
+## 2026-06-30 (deepwork — stage-13.1)
+
+**Session scope**: Stage-13.1 UsagePage dashboard UX fix batch (4 bugs from screenshot)
+**Files changed**: 6 改 + 1 新 — `webui/src/components/UsageTimeSeries.tsx`(designer rebuild) / `UsageKpiCards.tsx` / `UsageStatsSidebar.tsx` / `AgentPairChart.tsx` / `pages/UsagePage.tsx` / `tests/usage-page.spec.ts`(line 134);`webui/src/lib/format.ts`(新);`tests/__screenshots__/usage-page.png`(Playwright baseline 重生成);`feature_list.json` / `progress.md` / `session-handoff.md`;`.slim/deepwork/stage-13-1-usage-page-fix.md`(新,deepwork 工作笔记)
+
+### Bug 1 — KPI 数字没单位
+
+`UsageKpiCards.tsx` 显示原始 `total_requests` 计数(`394` / `3,726` / `3,762`),无单位,用户大脑默认 "mock 数据"。
+
+**Fix**:
+- `KpiCardProps.unit?: string` 新增
+- value span 改 `flex items-baseline gap-1`,主数字 + muted 单位
+- 3 张卡片 `unit="requests"`(对应 `total_requests` 字段语义)
+- D1.c: subLabel 纯数字 — `6/30` / `30 days` / `180 days`,无 USD
+- `monthLabel` / `allTimeLabel` 由 `UsagePage` 派生,通过 props 传入(presentational 单向)
+
+### Bug 2 — 图表被挤压
+
+`UsageTimeSeries.tsx:239` 用 `viewBox="0 0 100 400"` + `preserveAspectRatio="none"`,导致 100 单位的 X 轴被强行拉伸到容器宽度,fontSize=7 文本变成 "麻花字",30 个 X 轴日期标签互相覆盖。
+
+**Fix**(designer @designer 重写,~420 → 362 行):
+- 像素坐标系 SVG(`<svg width={width} height={height}>`),无 viewBox
+- ResizeObserver 监听容器宽度,带 cleanup
+- "nice" tick 算法(1/2/5 × 10^n)Y 轴刻度
+- 边角案例:1-point series(单点 + area),all-zero(EmptyState),empty(EmptyState)
+- **不**用 Catmull-Rom(oracle veto: 对稀疏 daily 数据是 overkill),用直线折线
+- Tooltip 像素 clamp:`Math.min(hoveredX + 12, width - tooltipWidth - 8)`
+- Kaku token 全程,无内联 px 字体
+
+### Bug 3 — Top agents 全是 claude
+
+`UsageStatsSidebar.tsx:62` 显示 `pair.agent_type`,但用户只有 Claude Code 一个 agent → 4 行同前缀。
+
+**Fix**:
+- 改用 `pair.model` 作主标签(`claude-opus-4-7` 等真模型名),`pair.agent_type` 作 10px muted 副标签
+- 值渲染:`formatTokens(total_tokens)` + "tok" 后缀
+
+### Bug 4 — `claude 0` 出现
+
+`UsagePage.tsx:72-76` Top N 排序前无零值过滤。
+
+**Fix**:`.filter((p) => p.total_tokens > 0)` 加在 `.sort()` 前。
+
+### 边角清理(oracle 8 个 actionable issue,L6 fixup)
+
+- `formatTokens` 在 `UsageTimeSeries.tsx` 局部副本去重,改 import `@/lib/format`
+- O(n²) `indexOf` in `.map` 改为 captured index
+- Falsy 检查 `input_tokens` 改为 `!= null`(原代码 `input_tokens === 0` 会被当 falsy 跳过 stacked breakdown 显示)
+- Y 轴 for-loop 死防御 `if (value > maxValue * 1.5) break` 删除
+- Reasoning tokens 颜色 `var(--color-muted)` → `var(--color-accent)`(dark theme CR 4.7:1)
+- 死代码:sidebar `useEffect` 仅 console.log,删除
+- Kaku 字体:`text-[10px]` → `text-[var(--font-size-2xs)]`
+
+### 验证
+
+```
+pnpm tsc --noEmit            → 0 errors
+pnpm build                   → 398.44 KB JS / 27.51 KB CSS (built 3.12s)
+cargo check                  → PASS (4.48s,无 Rust 改动)
+npx playwright test          → 1/1 PASS (4.4s,baseline 重生成)
+```
+
+视觉确认(playwright 截图):
+- KPI 卡:`161,887 requests` + `6/30` / `61 days` / `61 days`
+- Trend 图:`0 / 2.0M / 4.0M / 6.0M tokens`,X 轴 `06-01 ... 06-30` 清晰可读
+- Top agents:`MiniMax-M2.7 / opencode 4.5M tok` + `claude-opus-4-7 / claude-code 2.3M tok`
+- Sidebar:All-time / Period / Peak day `requests` + Active days `days`
+
+### Deepwork 流程反思
+
+- **Plan → Oracle review → Parallel lanes → Reconcile → Oracle phase review → Fix actionable → Docs**:每一步都有 oracle 校准,避免轨道偏离
+- **L3 partial completion**:第一次派工 L3 只完成了 Top agents 切换 + 落 `lib/format.ts`,**漏了 StatCardProps 加 `unit` 字段** — 这是 oracle 警告过的"StatCard 未触"。L5 fixup 闭合
+- **L6 oracle-review fixup**:oracle 8 个 actionable issue 全是"dedup dead code / 修小 bug",无架构问题,证明 Phase 1 implementation 本身是稳的
+- **Test fixture 同源**:Playwright mock 让 today/month/all_time 都用同一 sampleSummary,KPI 三张卡都显示 `161,887`。生产数据下三段会不同 — 这次 bug 与 fixture 无关
+- **不再补的小事**:`QuotaBadge.tsx:21` / `TrayHoverCard.tsx:29` 各自的 format 实现 → 留给未来 `format-number-debt` stage
+
+### 下一步
+
+- ~~Task 2 托盘 popover 动画~~ — 仍 blocked,等用户烟测 Task 1 数据流(本次没改 watcher,只是前端 UX)
+- 用户手动烟测:`pnpm tauri dev` → Usage 页 KPI 卡显示真实 cost 数(本 stage 没动 cost 显示,但请求数现在清晰)
+- V0.2 RFC 评估(加密 / Mac port / i18n)优先级由用户排
+
+---
+
 ## 2026-06-28 (session 2)
 
 **Session scope**: stage-e — UsagePage audit-driven alignment fixes (3 contract bugs)

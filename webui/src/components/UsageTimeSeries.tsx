@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { formatTokens } from "@/lib/format";
 
 // DailySeriesPoint -- extended with optional breakdown fields for stacked mode
 export interface DailySeriesPoint {
@@ -19,12 +20,15 @@ export interface UsageTimeSeriesProps {
   isLoading?: boolean;
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
-  return String(n);
-}
+// ---------------------------------------------------------------------------
+// Layout constants (px — layout, not typography)
+// ---------------------------------------------------------------------------
+const PADDING = { top: 24, right: 24, bottom: 56, left: 64 };
+const HEIGHT = 320;
 
+// ---------------------------------------------------------------------------
+// Date formatter
+// ---------------------------------------------------------------------------
 function formatDate(dateStr: string, range: UsageTimeSeriesProps["range"]): string {
   const [, month, day] = dateStr.split("-");
   if (range === "7d" || range === "30d") {
@@ -33,43 +37,34 @@ function formatDate(dateStr: string, range: UsageTimeSeriesProps["range"]): stri
   return `${month}/${day}`;
 }
 
-function getXTickDensity(range: UsageTimeSeriesProps["range"], dataLength: number): number {
-  switch (range) {
-    case "7d":
-      return 1; // every day
-    case "30d":
-      return Math.ceil(dataLength / 10); // ~every 2-3 days
-    case "90d":
-      return 7; // weekly
-    case "all":
-      return 14; // bi-weekly
-  }
+// ---------------------------------------------------------------------------
+// "Nice" tick algorithm: round rawStep to 1/2/5 × 10^n
+// ---------------------------------------------------------------------------
+function niceStep(rawStep: number): number {
+  if (rawStep <= 0) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const normalized = rawStep / magnitude;
+  let nice: number;
+  if (normalized <= 1) nice = 1;
+  else if (normalized <= 2.5) nice = 2;
+  else if (normalized <= 5) nice = 5;
+  else nice = 10;
+  return nice * magnitude;
 }
 
+// ---------------------------------------------------------------------------
 // Skeleton loading placeholder
+// ---------------------------------------------------------------------------
 function SkeletonChart({ height }: { height: number }) {
-  const rects = Array.from({ length: 5 }, (_, i) => ({
-    x: 40 + i * ((100 - 80) / 4),
-    y: 30 + Math.sin(i * 1.5) * 20,
-    width: 8,
-    height: 40 + Math.cos(i * 2) * 20,
-  }));
-
   return (
-    <svg
-      width="100%"
-      height={height}
-      viewBox={`0 0 100 ${height}`}
-      preserveAspectRatio="none"
-      className="text-muted"
-    >
-      {rects.map((r, i) => (
+    <svg width="100%" height={height} className="text-muted">
+      {Array.from({ length: 12 }, (_, i) => (
         <rect
           key={i}
-          x={r.x}
-          y={r.y}
-          width={r.width}
-          height={r.height}
+          x={PADDING.left + i * ((100 - PADDING.left - PADDING.right) / 12)}
+          y={PADDING.top + Math.sin(i * 1.5) * 20}
+          width={6}
+          height={40 + Math.cos(i * 2) * 20}
           fill="currentColor"
           opacity={0.2}
           className="animate-pulse"
@@ -79,7 +74,9 @@ function SkeletonChart({ height }: { height: number }) {
   );
 }
 
+// ---------------------------------------------------------------------------
 // Empty state
+// ---------------------------------------------------------------------------
 function EmptyState({ height }: { height: number }) {
   return (
     <div
@@ -91,21 +88,41 @@ function EmptyState({ height }: { height: number }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 export function UsageTimeSeries({
   dailySeries,
   stacked = false,
   range,
   isLoading = false,
 }: UsageTimeSeriesProps) {
+  // ResizeObserver tracks container width in pixels
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(800); // SSR fallback
+
+  useEffect(() => {
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setWidth(entry.contentRect.width);
+      }
+    });
+    if (containerRef.current) {
+      ro.observe(containerRef.current);
+    }
+    return () => ro.disconnect();
+  }, []);
+
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
-  const PADDING = { top: 20, right: 20, bottom: 60, left: 60 };
-  const DEFAULT_HEIGHT = 400;
-  const innerWidth = 100 - PADDING.left - PADDING.right;
-  const innerHeight = DEFAULT_HEIGHT - PADDING.top - PADDING.bottom;
+  // Derived dimensions
+  const innerWidth = width - PADDING.left - PADDING.right;
+  const innerHeight = HEIGHT - PADDING.top - PADDING.bottom;
 
+  // ---------------------------------------------------------------------------
   // Compute scales and paths
+  // ---------------------------------------------------------------------------
   const { xScale, yScale, maxValue, linePath, areaPath, stackedLayers } = useMemo(() => {
     if (dailySeries.length === 0) {
       return {
@@ -122,12 +139,14 @@ export function UsageTimeSeries({
     const minVal = 0;
     const rangeVal = maxVal - minVal || 1;
 
-    const xs = dailySeries.map((_, i) => PADDING.left + (i / Math.max(dailySeries.length - 1, 1)) * innerWidth);
+    const xs = dailySeries.map(
+      (_, i) => PADDING.left + (i / Math.max(dailySeries.length - 1, 1)) * innerWidth
+    );
     const ys = dailySeries.map(
       (d) => PADDING.top + innerHeight - ((d.total_tokens - minVal) / rangeVal) * innerHeight
     );
 
-    // Build line path
+    // Build line path (straight polyline — no Catmull-Rom)
     const linePoints = xs.map((x, i) => `${x},${ys[i]}`).join(" L ");
     const line = `M ${linePoints}`;
 
@@ -141,10 +160,9 @@ export function UsageTimeSeries({
         { key: "input_tokens", color: "var(--color-primary)" },
         { key: "output_tokens", color: "var(--color-success)" },
         { key: "cache_read_tokens", color: "var(--color-link)" },
-        { key: "reasoning_tokens", color: "var(--color-muted)" },
+        { key: "reasoning_tokens", color: "var(--color-accent)" },
       ];
 
-      // For stacked, we stack from bottom (y = PADDING.top + innerHeight) upward
       const bottomY = PADDING.top + innerHeight;
       const stackedYs: number[][] = tokenTypes.map(() =>
         dailySeries.map(() => bottomY)
@@ -153,7 +171,10 @@ export function UsageTimeSeries({
       tokenTypes.forEach(({ key }, layerIdx) => {
         dailySeries.forEach((d, i) => {
           const val = (d[key] as number) ?? 0;
-          const prevTotal = stackedYs.slice(0, layerIdx).reduce((sum: number, layer: number[]) => sum + (layer[i] as number), 0);
+          const prevTotal = stackedYs.slice(0, layerIdx).reduce(
+            (sum: number, layer: number[]) => sum + (layer[i] as number),
+            0
+          );
           stackedYs[layerIdx][i] = bottomY - ((prevTotal + val) / maxVal) * innerHeight;
         });
 
@@ -173,51 +194,68 @@ export function UsageTimeSeries({
     };
   }, [dailySeries, stacked, innerWidth, innerHeight]);
 
-  // Y-axis ticks (5 ticks)
+  // ---------------------------------------------------------------------------
+  // Y-axis ticks using "nice" step algorithm
+  // ---------------------------------------------------------------------------
   const yTicks = useMemo(() => {
     if (maxValue === 0) return [];
+    const rawStep = maxValue / 4;
+    const step = niceStep(rawStep);
     const ticks: { value: number; y: number }[] = [];
-    for (let i = 0; i <= 4; i++) {
-      const value = (maxValue * i) / 4;
-      const y = PADDING.top + innerHeight - (i / 4) * innerHeight;
+    // Generate ticks from 0 up to maxValue
+    for (let value = 0; value <= maxValue + step / 2; value += step) {
+      const y = PADDING.top + innerHeight - (value / maxValue) * innerHeight;
       ticks.push({ value, y });
     }
     return ticks;
   }, [maxValue, innerHeight]);
 
-  // X-axis tick labels
+  // ---------------------------------------------------------------------------
+  // X-axis tick labels — stride = Math.ceil(n / 8)
+  // ---------------------------------------------------------------------------
   const xTicks = useMemo(() => {
     if (dailySeries.length === 0) return [];
-    const density = getXTickDensity(range, dailySeries.length);
+    const stride = Math.ceil(dailySeries.length / 8);
     return dailySeries
-      .filter((_, i) => i % density === 0 || i === dailySeries.length - 1)
-      .map((d) => {
-        const originalIndex = dailySeries.indexOf(d);
-        return {
-          x: xScale[originalIndex],
-          label: formatDate(d.date, range),
-        };
-      });
+      .map((d, i) => ({ d, i }))
+      .filter(({ i }) => i % stride === 0 || i === dailySeries.length - 1)
+      .map(({ d, i }) => ({
+        x: xScale[i],
+        label: formatDate(d.date, range),
+      }));
   }, [dailySeries, range, xScale]);
 
-  const height = DEFAULT_HEIGHT;
-
+  // ---------------------------------------------------------------------------
+  // Edge cases
+  // ---------------------------------------------------------------------------
   if (isLoading) {
     return (
-      <div className="w-full" style={{ height, padding: 16 }}>
-        <SkeletonChart height={height} />
+      <div ref={containerRef} className="w-full" style={{ height: HEIGHT }}>
+        <SkeletonChart height={HEIGHT} />
       </div>
     );
   }
 
   if (dailySeries.length === 0) {
     return (
-      <div className="w-full" style={{ height, padding: 16 }}>
-        <EmptyState height={height} />
+      <div ref={containerRef} className="w-full" style={{ height: HEIGHT }}>
+        <EmptyState height={HEIGHT} />
       </div>
     );
   }
 
+  // All-zero series
+  if (maxValue === 0) {
+    return (
+      <div ref={containerRef} className="w-full" style={{ height: HEIGHT }}>
+        <EmptyState height={HEIGHT} />
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Interaction handlers
+  // ---------------------------------------------------------------------------
   const handleMouseEnter = (index: number, _event: React.MouseEvent<SVGCircleElement>) => {
     const circleX = xScale[index];
     const circleY = yScale[index];
@@ -231,39 +269,56 @@ export function UsageTimeSeries({
 
   const hoveredPoint = hoveredIndex !== null ? dailySeries[hoveredIndex] : null;
 
+  // Tooltip dimensions (approximate)
+  const tooltipWidth = 120;
+  const tooltipHeight = stacked && hoveredPoint?.input_tokens != null ? 88 : 64;
+  // Clamp tooltip to container bounds
+  const tooltipX = Math.min(tooltipPos.x + 12, width - tooltipWidth - 8);
+  const tooltipY = Math.max(tooltipPos.y - tooltipHeight / 2, PADDING.top);
+
+  // ---------------------------------------------------------------------------
+  // 1-point series: skip line, render single dot + label
+  // ---------------------------------------------------------------------------
+  const isSinglePoint = dailySeries.length === 1;
+
   return (
-    <div className="w-full relative" style={{ height, padding: 16 }}>
-      <svg
-        width="100%"
-        height={height}
-        viewBox={`0 0 100 ${height}`}
-        preserveAspectRatio="none"
-        className="overflow-visible"
-      >
+    <div ref={containerRef} className="w-full relative" style={{ height: HEIGHT }}>
+      {/* Pixel-coordinate SVG — no viewBox, no preserveAspectRatio */}
+      <svg width={width} height={HEIGHT} className="overflow-visible">
         {/* Y grid lines */}
         {yTicks.map((tick, i) => (
           <line
             key={i}
             x1={PADDING.left}
             y1={tick.y}
-            x2={100 - PADDING.right}
+            x2={width - PADDING.right}
             y2={tick.y}
-            stroke="currentColor"
-            strokeWidth="0.2"
-            opacity={0.2}
+            stroke="var(--color-border)"
+            strokeWidth={1}
+            opacity={0.3}
           />
         ))}
+
+        {/* Y-axis "tokens" unit annotation — top-left of chart area */}
+        <text
+          x={PADDING.left}
+          y={PADDING.top - 6}
+          fontSize="var(--font-size-xs)"
+          fill="var(--color-muted-foreground)"
+        >
+          tokens
+        </text>
 
         {/* Y-axis labels */}
         {yTicks.map((tick, i) => (
           <text
             key={i}
-            x={PADDING.left - 2}
+            x={PADDING.left - 8}
             y={tick.y}
             textAnchor="end"
             dominantBaseline="middle"
-            fontSize="8"
-            fill="currentColor"
+            fontSize="var(--font-size-xs)"
+            fill="var(--color-muted-foreground)"
           >
             {formatTokens(tick.value)}
           </text>
@@ -282,20 +337,24 @@ export function UsageTimeSeries({
         ) : (
           <>
             {/* Area fill */}
-            <path
-              d={areaPath}
-              fill="var(--color-primary)"
-              opacity={0.1}
-            />
-            {/* Line */}
-            <path
-              d={linePath}
-              fill="none"
-              stroke="var(--color-primary)"
-              strokeWidth="0.3"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
+            {!isSinglePoint && (
+              <path
+                d={areaPath}
+                fill="var(--color-primary)"
+                opacity={0.1}
+              />
+            )}
+            {/* Line — skip for single point */}
+            {!isSinglePoint && (
+              <path
+                d={linePath}
+                fill="none"
+                stroke="var(--color-primary)"
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            )}
           </>
         )}
 
@@ -305,10 +364,10 @@ export function UsageTimeSeries({
             key={i}
             cx={x}
             cy={yScale[i]}
-            r={hoveredIndex === i ? 0.6 : 0.4}
+            r={hoveredIndex === i ? 5 : 3.5}
             fill="var(--color-primary)"
             stroke="var(--color-background)"
-            strokeWidth="0.2"
+            strokeWidth={2}
             className="cursor-pointer transition-all duration-75"
             onMouseEnter={(e) => handleMouseEnter(i, e)}
             onMouseLeave={handleMouseLeave}
@@ -320,10 +379,10 @@ export function UsageTimeSeries({
           <text
             key={i}
             x={tick.x}
-            y={PADDING.top + innerHeight + 12}
+            y={PADDING.top + innerHeight + 20}
             textAnchor="middle"
-            fontSize="7"
-            fill="currentColor"
+            fontSize="var(--font-size-xs)"
+            fill="var(--color-muted-foreground)"
           >
             {tick.label}
           </text>
@@ -334,78 +393,79 @@ export function UsageTimeSeries({
           <g>
             {/* Tooltip background */}
             <rect
-              x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30)}
-              y={Math.max(tooltipPos.y - 20, PADDING.top)}
-              width={30}
-              height={stacked && hoveredPoint.input_tokens ? 22 : 16}
+              x={tooltipX}
+              y={tooltipY}
+              width={tooltipWidth}
+              height={tooltipHeight}
               fill="var(--color-background)"
               stroke="var(--color-border)"
-              strokeWidth="0.3"
-              rx="1"
+              strokeWidth={1}
+              rx={4}
             />
             <text
-              x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
-              y={Math.max(tooltipPos.y - 20, PADDING.top) + 4}
+              x={tooltipX + tooltipWidth / 2}
+              y={tooltipY + 12}
               textAnchor="middle"
-              fontSize="3"
-              fill="currentColor"
+              fontSize="var(--font-size-xs)"
+              fill="var(--color-muted-foreground)"
             >
               {hoveredPoint.date}
             </text>
             <text
-              x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
-              y={Math.max(tooltipPos.y - 20, PADDING.top) + 8}
+              x={tooltipX + tooltipWidth / 2}
+              y={tooltipY + 28}
               textAnchor="middle"
-              fontSize="3"
+              fontSize="var(--font-size-sm)"
+              fontWeight="500"
               fill="var(--color-primary)"
             >
               {formatTokens(hoveredPoint.total_tokens)} tokens
             </text>
             <text
-              x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
-              y={Math.max(tooltipPos.y - 20, PADDING.top) + 12}
+              x={tooltipX + tooltipWidth / 2}
+              y={tooltipY + 44}
               textAnchor="middle"
-              fontSize="3"
-              fill="currentColor"
+              fontSize="var(--font-size-xs)"
+              fill="var(--color-muted-foreground)"
             >
               ${hoveredPoint.total_cost_usd.toFixed(4)}
             </text>
-            {!(stacked && hoveredPoint.input_tokens) && (
+            {!(stacked && hoveredPoint.input_tokens != null) && (
               <text
-                x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
-                y={Math.max(tooltipPos.y - 20, PADDING.top) + 16}
+                x={tooltipX + tooltipWidth / 2}
+                y={tooltipY + 60}
                 textAnchor="middle"
-                fontSize="3"
-                fill="currentColor"
+                fontSize="var(--font-size-xs)"
+                fill="var(--color-muted-foreground)"
               >
                 {hoveredPoint.request_count} req
               </text>
             )}
-            {stacked && hoveredPoint.input_tokens && (
+            {stacked && hoveredPoint.input_tokens != null && (
               <>
                 <text
-                  x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
-                  y={Math.max(tooltipPos.y - 20, PADDING.top) + 16}
+                  x={tooltipX + tooltipWidth / 2}
+                  y={tooltipY + 60}
                   textAnchor="middle"
-                  fontSize="2.5"
+                  fontSize="var(--font-size-xs)"
                   fill="var(--color-primary)"
                 >
                   in:{formatTokens(hoveredPoint.input_tokens ?? 0)}
                 </text>
                 <text
-                  x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
-                  y={Math.max(tooltipPos.y - 20, PADDING.top) + 19}
+                  x={tooltipX + tooltipWidth / 2}
+                  y={tooltipY + 74}
                   textAnchor="middle"
-                  fontSize="2.5"
+                  fontSize="var(--font-size-xs)"
                   fill="var(--color-success)"
                 >
                   out:{formatTokens(hoveredPoint.output_tokens ?? 0)}
                 </text>
                 <text
-                  x={Math.min(tooltipPos.x - 15, 100 - PADDING.right - 30) + 15}
-                  y={Math.max(tooltipPos.y - 20, PADDING.top) + 22}
+                  x={tooltipX + tooltipWidth / 2}
+                  y={tooltipY + 88}
                   textAnchor="middle"
-                  fontSize="2.5"
+                  fontSize="var(--font-size-xs)"
                   fill="var(--color-link)"
                 >
                   cache:{formatTokens(hoveredPoint.cache_read_tokens ?? 0)}

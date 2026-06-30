@@ -1,23 +1,18 @@
 import * as React from "react";
 import { useMemo } from "react";
 import type { UsageSummary } from "@/types/api";
+import { formatNumber } from "@/lib/format";
 
 interface KpiCardProps {
   label: string;
   value: number;
+  unit?: string;
   subLabel?: string;
   /** Pass true to slightly emphasize the middle "primary" card */
   emphasized?: boolean;
 }
 
-function formatNumber(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return n.toLocaleString();
-  return String(n);
-}
-
-const KpiCard = React.memo(function KpiCard({ label, value, subLabel, emphasized }: KpiCardProps) {
+const KpiCard = React.memo(function KpiCard({ label, value, unit, subLabel, emphasized }: KpiCardProps) {
   return (
     <div
       className={`
@@ -30,10 +25,11 @@ const KpiCard = React.memo(function KpiCard({ label, value, subLabel, emphasized
         {label}
       </span>
       <span
-        className="font-semibold text-foreground leading-none"
+        className="font-semibold text-foreground leading-none flex items-baseline gap-1"
         style={{ fontSize: "var(--font-size-2xl)", letterSpacing: "var(--tracking-tight)" }}
       >
         {formatNumber(value)}
+        {unit && <span className="text-sm font-normal text-muted-foreground">{unit}</span>}
       </span>
       {subLabel && (
         <span className="text-xs text-muted-foreground mt-1">{subLabel}</span>
@@ -46,12 +42,16 @@ interface UsageKpiCardsProps {
   today?: UsageSummary;
   month?: UsageSummary;
   allTime?: UsageSummary;
+  monthLabel?: string;
+  allTimeLabel?: string;
 }
 
 export const UsageKpiCards = React.memo(function UsageKpiCards({
   today,
   month,
   allTime,
+  monthLabel,
+  allTimeLabel,
 }: UsageKpiCardsProps) {
   const todayLabel = useMemo(() => {
     const now = new Date();
@@ -60,17 +60,19 @@ export const UsageKpiCards = React.memo(function UsageKpiCards({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <KpiCard label="Today" value={today?.total_requests ?? 0} subLabel={todayLabel} />
+      <KpiCard label="Today" value={today?.total_requests ?? 0} unit="requests" subLabel={todayLabel} />
       <KpiCard
         label="This Month"
         value={month?.total_requests ?? 0}
+        unit="requests"
         emphasized
-        subLabel={`${month?.total_cost_usd?.toFixed(2) ?? "0.00"} USD`}
+        subLabel={monthLabel ?? ""}
       />
       <KpiCard
         label="All Time"
         value={allTime?.total_requests ?? 0}
-        subLabel={`${allTime?.total_cost_usd?.toFixed(2) ?? "0.00"} USD`}
+        unit="requests"
+        subLabel={allTimeLabel ?? ""}
       />
     </div>
   );
@@ -80,10 +82,11 @@ export const UsageKpiCards = React.memo(function UsageKpiCards({
 interface StatCardProps {
   label: string;
   value: string | number;
+  unit?: string;
   subLabel?: string;
 }
 
-export const StatCard = React.memo(function StatCard({ label, value, subLabel }: StatCardProps) {
+export const StatCard = React.memo(function StatCard({ label, value, unit, subLabel }: StatCardProps) {
   const displayValue = typeof value === "number" ? formatNumber(value) : value;
   return (
     <div className="flex flex-col rounded-sm border border-border bg-card px-4 py-3">
@@ -91,10 +94,11 @@ export const StatCard = React.memo(function StatCard({ label, value, subLabel }:
         {label}
       </span>
       <span
-        className="font-semibold text-foreground leading-none"
+        className="font-semibold text-foreground leading-none flex items-baseline gap-1"
         style={{ fontSize: "var(--font-size-lg)", letterSpacing: "var(--tracking-tight)" }}
       >
         {displayValue}
+        {unit && <span className="text-xs font-normal text-muted-foreground">{unit}</span>}
       </span>
       {subLabel && <span className="text-xs text-muted-foreground mt-0.5">{subLabel}</span>}
     </div>

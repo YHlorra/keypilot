@@ -1,7 +1,7 @@
 {
   "project": "KeyPilot V0.1",
   "version": "0.1.0",
-  "updated": "2026-06-27",
+  "updated": "2026-06-30",
   "source_of_truth": "feature_list.json is the executable feature tracker. PLAN.md holds Stage deep specs. openspec/changes/<topic>/ holds in-progress and recently-approved spec changes (those with pending implementation). openspec/changes/archive/<topic>/ holds completed/archived spec changes (implementation done, retained for historical reference). See AGENTS.md §8 for relationship.",
   "active_changes": [],
   "archived_changes": [
@@ -562,6 +562,33 @@
       "ended_at": "2026-06-28",
       "assignee": "fixer",
       "notes": "Architecture: 1 parser per file + AgentParser trait + default_parsers factory. Adding new agent = write file + add 1 line to factory. Frontend / heatmap / display components consume agent-agnostic UsageRecordInput / UsageSummary / UsageFilter unchanged. Auto-import runs on startup if token_usage_records < 100 rows; meta 'last_auto_import' for visibility. TopBar conditional: hidden on Usage page (was credentials-page-specific controls: search input + category filter + density toggle). UsagePage removed: Import button + ImportModal state + caption 'Data from language model calls, may be delayed' (auto-import replaces manual import); pt-[68px] for TopBar offset (no longer needed). Playwright visual test infra added: webui/playwright.config.ts + tests/usage-page.spec.ts with Tauri IPC mock via addInitScript. Baseline screenshot committed at tests/__screenshots__/usage-page.png.",
+      "openspec_ref": null
+    },
+    {
+      "id": "stage-13.1",
+      "name": "UsagePage dashboard UX fix batch (4 bugs)",
+      "description": "Frontend-only fix batch for the 4 UX bugs exposed by UsagePage dashboard screenshot: (1) KPI numbers have no unit label; (2) trend chart Y/X axis labels overlap due to viewBox+preserveAspectRatio='none' distortion; (3) Top agents shows same agent_type 4x because dimension is wrong for single-agent users; (4) Top agents includes zero-usage entries. Zero Rust/schema/IPC changes. D1.c: KPI subLabel shows pure numbers only (no USD).",
+      "files": [
+        "webui/src/components/UsageTimeSeries.tsx",
+        "webui/src/components/UsageKpiCards.tsx",
+        "webui/src/components/UsageStatsSidebar.tsx",
+        "webui/src/components/AgentPairChart.tsx",
+        "webui/src/pages/UsagePage.tsx",
+        "webui/src/lib/format.ts",
+        "webui/tests/usage-page.spec.ts",
+        "webui/tests/__screenshots__/usage-page.png",
+        ".slim/deepwork/stage-13-1-usage-page-fix.md"
+      ],
+      "depends_on": [
+        "stage-f",
+        "stage-g"
+      ],
+      "status": "done",
+      "evidence": "pnpm tsc --noEmit: 0 errors\npnpm build: PASS (398.44 KB JS / 27.51 KB CSS, built 3.12s)\ncargo check: PASS (4.48s, no Rust changes)\nnpx playwright test: 1/1 PASS (4.4s; baseline regenerated)\n\nL1 chart (designer rebuild):\n  - viewBox+preserveAspectRatio='none' replaced with pixel-coordinate SVG (<svg width={width} height={height}>)\n  - ResizeObserver on container ref with cleanup; SSR fallback 800px\n  - 'nice' tick algorithm (1/2/5 × 10^n) for Y axis\n  - Edge cases: 1-point (skip line, single dot), all-zero (EmptyState), empty (EmptyState)\n  - Kaku design tokens throughout (var(--font-size-xs/sm), var(--color-primary/success/link/accent/border/background/muted-foreground))\n  - Tooltip pixel-clamp: Math.min(tooltipPos.x + 12, width - tooltipWidth - 8)\n  - NO Catmull-Rom (oracle vetoed as overkill for sparse daily data); straight polyline\n  - Stacked layer reasoning_tokens color: var(--color-muted) → var(--color-accent) (CR 4.7:1 on dark surface)\n  - Stale local formatTokens deduped to lib/format.ts\n  - 420 lines → 362 lines\n\nL2 KPI + page (fixer):\n  - KpiCardProps.unit? added; value span = flex items-baseline gap-1 with main number + muted unit\n  - UsageKpiCardsProps gets monthLabel? + allTimeLabel? from UsagePage (presentational)\n  - 3 call sites: unit='requests' on Today / This Month / All Time\n  - UsagePage derives monthLabel = `${days} day(s)` from distinct dates in month.daily_series\n  - UsagePage derives allTimeLabel = `${spanDays} days` (floor at 1 day) from first/last record\n  - topAgentPairs adds .filter(p => p.total_tokens > 0) before sort (drops claude 0)\n\nL3 sidebar + format util (fixer):\n  - lib/format.ts NEW: formatTokens (1-decimal abbrev K/M/B) + formatNumber (locale separator for ≥1k)\n  - StatCardProps.unit? added; mirrors KpiCard pattern\n  - 4 StatCard call sites: All-time / Period / Peak day (unit='requests'), Active days (unit='days')\n  - Top agents: primary = pair.model (title attr), secondary = pair.agent_type (10px muted), value = formatTokens + 'tok'\n  - AgentPairChart drops local formatTokens; imports from lib/format\n  - Dead useEffect (console.log only) removed; clientModels placeholder render kept\n\nL5 StatCard fixup (fixer):\n  - Inline formatNumber fallback in UsageKpiCards removed; import from lib/format\n  - formatNumber import in UsageStatsSidebar dropped (unused after raw-number switch)\n\nL4 test fixup (fixer):\n  - Line 134 regex updated: /\\d+\\.\\d{2}\\s*USD/ → /\\d[\\d,]*\\s*requests/\n  - Comment updated: Bug #1 regression guard now verifies 'requests' unit + non-zero count\n  - Bug #3 regression guard (force_rescan_all) unchanged\n\nL6 oracle-review cleanup (fixer):\n  - UsageTimeSeries formatTokens deduped\n  - O(n²) indexOf in .map replaced with captured index\n  - Falsy-check on input_tokens replaced with != null (logic bug: 0 input_tokens skipped stacked breakdown)\n  - Dead defensive break in yTicks loop removed\n  - Kaku typography: text-[10px] → text-[var(--font-size-2xs)]\n  - Reasoning-tokens color contrast fix (var(--color-muted) → var(--color-accent))\n\nD1.c decision:\n  - KPI subLabel shows pure numbers only (no USD)\n  - Today subLabel: 'M/D' (date) — local computation\n  - This Month subLabel: '${distinctDays} day(s)' — UsagePage derived\n  - All Time subLabel: '${spanDays} days' (floor 1) — UsagePage derived\n  - Cost display deferred to sidebar Period card (future stage)\n\nHard constraints: 0 encryption crates / 0 fs::write outside APPDATA / schema v6 intact / 0 new IPC / 0 em-dash / 0 V0.X UI / 0 BETA / 0 INVITE-ONLY / 0 marketing copy",
+      "started_at": "2026-06-30",
+      "ended_at": "2026-06-30",
+      "assignee": "designer+fixer+oracle",
+      "notes": "Deepwork workflow: Phase 0 plan drafted with 5 lanes → Phase 0 oracle review (APPROVE WITH CHANGES, reconciled to 4 lanes) → Phase 1 parallel implementation (L1 designer chart, L2 fixer KPI+page, L3 fixer sidebar+format, L4 fixer test) → Phase 2 reconciliation (L3 left StatCard unit gap, dispatched L5 fixup) → Phase 5 validation (tsc+build+cargo+playwright all green) → Phase 3 oracle visual review (8 actionable issues, dispatched L6 fixup) → Phase 6 documentation sync.\n\nKey design decisions:\n  - formatTokens: 1-decimal abbrev (K/M/B), not locale-string; matches existing AgentPairChart signature\n  - formatNumber: locale-string separator for ≥1k, no decimals; dropped dead 1B branch\n  - KPI units: 'requests' (matches total_requests field semantics); sidebar Period/All-time/Peak day also 'requests' (same field); Active days = 'days' (different field)\n  - Top agents: model-as-primary, agent_type-as-secondary — chosen because single-agent users have constant agent_type\n  - Chart: pixel-coordinate SVG (no viewBox) + ResizeObserver + 'nice' tick + straight polyline + Kaku tokens\n  - D1.c: pure-number subLabels. Cost visibility lost in KPI cards; sidebar Period card was supposed to carry it but kept request count for consistency (cost display in sidebar deferred to future stage)\n\nOut of scope (deferred):\n  - QuotaBadge.tsx:21 + TrayHoverCard.tsx:29 own format impl (future 'format-number-debt' stage)\n  - Sidebar Period card cost sublabel (future stage)\n  - Tool × Model breakdown table (Task 10)\n  - Tray popover animation (Task 2, blocked behind user smoke test)\n  - Design system overhaul\n\nPlan + review trail: .slim/deepwork/stage-13-1-usage-page-fix.md",
       "openspec_ref": null
     }
   ]
