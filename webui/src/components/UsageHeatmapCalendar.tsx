@@ -1,13 +1,16 @@
 import * as React from "react";
 import { useMemo } from "react";
+import { formatTokens } from "@/lib/format";
 
 interface HeatmapCalendarProps {
-  /** Map of date string "YYYY-MM-DD" -> request count */
+  /** Map of date string "YYYY-MM-DD" -> token count */
   dateMap: Map<string, number>;
 }
 
 // Heatmap intensity ramp using alpha on primary color
 const INTENSITY_LEVELS = [0, 0.1, 0.3, 0.5, 0.7, 0.9] as const;
+
+const CELL_SIZE = 14;
 
 function getIntensityAlpha(count: number, maxCount: number): number {
   if (maxCount === 0 || count === 0) return 0.05;
@@ -20,6 +23,7 @@ function getIntensityAlpha(count: number, maxCount: number): number {
 }
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Build a 7-row × N-column grid of { date, count } for the last ~26 weeks (182 days)
 function buildCalendarGrid(dateMap: Map<string, number>): { date: string; count: number }[][] {
@@ -49,21 +53,17 @@ function buildCalendarGrid(dateMap: Map<string, number>): { date: string; count:
   return weeks;
 }
 
-// Get month labels from calendar weeks
-function getMonthLabels(weeks: { date: string; count: number }[][]): { label: string; colIndex: number }[] {
-  const labels: { label: string; colIndex: number }[] = [];
+// Build a `string[]` indexed by week column: month name where the column starts a new month, else empty string.
+function buildMonthLabelsByCol(weeks: { date: string; count: number }[][]): string[] {
+  const labels = new Array<string>(weeks.length).fill('');
   let lastMonth = -1;
-
   weeks.forEach((week, i) => {
-    const firstDay = new Date(week[0].date);
-    const month = firstDay.getMonth();
+    const month = new Date(week[0].date).getMonth();
     if (month !== lastMonth) {
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      labels.push({ label: monthNames[month], colIndex: i });
+      labels[i] = MONTH_NAMES[month];
       lastMonth = month;
     }
   });
-
   return labels;
 }
 
@@ -73,7 +73,7 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
   const [tooltip, setTooltip] = React.useState<{ x: number; y: number; date: string; count: number } | null>(null);
 
   const weeks = useMemo(() => buildCalendarGrid(dateMap), [dateMap]);
-  const monthLabels = useMemo(() => getMonthLabels(weeks), [weeks]);
+  const monthLabelByCol = useMemo(() => buildMonthLabelsByCol(weeks), [weeks]);
 
   const maxCount = useMemo(() => {
     return Math.max(0, ...[...dateMap.values()]);
@@ -99,29 +99,11 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
     );
   }
 
-  const CELL_SIZE = 13;
-  const CELL_GAP = 3;
-
   return (
-    <div className="flex flex-col gap-2">
-      {/* Month labels */}
-      <div className="flex" style={{ paddingLeft: 32 }}>
-        {monthLabels.map(({ label, colIndex }, i) => (
-          <div
-            key={`${label}-${colIndex}`}
-            className="text-xs text-muted-foreground"
-            style={{
-              marginLeft: colIndex === 0 ? 0 : (CELL_SIZE + CELL_GAP) * (colIndex - (monthLabels[i - 1]?.colIndex ?? 0) - 1) + (CELL_SIZE + CELL_GAP),
-            }}
-          >
-            {label}
-          </div>
-        ))}
-      </div>
-
-      <div className="flex">
+    <div className="flex flex-col gap-2 min-w-0">
+      <div className="flex min-w-0 overflow-x-auto">
         {/* Day labels */}
-        <div className="flex flex-col gap-[3px] mr-2">
+        <div className="flex flex-col gap-[5px] mr-2 pt-4">
           {DAY_LABELS.map((day) => (
             <div
               key={day}
@@ -134,9 +116,12 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
         </div>
 
         {/* Calendar grid */}
-        <div className="flex gap-[3px] overflow-x-auto">
+        <div className="flex flex-1 min-w-0 justify-between">
           {weeks.map((week, weekIdx) => (
-            <div key={weekIdx} className="flex flex-col gap-[3px]">
+            <div key={weekIdx} className="grid grid-rows-[16px_repeat(7,14px)] gap-[5px]">
+              <span className="text-[10px] leading-4 whitespace-nowrap text-muted-foreground">
+                {monthLabelByCol[weekIdx]}
+              </span>
               {week.map((day) => {
                 const alpha = getIntensityAlpha(day.count, maxCount);
                 return (
@@ -192,7 +177,7 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
           }}
         >
           <div className="font-medium text-foreground">{tooltip.date}</div>
-          <div className="text-muted-foreground">{tooltip.count.toLocaleString()} calls</div>
+          <div className="text-muted-foreground">{formatTokens(tooltip.count)}</div>
         </div>
       )}
     </div>

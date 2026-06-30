@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { UsageTimeSeries } from "@/components/UsageTimeSeries";
 import { UsageHeatmapCalendar } from "@/components/UsageHeatmapCalendar";
-import { UsageDetailPanel } from "@/components/UsageDetailPanel";
 import { useUsagePeriodsSummary } from "@/hooks/useUsage";
 import { UsageKpiCards } from "@/components/UsageKpiCards";
-import { UsageStatsSidebar } from "@/components/UsageStatsSidebar";
-import type { AgentPair, UsageFilter } from "@/types/api";
+import { TokensLeaderboard } from "@/components/TokensLeaderboard";
+import type { UsageFilter } from "@/types/api";
+import type { ProviderRow } from "@/components/TokensLeaderboard";
 import { cn } from "@/lib/utils";
 
 type RangeOption = "7d" | "30d";
@@ -22,7 +22,6 @@ export interface UsagePageProps {
 
 export default function UsagePage({ filterProviderName, onClearFilter }: UsagePageProps) {
   const [selectedRange, setSelectedRange] = useState<RangeOption>("30d");
-  const [selectedPair, setSelectedPair] = useState<AgentPair | null>(null);
 
   // 单 IPC:一次拿 today/month/allTime + client_models + limits
   // 注:filter 只用于 provider 维度过滤,日期由后端按 period_windows 算
@@ -46,38 +45,10 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
     const series = allTimeSummary?.daily_series ?? [];
     const map = new Map<string, number>();
     for (const point of series) {
-      map.set(point.date, point.request_count ?? 0);
+      map.set(point.date, point.total_tokens ?? 0);
     }
     return map;
   }, [allTimeSummary]);
-
-  // Peak day / active days (from all-time)
-  const { peakDay, peakDayLabel, activeDays } = useMemo(() => {
-    const series = allTimeSummary?.daily_series ?? [];
-    let peak = 0;
-    let peakLabel = "";
-    let active = 0;
-    for (const point of series) {
-      const count = point.request_count ?? 0;
-      if (count > peak) {
-        peak = count;
-        peakLabel = point.date;
-      }
-      if (count > 0) active++;
-    }
-    return { peakDay: peak, peakDayLabel: peakLabel, activeDays: active };
-  }, [allTimeSummary]);
-
-  // Top agent pairs (from month summary)
-  const topAgentPairs = useMemo(() => {
-    return [...(monthSummary?.agent_pairs ?? [])]
-      .filter((p) => p.total_tokens > 0)
-      .sort((a, b) => b.total_tokens - a.total_tokens)
-      .slice(0, 5);
-  }, [monthSummary]);
-
-  const monthTotal = monthSummary?.total_requests ?? 0;
-  const allTimeTotal = allTimeSummary?.total_requests ?? 0;
 
   const monthLabel = useMemo(() => {
     const series = monthSummary?.daily_series ?? [];
@@ -105,6 +76,35 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
     return series.slice(-days);
   }, [trendDailySeries, selectedRange]);
 
+  const providerLeaderboard = useMemo<ProviderRow[]>(() => {
+    const pairs = monthSummary?.agent_pairs ?? [];
+    if (pairs.length === 0) return [];
+    const byProvider = new Map<string, { totalTokens: number; requestCount: number; topModel: string; topModelTokens: number }>();
+    for (const p of pairs) {
+      const cur = byProvider.get(p.provider) ?? { totalTokens: 0, requestCount: 0, topModel: "", topModelTokens: 0 };
+      cur.totalTokens += p.total_tokens;
+      cur.requestCount += p.request_count;
+      if (p.total_tokens > cur.topModelTokens) {
+        cur.topModel = p.model;
+        cur.topModelTokens = p.total_tokens;
+      }
+      byProvider.set(p.provider, cur);
+    }
+    const rolled = [...byProvider.entries()].map(([provider, v]) => ({
+      provider,
+      totalTokens: v.totalTokens,
+      requestCount: v.requestCount,
+      topModel: v.topModel,
+      topModelTokens: v.topModelTokens,
+    }));
+    const total = rolled.reduce((s, r) => s + r.totalTokens, 0);
+    const withShare = rolled
+      .map((r) => ({ ...r, share: total > 0 ? r.totalTokens / total : 0 }))
+      .sort((a, b) => b.totalTokens - a.totalTokens)
+      .slice(0, 8);
+    return withShare;
+  }, [monthSummary]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -128,21 +128,22 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
       </div>
 
       {/* Page content */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 flex flex-col gap-6">
-        {/* KPI cards: today / month / all-time 三档 */}
-        <UsageKpiCards
-          today={todaySummary}
-          month={monthSummary}
-          allTime={allTimeSummary}
-          monthLabel={monthLabel}
-          allTimeLabel={allTimeLabel}
-        />
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 flex flex-col gap-6 max-w-[1680px] mx-auto">
+        <section>
+          <div className="flex flex-col mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Activity</h2>
+            <span className="text-[10px] text-muted-foreground mt-0.5">Last 26 weeks - token intensity</span>
+          </div>
+          {periodsLoading ? (
+            <div className="h-48 animate-pulse bg-muted rounded" />
+          ) : (
+            <UsageHeatmapCalendar dateMap={heatmapDateMap} />
+          )}
+        </section>
 
-        {/* Body: trend chart + sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
-          {/* Main column */}
+        {/* Body: trend chart + leaderboard sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
           <div className="flex flex-col gap-6">
-            {/* Trend chart */}
             <section>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex flex-col">
@@ -185,41 +186,22 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
                 />
               )}
             </section>
-
-            {/* Activity heatmap */}
-            <section>
-              <div className="flex flex-col mb-3">
-                <h2 className="text-sm font-semibold text-foreground">Activity</h2>
-                <span className="text-[10px] text-muted-foreground mt-0.5">Last 26 weeks (all-time, not affected by range)</span>
-              </div>
-              {periodsLoading ? (
-                <div className="h-48 animate-pulse bg-muted rounded" />
-              ) : (
-                <UsageHeatmapCalendar dateMap={heatmapDateMap} />
-              )}
-            </section>
           </div>
 
-          {/* Sidebar */}
-          <aside>
-            <UsageStatsSidebar
-              lifetimeTotal={allTimeTotal}
-              periodTotal={monthTotal}
-              selectedRange={selectedRange}
-              peakDay={peakDay}
-              peakDayLabel={peakDayLabel}
-              activeDays={activeDays}
-              topAgentPairs={topAgentPairs}
-              clientModels={periodsData?.client_models}
-            />
+          {/* Sidebar: tokens leaderboard */}
+          <aside className="lg:sticky lg:top-5 self-start">
+            <TokensLeaderboard providers={providerLeaderboard} isLoading={periodsLoading} />
           </aside>
         </div>
-      </div>
 
-      {/* UsageDetailPanel slide-in */}
-      {selectedPair !== null && (
-        <UsageDetailPanel agentPair={selectedPair} onClose={() => setSelectedPair(null)} />
-      )}
+        <UsageKpiCards
+          today={todaySummary}
+          month={monthSummary}
+          allTime={allTimeSummary}
+          monthLabel={monthLabel}
+          allTimeLabel={allTimeLabel}
+        />
+      </div>
     </div>
   );
 }
