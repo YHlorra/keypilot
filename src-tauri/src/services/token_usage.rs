@@ -266,6 +266,7 @@ pub fn parse_opencode_db_records(
 
 // ---------- Service ----------
 
+#[derive(Clone)]
 pub struct TokenUsageService {
     db: Arc<Mutex<Database>>,
     pricing: Arc<PricingService>,

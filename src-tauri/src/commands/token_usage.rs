@@ -15,10 +15,15 @@ use crate::types::{
     UsageFilter as RustUsageFilter,
     UsageRecordInput as RustUsageRecordInput,
     UsageSummary as RustUsageSummary,
+    UsageSummaryAgentPair,
+    DailySeries as RustDailySeries,
     ImportResult as RustImportResult,
     PricingEntry as RustPricingEntry,
     TokenUsageRecord,
-    PeriodsSummary,
+    PeriodsSummary as RustPeriodsSummary,
+    PeriodsTriplet as RustPeriodsTriplet,
+    PeriodWindow as RustPeriodWindow,
+    LimitsSummary as RustLimitsSummary,
 };
 
 // ---------- IPC DTOs (mirror webui/src/types/api.ts) ----------
@@ -167,6 +172,46 @@ pub struct PricingEntryResponse {
     pub cache_read_cost: Option<f64>,
     pub cache_creation_cost: Option<f64>,
     pub supports_reasoning: bool,
+}
+
+// ---------- PeriodsSummary IPC DTO (Bug #1 fix 2026-06-29) ----------
+//
+// `get_usage_periods_summary` MUST NOT return `crate::types::PeriodsSummary`
+// directly: that internal struct uses `total_cost` (not `total_cost_usd`) and
+// the embedded `UsageSummaryAgentPair` has no `token_breakdown` field.  Both
+// would surface as `undefined` on the frontend, breaking KPI cards, daily
+// series, agent-pair pie chart, and detail panel cost display.
+//
+// This DTO reuses the existing `UsageSummaryResponse` (which already maps the
+// fields correctly) for the nested today/month/all_time summary.  Field names
+// are snake_case to match the contract documented in
+// `webui/src/types/api.ts:187-191`.
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PeriodWindowResponseIpc {
+    pub key: String,
+    pub ends_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PeriodsSummaryResponse {
+    pub periods: PeriodsTripletResponseIpc,
+    pub period_windows: PeriodWindowsPairResponseIpc,
+    pub client_models: std::collections::BTreeMap<String, std::collections::BTreeMap<String, i64>>,
+    pub limits: Option<RustLimitsSummary>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PeriodsTripletResponseIpc {
+    pub today: UsageSummaryResponse,
+    pub month: UsageSummaryResponse,
+    pub all_time: UsageSummaryResponse,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PeriodWindowsPairResponseIpc {
+    pub today: PeriodWindowResponseIpc,
+    pub month: PeriodWindowResponseIpc,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -334,6 +379,75 @@ fn rust_pricing_to_ipc(entries: Vec<&RustPricingEntry>) -> Vec<PricingEntryRespo
             supports_reasoning: e.reasoning_price_per_1m.is_some(),
         }
     }).collect()
+}
+
+// ---------- PeriodsSummary conversion (Bug #1 fix 2026-06-29) ----------
+
+fn rust_period_window_to_ipc(w: &RustPeriodWindow) -> PeriodWindowResponseIpc {
+    PeriodWindowResponseIpc {
+        key: w.key.clone(),
+        ends_at: w.ends_at.clone(),
+    }
+}
+
+fn rust_daily_series_to_ipc(d: RustDailySeries) -> crate::commands::token_usage::DailySeriesResponse {
+    DailySeriesResponse {
+        date: d.date,
+        total_tokens: d.total_tokens,
+        total_cost_usd: d.total_cost,
+        request_count: d.request_count,
+    }
+}
+
+fn rust_agent_pair_to_ipc(pair: UsageSummaryAgentPair) -> AgentPairResponse {
+    AgentPairResponse {
+        agent_type: pair.agent_type,
+        model: pair.model,
+        provider: pair.provider,
+        total_tokens: pair.total_tokens,
+        total_cost_usd: pair.total_cost,
+        request_count: pair.request_count,
+        // agent-level pair has no per-agent cost breakdown in the daily rollup
+        // table; emit empty breakdown so `token_breakdown.input ?? 0` etc.
+        // still type-checks on the frontend.
+        token_breakdown: TokenBreakdownIpc {
+            input: Some(pair.input_tokens),
+            output: Some(pair.output_tokens),
+            cache_read: None,
+            cache_creation: None,
+            reasoning: None,
+        },
+    }
+}
+
+fn rust_summary_to_full_ipc(s: RustUsageSummary) -> UsageSummaryResponse {
+    UsageSummaryResponse {
+        total_tokens: s.total_tokens,
+        total_cost_usd: s.total_cost,
+        total_requests: s.total_requests,
+        agent_pairs: s.agent_pairs.into_iter().map(rust_agent_pair_to_ipc).collect(),
+        daily_series: s.daily_series.into_iter().map(rust_daily_series_to_ipc).collect(),
+    }
+}
+
+fn rust_periods_triplet_to_ipc(t: RustPeriodsTriplet) -> PeriodsTripletResponseIpc {
+    PeriodsTripletResponseIpc {
+        today: rust_summary_to_full_ipc(t.today),
+        month: rust_summary_to_full_ipc(t.month),
+        all_time: rust_summary_to_full_ipc(t.all_time),
+    }
+}
+
+fn rust_periods_to_ipc(p: RustPeriodsSummary) -> PeriodsSummaryResponse {
+    PeriodsSummaryResponse {
+        periods: rust_periods_triplet_to_ipc(p.periods),
+        period_windows: PeriodWindowsPairResponseIpc {
+            today: rust_period_window_to_ipc(&p.period_windows.today),
+            month: rust_period_window_to_ipc(&p.period_windows.month),
+        },
+        client_models: p.client_models,
+        limits: p.limits,
+    }
 }
 
 // ---------- Handlers ----------
@@ -592,7 +706,55 @@ pub async fn recompute_costs_by_state(
     })
 }
 
-/// `get_usage_periods_summary` IPC — 三周期 PeriodsSummary 一次性返回。
+/// ---------- force_rescan_all (Bug #3 escape hatch 2026-06-29) ----------
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ForceRescanResponse {
+    /// Number of cursor rows deleted by this rescan (the watcher will
+    /// rebuild cursors from scratch on the next scan).
+    pub cursors_reset: u32,
+    /// Total token_usage_records present after the manual scan finishes.
+    /// Currently informational only — the actual scan runs in the
+    /// background via the IncrementalImporter; this returns immediately.
+    pub total_records: u32,
+}
+
+/// Reset all per-file cursors and kick a fresh full scan.  The next time
+/// the watcher's debounced events fire (or the 30s fallback poll runs),
+/// each known JSONL file will be re-parsed from byte 0.  FNV-1a dedup
+/// makes this safe — already-ingested rows are silently skipped.
+#[tauri::command]
+pub async fn force_rescan_all(
+    state: State<'_, AppState>,
+) -> Result<ForceRescanResponse, AppError> {
+    force_rescan_all_by_state(&state).await
+}
+
+pub async fn force_rescan_all_by_state(
+    state: &AppState,
+) -> Result<ForceRescanResponse, AppError> {
+    let (cursors_reset, total_records) = tauri::async_runtime::spawn_blocking({
+        let db = state.db.clone();
+        move || -> Result<(u32, u32), AppError> {
+            let guard = db.lock().map_err(|e| {
+                AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            })?;
+            let n = guard.delete_all_cursors()?;
+            let total = guard.count_token_usage_records_filtered(None, None, None, None, None)?
+                as u32;
+            Ok((n as u32, total))
+        }
+    })
+    .await
+    .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
+
+    Ok(ForceRescanResponse {
+        cursors_reset,
+        total_records,
+    })
+}
+
+// `get_usage_periods_summary` IPC — 三周期 PeriodsSummary 一次性返回。
 ///
 /// 对齐 token-monitor usage.js 主数据契约,前端发 1 次请求拿全
 /// today/month/allTime + client_models + limits。
@@ -602,17 +764,18 @@ pub async fn recompute_costs_by_state(
 pub async fn get_usage_periods_summary(
     state: State<'_, AppState>,
     filter: UsageFilterIpc,
-) -> Result<PeriodsSummary, AppError> {
+) -> Result<PeriodsSummaryResponse, AppError> {
     get_usage_periods_summary_by_state(&state, filter).await
 }
 
 pub async fn get_usage_periods_summary_by_state(
     state: &AppState,
     filter: UsageFilterIpc,
-) -> Result<PeriodsSummary, AppError> {
+) -> Result<PeriodsSummaryResponse, AppError> {
     let rust_filter = ipc_to_rust_filter(filter)?;
     let svc = TokenUsageService::new(state.db.clone(), state.pricing.clone());
-    tauri::async_runtime::spawn_blocking(move || svc.get_periods_summary(&rust_filter))
+    let summary = tauri::async_runtime::spawn_blocking(move || svc.get_periods_summary(&rust_filter))
         .await
-        .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?
+        .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
+    Ok(rust_periods_to_ipc(summary))
 }

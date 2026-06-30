@@ -207,6 +207,13 @@ pub async fn dispatch(
             let r = crate::commands::token_usage::import_opencode_db_by_state(state, req).await?;
             Ok(serde_json::to_value(r).map_err(AppError::Serde)?)
         }
+        "token_usage.force_rescan_all" => {
+            // Bug #3 escape hatch (2026-06-29) — wipe cursors so the next
+            // scan re-ingests every known JSONL file from byte 0.  FNV-1a
+            // dedup keeps the DB clean.
+            let r = crate::commands::token_usage::force_rescan_all_by_state(state).await?;
+            Ok(serde_json::to_value(r).map_err(AppError::Serde)?)
+        }
 
         _ => Err(AppError::ActionNotFound(action_id.to_string())),
     }

@@ -31,8 +31,8 @@ use keypilot_lib::types::{
     Theme, QuotaSnapshot, Visibility,
     UsageFilter as RustUsageFilter,
     UsageRecordInput as RustUsageRecordInput,
-    PeriodsSummary,
 };
+use keypilot_lib::commands::token_usage::PeriodsSummaryResponse;
 use serde::de::DeserializeOwned;
 use tauri::State;
 
@@ -489,7 +489,7 @@ fn e2e_get_usage_periods_summary() {
 
     // 通过 by_state 入口调用(避免 transmute State 的复杂度)
     let filter = UsageFilterIpc::default();
-    let summary: PeriodsSummary = call_ok(
+    let summary: PeriodsSummaryResponse = call_ok(
         "get_usage_periods_summary",
         block_on(get_usage_periods_summary_by_state(&state, filter)),
     );

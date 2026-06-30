@@ -11,6 +11,7 @@ pub mod commands;
 use database::Database;
 use error::AppError;
 use services::auto_import;
+use services::incremental_import::IncrementalImporter;
 use services::token_usage::TokenUsageService;
 use store::AppState;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
@@ -50,6 +51,10 @@ pub fn run() {
             let pricing_for_import = state.pricing.clone();
             app.manage(state);
 
+            // Clone AppHandle BEFORE entering the closure — `app` is `&mut tauri::App`
+            // and can't escape into the spawn_blocking 'static closure.
+            let app_handle = app.app_handle().clone();
+
             // Run auto-import across all available agent parsers (opencode.db,
             // claude-code jsonl files, etc.) in a BACKGROUND thread so webview
             // creation is not blocked by a potentially long JSONL scan (Claude
@@ -57,19 +62,33 @@ pub fn run() {
             // token_usage_records from existing agent data so the heatmap and
             // KPI cards are non-empty on first launch.
             //
-            // Frontend polls `get_last_auto_import` on mount with a brief
-            // internal retry window (see useUsage.ts::useLastAutoImport) so a
-            // slow scan still surfaces its summary toast.
+            // 2026-06-29 (Bug #3 fix): replaced one-shot `scan_and_import_if_empty`
+            // (which became a no-op once the DB had > 100 rows) with
+            // `IncrementalImporter` — a file-watching, per-file-cursor scanner
+            // that emits `token_usage_tick` events as Claude Code / Codex append
+            // new lines to their JSONL session logs.
             tauri::async_runtime::spawn_blocking(move || {
-                let svc = TokenUsageService::new(db_for_import.clone(), pricing_for_import);
+                let svc = TokenUsageService::new(db_for_import.clone(), pricing_for_import.clone());
                 let summary = auto_import::scan_and_import_if_empty(&svc);
                 let json = serde_json::to_string(&summary).unwrap_or_default();
                 if let Err(e) = db_for_import.lock().unwrap().set_meta("last_auto_import", &json) {
                     eprintln!("Failed to store last_auto_import meta: {}", e);
                 }
-                // ponytail: previously emitted `auto_import_completed` here, but
-                // emit() ran before WebviewWindowBuilder.build() — listener dead
-                // on arrival.  Frontend now queries `get_last_auto_import` on mount.
+
+                // Spawn the file watcher + 30s fallback poll loop.  Owns its
+                // own threads; dropping the IncrementalImporter shuts them
+                // down.  V0.1 keeps it alive for the process lifetime.
+                let parsers =
+                    services::agent_parser::default_parsers(pricing_for_import.clone());
+                let _importer = IncrementalImporter::start(
+                    app_handle,
+                    db_for_import.clone(),
+                    pricing_for_import,
+                    parsers,
+                );
+                // Intentional leak: importer holds debouncer + thread alive
+                // for the process lifetime.  V0.1 has no shutdown signal.
+                Box::leak(Box::new(_importer));
             });
 
             // Stage 5: Initialize system tray
@@ -123,6 +142,7 @@ pub fn run() {
     commands::token_usage::get_last_auto_import,
     commands::token_usage::get_pricing,
     commands::token_usage::recompute_costs,
+    commands::token_usage::force_rescan_all,
     // Action Registry (Stage 10)
     commands::action::list_actions,
     commands::action::execute_action,

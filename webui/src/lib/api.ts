@@ -98,7 +98,13 @@ export async function listUsageRecords(
   page: number,
   perPage: number
 ): Promise<PaginatedResponse<UsageRecord>> {
-  return invoke<PaginatedResponse<UsageRecord>>("list_usage_records", { filter, page, per_page: perPage });
+  // Bug #2 fix 2026-06-29: Rust handler signature is `req: ListUsageRecordsRequest`.
+  // Tauri 2 matches arguments by parameter name, so the payload must be wrapped
+  // in `{ req: { filter, page, per_page } }` — flat keys fail to deserialize and
+  // the IPC call rejects.
+  return invoke<PaginatedResponse<UsageRecord>>("list_usage_records", {
+    req: { filter, page, per_page: perPage },
+  });
 }
 
 export async function getUsageSummary(filter: UsageFilter): Promise<UsageSummary> {
