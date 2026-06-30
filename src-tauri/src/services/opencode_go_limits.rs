@@ -1,7 +1,8 @@
 //! opencode Go CLI 的 limits 聚合(token-monitor-alignment Part B #6C)。
 //!
-//! 从 `~/.local/share/opencode/opencode.db`(Windows: `%LOCALAPPDATA%\opencode\opencode*.db`)
-//! 读 `message` 表 cost 字段,聚合三窗口:
+//! 从 opencode Go 数据库读 `message` 表 cost 字段,扫两个候选目录
+//! (`%LOCALAPPDATA%\opencode\opencode*.db` 和 `~/.local/share/opencode/opencode*.db`),
+//! 聚合三窗口:
 //!   - Session:5 小时滚动窗口,limit $12
 //!   - Weekly:7 天滚动窗口,limit $30
 //!   - Monthly:本自然月,limit $60
@@ -26,22 +27,28 @@ pub const WEEK_MS: i64 = 7 * 24 * 3600 * 1000;
 /// 默认 limit:(session, weekly, monthly) USD
 pub const DEFAULT_GO_LIMITS: (f64, f64, f64) = (12.0, 30.0, 60.0);
 
-/// 发现 opencode Go 数据库路径(对齐 token-monitor discoverDbPaths)。
-/// - Windows:`%LOCALAPPDATA%\opencode\opencode*.db`
-/// - Unix:`~/.local/share/opencode/opencode*.db`
+/// Discover opencode Go database paths (aligned with token-monitor `discoverDbPaths`).
 ///
-/// 返回所有找到的路径(可能为空)。只做目录读取,不写任何文件。
+/// Scans BOTH platform conventions on every host:
+///   1. `%LOCALAPPDATA%\opencode\opencode*.db` (Windows local convention)
+///   2. `~/.local/share/opencode/opencode*.db` (XDG convention, also used by
+///      opencode Go CLI v1.17+ on Windows via HOME)
+///
+/// Glob accepts `opencode.db` and `opencode-<channel>.db`
+/// (channel = `[A-Za-z0-9._-]+`); WAL/SHM side-files (e.g. `opencode.db-wal`)
+/// are rejected by `ends_with(".db")`. Returns paths in sorted order; may
+/// be empty. Read-only — never writes to the CLI config dir.
 pub fn discover_db_paths() -> Vec<PathBuf> {
-    let base = if cfg!(target_os = "windows") {
-        std::env::var("LOCALAPPDATA")
-            .ok()
-            .map(|p| PathBuf::from(p).join("opencode"))
-    } else {
-        dirs::home_dir().map(|h| h.join(".local/share/opencode"))
-    };
+    let mut dirs = Vec::new();
+    if let Ok(p) = std::env::var("LOCALAPPDATA") {
+        dirs.push(PathBuf::from(p).join("opencode"));
+    }
+    if let Some(home) = dirs::home_dir() {
+        dirs.push(home.join(".local/share/opencode"));
+    }
 
     let mut paths = Vec::new();
-    if let Some(base_dir) = base {
+    for base_dir in dirs {
         if let Ok(entries) = std::fs::read_dir(&base_dir) {
             for entry in entries.flatten() {
                 let p = entry.path();

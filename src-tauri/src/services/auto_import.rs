@@ -45,6 +45,15 @@ pub struct AgentImportEntry {
 
 /// Returns true when the token_usage_records table has more than `threshold`
 /// rows.  Used to skip auto-import on already-populated DBs.
+///
+/// ponytail: kept as a dead helper for now — `scan_and_import_if_empty` used
+/// to gate on this, but a coarse "total > 100 rows" check shut the gate
+/// permanently after 100 records of any agent_type (e.g. 3763 claude OAuth
+/// rows blocked the opencode parser from ever running).  The orchestrator
+/// now runs every startup and relies on FNV-1a dedup in `record_usage` to
+/// skip already-stored rows.  Re-add a per-agent-type cursor when the
+/// opencode.db scan cost justifies it (1k rows today = ~10ms; 100k+ later).
+#[allow(dead_code)]
 fn db_has_records(svc: &TokenUsageService, threshold: u32) -> bool {
     svc.count_records().map(|c| c > threshold as u64).unwrap_or(false)
 }
@@ -119,19 +128,12 @@ pub fn scan_and_import(svc: &TokenUsageService) -> AutoImportSummary {
     }
 }
 
-/// Skip if the DB already has > 100 rows; otherwise run `scan_and_import`.
+/// Auto-import entry point.  Always runs `scan_and_import` — FNV-1a dedup
+/// makes re-imports idempotent, so the previous "skip if DB > 100 rows"
+/// gate was both wrong (it was total-row-count, not per-agent, so any
+/// populated agent_type shut every other parser out) and unnecessary
+/// (1355-row SQLite scan ≈ 10 ms; dedup handles the rest).
 pub fn scan_and_import_if_empty(svc: &TokenUsageService) -> AutoImportSummary {
-    if db_has_records(svc, 100) {
-        let now = chrono::Utc::now().timestamp_millis();
-        return AutoImportSummary {
-            entries: vec![],
-            total_imported: 0,
-            total_skipped: 0,
-            total_errors: 0,
-            started_at: now,
-            finished_at: now,
-        };
-    }
     scan_and_import(svc)
 }
 
@@ -174,7 +176,9 @@ mod tests {
     #[test]
     fn scan_and_import_if_empty_runs_when_under_threshold() {
         let svc = make_svc();
-        // Pre-populate 5 rows (< 100 threshold) → scan should run, not skip.
+        // Pre-populate 5 rows → scan must still run, not skip. (The old
+        // "skip if total > 100" gate was a bug: any populated agent_type
+        // shut every other parser out.)
         for i in 0..5 {
             let input = make_input("claude-code", "gpt-4o", 100, 50, 1_700_000_000_000 + i);
             let id = deterministic_id(&input);
@@ -187,6 +191,36 @@ mod tests {
         // we only assert that the orchestration ran without panicking.
     }
 
+    /// Regression: the old "skip if total > 100" gate shut the opencode
+    /// parser out for any user who had > 100 claude OAuth rows.  After
+    /// 2026-06-30 the orchestrator always runs and relies on FNV-1a dedup.
+    /// This test pre-populates 3763 rows (the user's actual count) and
+    /// asserts the gate does NOT come back.
+    #[test]
+    fn scan_and_import_if_empty_runs_when_db_already_populated() {
+        let svc = make_svc();
+        // Pre-populate 3763 rows of `claude` (the count the user had when
+        // opencode data stopped appearing).  Use distinct deterministic ids
+        // so the orchestrator's dedup-skip path is exercised.
+        for i in 0..3763u64 {
+            let input = make_input(
+                "claude",
+                "fixture",
+                100,
+                50,
+                1_700_000_000_000 + i as i64,
+            );
+            let id = deterministic_id(&input);
+            let _ = svc.record_usage(&id, input);
+        }
+        let result = scan_and_import_if_empty(&svc);
+        // Must attempt all 3 parsers even with 3763 rows present.
+        assert_eq!(result.entries.len(), 3);
+        // No panic, no early-return with empty entries.
+        let opencode = result.entries.iter().find(|e| e.agent_type == "opencode").unwrap();
+        let _ = opencode.parse_stats.files_scanned;
+    }
+
     #[test]
     fn scan_and_import_returns_three_parser_entries() {
         let svc = make_svc();
@@ -196,8 +230,13 @@ mod tests {
         let opencode = result.entries.iter().find(|e| e.agent_type == "opencode").unwrap();
         let claude = result.entries.iter().find(|e| e.agent_type == "claude-code").unwrap();
         let codex = result.entries.iter().find(|e| e.agent_type == "codex").unwrap();
-        // Opencode.db typically absent in test env → 0 files scanned.
-        assert_eq!(opencode.parse_stats.files_scanned, 0);
+        // Opencode.db MAY exist on dev machine (real fixture, XDG home) or not (CI):
+        // assert only the invariant "parser attempted" via `available` + populated stats.
+        // ponytail: real fixture parsing MUST NOT error — `sample_errors` is the
+        // escape hatch when the opencode Go CLI ships a schema the parser doesn't
+        // recognize.
+        assert!(opencode.parse_stats.files_scanned > 0 || !opencode.available);
+        assert_eq!(opencode.parse_stats.lines_parse_errored, 0, "real fixtures must not error");
         // Claude data MAY exist on dev machine (real fixture) or not (CI):
         // assert only the invariant "parser attempted" via `available` + populated stats.
         assert!(claude.parse_stats.files_scanned > 0 || !claude.available);

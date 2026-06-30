@@ -232,6 +232,27 @@ pub fn parse_opencode_db_records(
         let occurred_at: i64 = row.get(8).unwrap_or(0);
 
         let (provider_name, model) = match model_raw.as_deref() {
+            // opencode Go v1.17+ stores `model` as a JSON object:
+            //   {"id":"kimi-k2.7-code","providerID":"opencode-go","variant":"max"}
+            // Extract `providerID` + `id` so the rest of the pipeline sees a
+            // canonical (provider, model) pair like every other parser emits.
+            Some(m) if m.starts_with('{') => match serde_json::from_str::<serde_json::Value>(m) {
+                Ok(v) => {
+                    let provider = v
+                        .get("providerID")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("opencode")
+                        .to_string();
+                    let id = v
+                        .get("id")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    (provider, id)
+                }
+                Err(_) => ("opencode".to_string(), m.to_string()),
+            },
+            // Legacy `vendor/model` slash convention (older opencode forks).
             Some(m) if m.contains('/') => {
                 let mut parts = m.splitn(2, '/');
                 (
@@ -1630,6 +1651,109 @@ mod tests {
 
         let summary = svc.get_summary(UsageFilter::default()).unwrap();
         assert!(summary.agent_pairs.iter().any(|p| p.agent_type == "opencode"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// opencode Go v1.17+ stores `session.model` as a JSON object
+    /// `{"id":"kimi-k2.7-code","providerID":"opencode-go","variant":"max"}`
+    /// instead of the legacy `vendor/model` slash string.  Verify the parser
+    /// unwraps it cleanly: `provider_name` = `providerID`, `model` = `id`.
+    #[test]
+    fn import_opencode_db_unwraps_json_model() {
+        use rusqlite::Connection;
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!(
+            "kp_test_opencode_json_{}.db",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+
+        let json_model = serde_json::json!({
+            "id": "kimi-k2.7-code",
+            "providerID": "opencode-go",
+            "variant": "max"
+        })
+        .to_string();
+        let json_model_2 = serde_json::json!({
+            "id": "MiniMax-M2.7",
+            "providerID": "minimax-cn-coding-plan",
+            "variant": "default"
+        })
+        .to_string();
+
+        {
+            let conn = Connection::open(&path).unwrap();
+            let sql = format!(
+                "CREATE TABLE session (
+                    id TEXT PRIMARY KEY, model TEXT, cost REAL DEFAULT 0 NOT NULL,
+                    tokens_input INTEGER DEFAULT 0 NOT NULL,
+                    tokens_output INTEGER DEFAULT 0 NOT NULL,
+                    tokens_reasoning INTEGER DEFAULT 0 NOT NULL,
+                    tokens_cache_read INTEGER DEFAULT 0 NOT NULL,
+                    tokens_cache_write INTEGER DEFAULT 0 NOT NULL,
+                    time_created INTEGER NOT NULL
+                 );
+                 INSERT INTO session VALUES
+                   ('json1','{}',0.42,100,50,0,0,0,1700000010000),
+                   ('json2','{}',0.0,200,80,0,0,0,1700000020000);",
+                json_model, json_model_2
+            );
+            conn.execute_batch(&sql).unwrap();
+        }
+
+        let records = parse_opencode_db_records(&path).unwrap();
+        assert_eq!(records.len(), 2);
+
+        // Most-recent first (ORDER BY time_created ASC + len 2 = [json1, json2]).
+        let r1 = &records[0];
+        assert_eq!(r1.agent_type, "opencode");
+        assert_eq!(r1.provider_name, "opencode-go", "providerID from JSON");
+        assert_eq!(r1.model, "kimi-k2.7-code", "id from JSON, not the JSON blob");
+        assert_eq!(r1.input_tokens, 100);
+
+        let r2 = &records[1];
+        assert_eq!(r2.provider_name, "minimax-cn-coding-plan");
+        assert_eq!(r2.model, "MiniMax-M2.7");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// Garbage that starts with `{` but is not valid JSON must NOT crash —
+    /// fall back to the legacy "treat model as opaque string" path.
+    #[test]
+    fn import_opencode_db_handles_invalid_json_model() {
+        use rusqlite::Connection;
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!(
+            "kp_test_opencode_badjson_{}.db",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE session (
+                    id TEXT PRIMARY KEY, model TEXT, cost REAL DEFAULT 0 NOT NULL,
+                    tokens_input INTEGER DEFAULT 0 NOT NULL,
+                    tokens_output INTEGER DEFAULT 0 NOT NULL,
+                    tokens_reasoning INTEGER DEFAULT 0 NOT NULL,
+                    tokens_cache_read INTEGER DEFAULT 0 NOT NULL,
+                    tokens_cache_write INTEGER DEFAULT 0 NOT NULL,
+                    time_created INTEGER NOT NULL
+                 );
+                 INSERT INTO session VALUES
+                   ('b1','{not valid json',0.01,10,5,0,0,0,1700000030000);",
+            ).unwrap();
+        }
+
+        let records = parse_opencode_db_records(&path).unwrap();
+        assert_eq!(records.len(), 1);
+        let r = &records[0];
+        // Fallback: provider = "opencode" (legacy default), model = raw string.
+        assert_eq!(r.provider_name, "opencode");
+        assert_eq!(r.model, "{not valid json");
+
         let _ = std::fs::remove_file(&path);
     }
 
