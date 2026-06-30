@@ -3,8 +3,6 @@
 > Per AGENTS.md §8 — Session 连续性日志。 每个 session 至少更新一次。
 > 真相源: git log (commit 详情) + feature_list.json (feature 状态) + progress.md (session 进度)。
 
-<!-- 2026-06-28 -->
-
 ## 2026-06-30 (deepwork — stage-13.1)
 
 **Session scope**: Stage-13.1 UsagePage dashboard UX fix batch (4 bugs from screenshot)

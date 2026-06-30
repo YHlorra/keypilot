@@ -61,69 +61,15 @@ cp AGENTS.md CLAUDE.md
 
 ### 3.1 不写 CLI 配置文件
 
-**禁止**对以下路径做任何写操作:
+**禁止**对以下路径做任何写操作:`~/.claude/` `~/.codex/` `~/.config/opencode/` `~/.local/share/opencode/` 及任何 `*claude*`/`*codex*`/`*opencode*` 目录。`fs::write` 必须落在 `%APPDATA%\com.keypilot.app\`(默认 current user 可读)、`%LOCALAPPDATA%\com.keypilot.app\`、`webui/dist/`、或用户明示临时目录。完整 grep gate 见 `init.sh §4`。
 
-- `~/.claude/settings.json`
-- `~/.claude/projects/**/*.jsonl`(只读,V0.2 token 统计用)
-- `~/.codex/auth.json`
-- `~/.codex/sessions/**/*.jsonl`(只读)
-- `~/.config/opencode/**`
-- `~/.local/share/opencode/**`
-- 任何 `*claude*` / `*codex*` / `*opencode*` 配置目录
+### 3.2 明文存储
 
-**验证**(每次提交前):
+V0.1 不引入加密 (`provider_fields.value` 明文,`visibility` 二态 `visible`/`masked` UI 掩码不影响落盘;依赖 Windows ACL + 强密码)。`Cargo.toml` 不引 `argon2` / `chacha20poly1305` / `aes-gcm` / `sodiumoxide` / `age`。详细 spec: `openspec/changes/v0.1-general-credentials/spec.md REQ-VIS-002`。V0.2 评估: SQLCipher / master-password argon2id / DPAPI 三选一,先在 `PM思考工厂/keypilot/技术方案.md` 写 RFC。
 
-```bash
-# 应在 src-tauri/src/ 下执行,所有 std::fs::write 路径必须在白名单内
-grep -rn "fs::write\|fs::create_dir_all" src-tauri/src/
-```
+### 3.3 Stage 3 UI 栈
 
-`fs::write` 出现的所有路径必须落在:
-- `%APPDATA%\com.keypilot.app\`
-- `%LOCALAPPDATA%\com.keypilot.app\`
-- `webui/dist/`(build 产物)
-- 临时目录(用户明示)
-
-### 3.2 明文存储 (V0.1 决策,2026-06-24 更新)
-
-**V0.1 不引入加密**(用户决策 /think grill Q 再问"为什么需要加密"):
-
-- `Cargo.toml` 不引 `argon2` / `chacha20poly1305` / `aes-gcm` / `sodiumoxide` / `age` 等加密 crate
-- SQLite `provider_fields.value` 列 = `TEXT NOT NULL`(明文,V0.1 全部)
-- `visibility` 二态:`visible` / `masked`(UI 掩码,落盘仍明文)
-- 依赖 Windows ACL(`%APPDATA%` 默认只对当前用户可读)+ 用户用强 Windows 密码
-- 详细 spec:`openspec/changes/v0.1-general-credentials/spec.md REQ-VIS-002`
-
-**验证**:
-
-```bash
-# 应为空
-grep -E "argon2|chacha20|ChaCha20Poly1305|aes-gcm|sodiumoxide|^age " src-tauri/Cargo.toml
-
-# 必须有(V0.1 schema v3)
-grep "visibility TEXT NOT NULL DEFAULT 'visible'" src-tauri/src/database.rs
-grep "value TEXT" src-tauri/src/database.rs  # provider_fields.value 列
-```
-
-**V0.2 评估升级**(2026-06-24 推到 V0.2 RFC):
-- 三选一:SQLCipher 全文件加密 / 主密码 + argon2id / Windows DPAPI
-- 评估前先在 `PM思考工厂/keypilot/技术方案.md` 写 RFC
-- 不要在 V0.1 偷偷加加密(保持决策纯度)
-
-### 3.3 Stage 3 UI 栈 (2026-06-24 锁)
-
-V0.1 `webui/` **必须**使用:
-
-- **shadcn/ui CLI**(`npx shadcn@latest add ...`)— Radix Primitives + Tailwind utility classes
-- **@radix-ui/colors** 作为色阶系统(`var(--gray-1)` / `var(--iris-9)` 等)
-- React 18 + TypeScript + Vite 5 + TanStack Query v5(沿用 `feature_list.json`)
-
-**禁止**:
-
-- 用 Tailwind 默认 colors(`tailwindcss/colors`)— shadcn 默认 HSL token 必须 override 为 `var(--gray-*)` / `var(--iris-9)` 等 Radix 直接值
-- 不用 Radix UI Themes(@radix-ui/themes 是 opinionated,与 docs/index.html brutalist 风格冲突)
-
-详细:`openspec/changes/v0.1-general-credentials/spec.md REQ-THEME-002` + `docs/preset-badge-options.html`(preset 徽章对比)
+V0.1 `webui/` 必须: shadcn/ui CLI (Radix Primitives + Tailwind utility, 默认 HSL token 必须 override 为 `var(--gray-*)` / `var(--iris-9)` 等 Radix 直接值) + @radix-ui/colors 色阶 + React 18 + TypeScript + Vite 5 + TanStack Query v5。**禁止** Tailwind 默认 colors 与 Radix UI Themes (与 docs/index.html brutalist 风格冲突)。详细: `openspec/changes/v0.1-general-credentials/spec.md REQ-THEME-002` + `docs/preset-badge-options.html`。
 
 ---
 
@@ -133,44 +79,35 @@ V0.1 `webui/` **必须**使用:
 
 ```
 keypilot-dev/
-├── AGENTS.md              # 本文件
-├── CLAUDE.md              # 本文件副本(Iron Rule,见 §0)
-├── README.md              # 用户向
-├── PLAN.md                # 实施计划(Stage 深度规范)
-├── progress.md            # Session 连续性日志
-├── session-handoff.md     # 正式 session 交接
-├── feature_list.json      # Feature 状态真相源
-├── init.sh                # 标准初始化 / 验证脚本
-├── .gitignore
-├── docs/                  # 额外文档
-├── src-tauri/             # Rust 后端 + Tauri 配置
-│   ├── Cargo.toml
-│   ├── tauri.conf.json
-│   ├── build.rs
-│   ├── capabilities/
-│   │   └── default.json
-│   ├── icons/             # Stage 6 补
+├── AGENTS.md / CLAUDE.md   # 本文件 + 副本 (Iron Rule §0)
+├── README.md               # 用户向
+├── PLAN.md                 # Stage 深度规范
+├── progress.md / session-handoff.md   # Session 连续性 + 交接
+├── feature_list.json       # Feature 状态真相源
+├── init.sh                 # 验证脚本 (§10)
+├── .slim/deepwork/         # Orchestrator 工作笔记 (gitignore)
+├── docs/                   # 公开文档
+├── src-tauri/              # Rust 后端
+│   ├── Cargo.toml / tauri.conf.json / build.rs
+│   ├── capabilities/ / icons/ / data/
 │   └── src/
-│       ├── main.rs
-│       ├── lib.rs
-│       ├── database.rs
-│       ├── store.rs
-│       ├── error.rs
-│       ├── provider/      # Stage 2+
-│       ├── services/      # Stage 2+
-│       ├── commands/      # Stage 2+
-│       └── tray.rs        # Stage 5
-└── webui/                 # V0.1 Stage 3 起步
-    ├── package.json
-    ├── tsconfig.json
-    ├── vite.config.ts
-    ├── index.html
+│       ├── main.rs / lib.rs / database.rs / store.rs / error.rs / types.rs
+│       ├── provider/       # Stage 2: 5 adapter (openai/deepseek/anthropic/github/postgres)
+│       ├── services/       # provider / category / quota / token_usage / pricing / auto_import
+│       ├── commands/       # provider / quota / tray / token_usage / action
+│       ├── actions/        # Action Registry (Stage 10)
+│       └── tray.rs         # Stage 5
+└── webui/                  # React 18 + TS + Vite 5
+    ├── package.json / tsconfig.json / vite.config.ts / index.html
+    ├── playwright.config.ts + tests/    # Stage f
     └── src/
-        ├── main.tsx
-        ├── App.tsx
-        ├── components/
-        ├── hooks/
-        └── lib/
+        ├── main.tsx / App.tsx
+        ├── components/ (UsageKpiCards / UsageTimeSeries / UsageStatsSidebar / ... 30+ files)
+        ├── pages/ (UsagePage)
+        ├── hooks/ (useUsage / useUsageTick / useProviders / useCategories / useTheme / useActions / useQuota)
+        ├── lib/ (api / utils / action-registry / format)
+        ├── types/ (api)   # 12 IPC + Token Usage + PeriodsSummary 契约
+        └── styles/ (globals.css)  # Kaku design tokens
 ```
 
 ### 4.2 命名
@@ -185,7 +122,7 @@ keypilot-dev/
 - Tauri command 把 `AppError` 序列化成 `{ code, message }` JSON
 - 前端用 TanStack Query 的 `error` 字段拿到,统一 toast 展示
 
-### 4.4 bd Worktree 规则 (2026-06-26 加,2026-06-28 救回)
+### 4.4 bd Worktree 规则
 
 每个 bd worktree **必须**开在新分支上,禁止在现有进行中分支上派生:
 
@@ -231,28 +168,17 @@ git worktree list --porcelain | grep "^branch"  # 应全是 refs/heads/bd/*
 ## 6. 开发循环 (Workflow)
 
 ```bash
-# 跑 dev(热重载)
+# 跑 dev(热重载)— 项目无根 package.json,必须用 cargo,不能用 pnpm tauri dev
 cd keypilot-dev
-pnpm tauri dev
+cargo tauri dev
 
-# Rust 单测
+# 编译/类型/测试 — 完整矩阵走 ./init.sh
 cargo test --manifest-path src-tauri/Cargo.toml
-
-# Rust 编译检查
 cargo check --manifest-path src-tauri/Cargo.toml
-
-# TS 类型检查
 cd webui && pnpm tsc --noEmit
-
-# 验证硬约束(提交前)
-grep -E "argon2|chacha20|ChaCha20Poly1305|aes-gcm" src-tauri/Cargo.toml  # 应空(V0.1 不加密)
-grep -rn "fs::write" src-tauri/src/  # 路径应在白名单
-grep "visibility TEXT NOT NULL DEFAULT 'visible'" src-tauri/src/database.rs  # visibility 列必有
-grep "value TEXT" src-tauri/src/database.rs  # provider_fields.value 必有
-grep "agent_file_cursor" src-tauri/src/database.rs  # schema v6 增量游标表必有
 ```
 
-完整 init/verify 走 `./init.sh`,见 §10。
+提交前必跑 `./init.sh` (硬约束 grep + JSON 校验),见 §10。
 
 ---
 
@@ -313,42 +239,7 @@ Stage 1: Tauri 2 脚手架 + SQLite 数据层
 
 ## 10. 验证 (Verification) — Sprint Contract
 
-每个 Stage 完成前**必须**全部通过(防 Agent 自评幻觉):
-
-### 10.1 编译 / 类型
-
-- [ ] `cargo check --manifest-path src-tauri/Cargo.toml` 通过
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml` 通过(有 test 时)
-- [ ] `cd webui && pnpm tsc --noEmit` 通过(`webui/` 存在时)
-
-### 10.2 硬约束 grep
-
-- [ ] `grep "visibility TEXT NOT NULL DEFAULT 'visible'" src-tauri/src/database.rs` 有结果(provider_fields.visibility 列)
-- [ ] `grep "value TEXT" src-tauri/src/database.rs` 有结果(provider_fields.value 列)
-- [ ] `grep "preset TEXT" src-tauri/src/database.rs` 有结果(preset 列)
-- [ ] `grep "category_id INTEGER NOT NULL" src-tauri/src/database.rs` 有结果(category_id FK)
-- [ ] `grep "agent_file_cursor" src-tauri/src/database.rs` 有结果(schema v6 增量游标表)
-- [ ] `grep -E "argon2|chacha20|ChaCha20Poly1305|aes-gcm|sodiumoxide|^age " src-tauri/Cargo.toml` 为空(无加密 crate)
-- [ ] `grep "notify-debouncer-full\|notify =" src-tauri/Cargo.toml` 有结果(实时增量 watcher 依赖)
-- [ ] `grep -rn "fs::write" src-tauri/src/` 所有路径不在 CLI 配置白名单外(§3.1)
-
-### 10.3 行为
-
-- [ ] 启动一次应用(Stage 1 = 空窗口 + SQLite 文件创建)
-- [ ] 关键功能手动验证(按 Stage 验收清单)
-
-### 10.4 文档
-
-- [ ] `feature_list.json` status 更新 + evidence 字段非空
-- [ ] `progress.md` 记录本 session 完成项
-- [ ] PM 工厂对应章节状态同步(若适用)
-- [ ] 提交信息按 §7 格式
-
-### 10.5 反自欺清单
-
-- [ ] 没有 `.skip` / `.todo` / `unimplemented!()` 残留
-- [ ] 没有"应该可以工作"但没跑过的代码路径
-- [ ] 没有"我跑过测试"但实际是 `cargo check` 的谎称
+每个 Stage 完成前**必须**跑 `./init.sh` 全绿。机械 grep gates (8 项: visibility / value / preset / category_id / agent_file_cursor / 无加密 crate / notify-debouncer-full / fs::write 白名单) 全部内化在 init.sh §4,不再在此重复。**反自欺 3 条**: 没有 `.skip`/`.todo`/`unimplemented!()` 残留;没有"应该可以工作"但没跑过的代码路径;没有谎称 `cargo test` 实际只跑了 `cargo check`。
 
 ---
 
@@ -359,9 +250,8 @@ Stage 1: Tauri 2 脚手架 + SQLite 数据层
 1. 查 `PLAN.md` 当前 Stage 的文件清单
 2. 查 `session-handoff.md` / `progress.md` 看上次卡在哪
 3. 查 `../PM思考工厂/keypilot/codemap.md` 看参考项目对应章节
-4. `ctx_search(source: "cc-switch-src-tauri", queries: [...])` 查 knowledge base
-5. 派 `oracle` 评审架构 / 派 `librarian` 查库文档
-6. 问用户(避免在 debug 黑洞里转太久)
+4. 派 `oracle` 评审架构 / 派 `librarian` 查库文档
+5. 问用户(避免在 debug 黑洞里转太久)
 
 ---
 
@@ -378,6 +268,4 @@ Stage 1: Tauri 2 脚手架 + SQLite 数据层
 
 ---
 
----
-
-*最后更新: 2026-06-30(token-usage-history bug-fix batch: `agent_file_cursor` 增量游标 + notify watcher + force_rescan_all IPC + `token_usage_tick` event;§10.2 grep 加 schema v6 表存在性检查。详细机制见 `docs/quota-token-reference.md §4.6`)*
+*真理源: git log (变更历史) + feature_list.json (feature 状态) + progress.md (session 进度) + session-handoff.md (下次 session 起点)*
