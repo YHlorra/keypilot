@@ -79,7 +79,6 @@ KeyPilot V0.1 已交付(stage-9 完成 sign-off)。
 4. **DESIGN.md UTF-16 → UTF-8 编码** — 历史遗留,1 命令 (`iconv -f UTF-16LE -t UTF-8`)
 5. **tray.png 极简版** — 推荐 16/24px 同心环单元素
 6. **V0.2 RFC 路线** — 加密 / Mac port / i18n / 自动 refresh(用户拍板)
-7. **PM 文档(`../PM思考工厂/keypilot/`)跟 dev 的对齐** — 上次同步是 2026-06-24,期间 stage-10 ~ 13.1 未回写
 
 ## 不在 scope (per AGENTS.md §3.3)
 

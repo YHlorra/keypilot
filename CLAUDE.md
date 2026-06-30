@@ -1,7 +1,7 @@
 # KeyPilot V0.1 — Agent Rules
 
 > 适用对象: 所有在 `keypilot-dev/` 工作的 Agent / 开发者 / 协作者
-> 真相源分离: PM思考工厂/keypilot/ = 方向 / keypilot-dev/ = 代码,冲突时 dev 赢
+> 唯一真相源: 本仓库 `keypilot-dev/`
 
 ---
 
@@ -41,19 +41,9 @@ cp AGENTS.md CLAUDE.md
 
 ---
 
-## 2. 真源规则 (Truth Source)
+## 2. 唯一真相源
 
-| 角色 | 路径 | 性质 |
-|---|---|---|
-| **方向 / 决策** | `E:\Desktop\workspace\PM思考工厂\keypilot\`(README.md / 技术方案.md / MVP-范围.md / 指导方案.md / 命名.md / 竞品分析.md / 架构图.md / codemap.md / 开源策略.md) | 思路、决策记录、设计方向 |
-| **真相源** | `E:\Desktop\workspace\keypilot-dev\`(本目录) | 实际能跑、能编译、能装的代码 |
-
-**冲突解决**:
-- PM 文档和 dev 代码冲突 → **以 dev 为准**,回写 PM 文档对齐
-- PM 文档说了但 dev 还没实现 → 视作 "TODO,待实现"
-- dev 实现超出 PM 文档 → 视作 "PM 文档需补"
-
-`PM思考工厂/CLAUDE.md` 死命令 "只记录想法,不生成代码"。dev 目录在 PM 工厂外,允许写代码。
+本仓库 `keypilot-dev/` 是代码与文档的唯一真相源。所有规格、决策、参考都在仓库内 (`docs/`、`openspec/changes/archive/`、`feature_list.json`、`progress.md`、`session-handoff.md`、`.slim/deepwork/`)。仓库外无真相源,不与外部文档同步。
 
 ---
 
@@ -65,7 +55,7 @@ cp AGENTS.md CLAUDE.md
 
 ### 3.2 明文存储
 
-V0.1 不引入加密 (`provider_fields.value` 明文,`visibility` 二态 `visible`/`masked` UI 掩码不影响落盘;依赖 Windows ACL + 强密码)。`Cargo.toml` 不引 `argon2` / `chacha20poly1305` / `aes-gcm` / `sodiumoxide` / `age`。详细 spec: `openspec/changes/v0.1-general-credentials/spec.md REQ-VIS-002`。V0.2 评估: SQLCipher / master-password argon2id / DPAPI 三选一,先在 `PM思考工厂/keypilot/技术方案.md` 写 RFC。
+V0.1 不引入加密 (`provider_fields.value` 明文,`visibility` 二态 `visible`/`masked` UI 掩码不影响落盘;依赖 Windows ACL + 强密码)。`Cargo.toml` 不引 `argon2` / `chacha20poly1305` / `aes-gcm` / `sodiumoxide` / `age`。详细 spec: `openspec/changes/v0.1-general-credentials/spec.md REQ-VIS-002`。V0.2 评估: SQLCipher / master-password argon2id / DPAPI 三选一,先在 `openspec/changes/v0.2-encryption/` 写 RFC。
 
 ### 3.3 Stage 3 UI 栈
 
@@ -192,7 +182,6 @@ cd webui && pnpm tsc --noEmit
 - 文件清单: <列出>
 - 验证: <cargo check / cargo test / cargo build 结果>
 - 硬约束: <grep 验证结果>
-- 关联 PM 文档: <../PM思考工厂/keypilot/对应 .md 同步状态>
 ```
 
 例:
@@ -203,7 +192,6 @@ Stage 1: Tauri 2 脚手架 + SQLite 数据层
 - 文件清单: Cargo.toml / tauri.conf.json / build.rs / main.rs / lib.rs / capabilities/default.json / database.rs / store.rs / error.rs
 - 验证: cargo check 通过
 - 硬约束: api_key TEXT 明文确认 / 无加密 crate / 无 CLI 写路径
-- 关联 PM 文档: PM思考工厂/keypilot/技术方案.md §6 同步
 ```
 
 ---
@@ -233,7 +221,6 @@ Stage 1: Tauri 2 脚手架 + SQLite 数据层
   - [ ] 硬约束 grep 全部通过(见 §10.2)
   - [ ] `feature_list.json` 中该 feature `status = "done"` + `evidence` 字段记录验证命令输出
   - [ ] `progress.md` 记录本 Stage 完成项
-  - [ ] 若 PM 文档有相关章节,同步状态
 
 ---
 
@@ -249,9 +236,8 @@ Stage 1: Tauri 2 脚手架 + SQLite 数据层
 
 1. 查 `PLAN.md` 当前 Stage 的文件清单
 2. 查 `session-handoff.md` / `progress.md` 看上次卡在哪
-3. 查 `../PM思考工厂/keypilot/codemap.md` 看参考项目对应章节
-4. 派 `oracle` 评审架构 / 派 `librarian` 查库文档
-5. 问用户(避免在 debug 黑洞里转太久)
+3. 派 `oracle` 评审架构 / 派 `librarian` 查库文档
+4. 问用户(避免在 debug 黑洞里转太久)
 
 ---
 
