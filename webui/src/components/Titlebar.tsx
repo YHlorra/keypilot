@@ -4,9 +4,12 @@ interface TitlebarProps {
 }
 
 export const Titlebar = ({ rightActions }: TitlebarProps) => {
+  // ponytail: removed `fixed top-0 left-0 md:left-16 right-0 z-50`.  Titlebar
+  // now lives in flex flow so the right column's scrollContainer starts at
+  // Titlebar's bottom edge instead of overlapping behind a fixed overlay.
   return (
     <header
-      className="fixed top-0 left-0 md:left-16 right-0 z-50 flex items-center justify-between px-4 border-b border-border bg-card"
+      className="shrink-0 flex items-center justify-between px-4 border-b border-border bg-card"
       style={{ height: 48 }}
       data-density
     >

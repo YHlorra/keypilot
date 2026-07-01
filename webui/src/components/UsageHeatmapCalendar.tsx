@@ -7,22 +7,7 @@ interface HeatmapCalendarProps {
   dateMap: Map<string, number>;
 }
 
-// Heatmap intensity ramp using alpha on primary color
-const INTENSITY_LEVELS = [0, 0.1, 0.3, 0.5, 0.7, 0.9] as const;
-
-const CELL_SIZE = 14;
-
-function getIntensityAlpha(count: number, maxCount: number): number {
-  if (maxCount === 0 || count === 0) return 0.05;
-  const ratio = count / maxCount;
-  if (ratio < 0.2) return INTENSITY_LEVELS[1];
-  if (ratio < 0.4) return INTENSITY_LEVELS[2];
-  if (ratio < 0.6) return INTENSITY_LEVELS[3];
-  if (ratio < 0.8) return INTENSITY_LEVELS[4];
-  return INTENSITY_LEVELS[5];
-}
-
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Build a 7-row × N-column grid of { date, count } for the last ~26 weeks (182 days)
@@ -53,7 +38,7 @@ function buildCalendarGrid(dateMap: Map<string, number>): { date: string; count:
   return weeks;
 }
 
-// Build a `string[]` indexed by week column: month name where the column starts a new month, else empty string.
+// Return month label for each week column, empty string if month didn't change
 function buildMonthLabelsByCol(weeks: { date: string; count: number }[][]): string[] {
   const labels = new Array<string>(weeks.length).fill('');
   let lastMonth = -1;
@@ -65,6 +50,17 @@ function buildMonthLabelsByCol(weeks: { date: string; count: number }[][]): stri
     }
   });
   return labels;
+}
+
+// 6 buckets: l0 (no data), l1–l5 (intensity ramp)
+function intensityColor(count: number, maxCount: number): string {
+  if (maxCount === 0 || count === 0) return "var(--color-border)";
+  const ratio = count / maxCount;
+  if (ratio < 0.2) return "color-mix(in srgb, var(--color-primary) 15%, var(--color-border))";
+  if (ratio < 0.4) return "color-mix(in srgb, var(--color-primary) 35%, var(--color-border))";
+  if (ratio < 0.6) return "color-mix(in srgb, var(--color-primary) 55%, var(--color-border))";
+  if (ratio < 0.8) return "color-mix(in srgb, var(--color-primary) 80%, var(--color-border))";
+  return "var(--color-primary)";
 }
 
 export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
@@ -99,67 +95,76 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
     );
   }
 
+  const TOTAL_COLS = weeks.length;
+
   return (
     <div className="flex flex-col gap-2 min-w-0">
-      <div className="flex min-w-0 overflow-x-auto">
-        {/* Day labels */}
-        <div className="flex flex-col gap-[5px] mr-2 pt-4">
-          {DAY_LABELS.map((day) => (
+      {/* One CSS grid: auto col (day labels) + 26 cell columns */}
+      <div
+        className="grid w-full"
+        style={{ gridTemplateColumns: `auto repeat(${TOTAL_COLS}, minmax(0, 1fr))`, gap: 5 }}
+      >
+        {/* Row 1, col 1: empty corner */}
+        <div />
+
+        {/* Row 1, cols 2-27: month labels, absolutely positioned by week index */}
+        <div className="relative h-4" style={{ gridColumn: `2 / span ${TOTAL_COLS}` }}>
+          {monthLabelByCol.map((label, i) =>
+            label ? (
+              <span
+                key={i}
+                className="absolute text-[10px] leading-4 text-muted-foreground whitespace-nowrap"
+                style={{ left: `${(i / TOTAL_COLS) * 100}%` }}
+              >
+                {label}
+              </span>
+            ) : null
+          )}
+        </div>
+
+        {/* Rows 2-8: day label + 26 cells per row, in source order */}
+        {DAYS.map((day, d) => (
+          <React.Fragment key={day}>
+            {/* Day label col */}
             <div
-              key={day}
-              className="text-xs text-muted-foreground"
-              style={{ height: CELL_SIZE, lineHeight: `${CELL_SIZE}px` }}
+              className="text-[11px] text-muted-foreground text-right pr-2 flex items-center leading-none whitespace-nowrap"
+              style={{ minWidth: 36 }}
             >
               {day}
             </div>
-          ))}
-        </div>
-
-        {/* Calendar grid */}
-        <div className="flex flex-1 min-w-0 justify-between">
-          {weeks.map((week, weekIdx) => (
-            <div key={weekIdx} className="grid grid-rows-[16px_repeat(7,14px)] gap-[5px]">
-              <span className="text-[10px] leading-4 whitespace-nowrap text-muted-foreground">
-                {monthLabelByCol[weekIdx]}
-              </span>
-              {week.map((day) => {
-                const alpha = getIntensityAlpha(day.count, maxCount);
-                return (
-                  <div
-                    key={day.date}
-                    className="rounded-sm cursor-pointer transition-opacity hover:opacity-100"
-                    style={{
-                      width: CELL_SIZE,
-                      height: CELL_SIZE,
-                      backgroundColor: alpha === 0.05
-                        ? "var(--color-border)"
-                        : `color-mix(in srgb, var(--color-primary) ${alpha * 100}%, transparent)`,
-                    }}
-                    onMouseEnter={(e) => handleMouseEnter(e, day.date, day.count)}
-                    onMouseLeave={handleMouseLeave}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
+            {/* 26 cells for this day across all weeks */}
+            {weeks.map((week) => {
+              const dayData = week[d];
+              return (
+                <div
+                  key={dayData.date}
+                  className="aspect-square w-full rounded-[2px] cursor-pointer"
+                  style={{ background: intensityColor(dayData.count, maxCount) }}
+                  onMouseEnter={(e) => handleMouseEnter(e, dayData.date, dayData.count)}
+                  onMouseLeave={handleMouseLeave}
+                />
+              );
+            })}
+          </React.Fragment>
+        ))}
       </div>
 
       {/* Intensity legend */}
       <div className="flex items-center gap-2 mt-1">
         <span className="text-xs text-muted-foreground">Less</span>
         <div className="flex gap-1">
-          {[0.05, 0.1, 0.3, 0.5, 0.7, 0.9].map((alpha, i) => (
+          {[
+            "var(--color-border)",
+            "color-mix(in srgb, var(--color-primary) 15%, var(--color-border))",
+            "color-mix(in srgb, var(--color-primary) 35%, var(--color-border))",
+            "color-mix(in srgb, var(--color-primary) 55%, var(--color-border))",
+            "color-mix(in srgb, var(--color-primary) 80%, var(--color-border))",
+            "var(--color-primary)",
+          ].map((color, i) => (
             <div
               key={i}
-              className="rounded-sm"
-              style={{
-                width: CELL_SIZE,
-                height: CELL_SIZE,
-                backgroundColor: alpha === 0.05
-                  ? "var(--color-border)"
-                  : `color-mix(in srgb, var(--color-primary) ${alpha * 100}%, transparent)`,
-              }}
+              className="aspect-square w-full rounded-[2px]"
+              style={{ background: color, minWidth: 14 }}
             />
           ))}
         </div>

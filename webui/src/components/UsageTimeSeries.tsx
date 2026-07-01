@@ -23,8 +23,8 @@ export interface UsageTimeSeriesProps {
 // ---------------------------------------------------------------------------
 // Layout constants (px — layout, not typography)
 // ---------------------------------------------------------------------------
-const PADDING = { top: 24, right: 24, bottom: 56, left: 64 };
-const HEIGHT = 320;
+const PADDING = { top: 16, right: 16, bottom: 28, left: 44 };
+const HEIGHT = 200;
 
 // ---------------------------------------------------------------------------
 // Date formatter
@@ -299,16 +299,6 @@ export function UsageTimeSeries({
           />
         ))}
 
-        {/* Y-axis "tokens" unit annotation — top-left of chart area */}
-        <text
-          x={PADDING.left}
-          y={PADDING.top - 6}
-          fontSize="var(--font-size-xs)"
-          fill="var(--color-muted-foreground)"
-        >
-          tokens
-        </text>
-
         {/* Y-axis labels */}
         {yTicks.map((tick, i) => (
           <text
@@ -317,7 +307,7 @@ export function UsageTimeSeries({
             y={tick.y}
             textAnchor="end"
             dominantBaseline="middle"
-            fontSize="var(--font-size-xs)"
+            fontSize="9px"
             fill="var(--color-muted-foreground)"
           >
             {formatTokens(tick.value)}
@@ -341,7 +331,7 @@ export function UsageTimeSeries({
               <path
                 d={areaPath}
                 fill="var(--color-primary)"
-                opacity={0.1}
+                opacity={0.12}
               />
             )}
             {/* Line — skip for single point */}
@@ -350,7 +340,7 @@ export function UsageTimeSeries({
                 d={linePath}
                 fill="none"
                 stroke="var(--color-primary)"
-                strokeWidth={2}
+                strokeWidth={1.5}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
@@ -381,7 +371,7 @@ export function UsageTimeSeries({
             x={tick.x}
             y={PADDING.top + innerHeight + 20}
             textAnchor="middle"
-            fontSize="var(--font-size-xs)"
+            fontSize="9px"
             fill="var(--color-muted-foreground)"
           >
             {tick.label}

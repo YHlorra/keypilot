@@ -1,5 +1,5 @@
 import * as React from "react";
-import { formatTokens, formatNumber } from "@/lib/format";
+import { formatTokens } from "@/lib/format";
 
 export interface ProviderRow {
   provider: string;
@@ -36,43 +36,38 @@ export const TokensLeaderboard = React.memo(function TokensLeaderboard({
       ) : (
         <div className="flex flex-col gap-3">
           {providers.map((row, idx) => (
-            <div key={row.provider} className="flex flex-col gap-1">
-              <div className="flex items-start gap-2 min-w-0">
-                {/* Rank */}
-                <span className="text-xs text-muted-foreground font-mono shrink-0 w-4 text-right">
-                  {idx + 1}
+            <div key={row.provider} className="grid grid-cols-[12px_1fr_auto] gap-x-[6px] items-center py-[3px] border-b border-border-soft last:border-0">
+              {/* Rank */}
+              <span className="text-[9px] text-muted-foreground font-medium text-right">
+                {idx + 1}
+              </span>
+
+              {/* Provider + top model */}
+              <div className="flex flex-col min-w-0">
+                <span className="text-[11px] font-medium truncate" title={row.provider}>
+                  {row.provider}
                 </span>
-
-                {/* Provider + top model */}
-                <div className="flex flex-col min-w-0 flex-1">
-                  <span className="text-xs font-semibold truncate" title={row.provider}>
-                    {row.provider}
+                {row.topModel && (
+                  <span className="text-[9px] text-muted-foreground truncate" title={row.topModel}>
+                    {row.topModel}
                   </span>
-                  {row.topModel && (
-                    <span className="text-[11px] text-muted-foreground truncate" title={row.topModel}>
-                      {row.topModel}
-                    </span>
-                  )}
-                </div>
-
-                {/* Tokens + request count */}
-                <div className="flex flex-col items-end shrink-0">
-                  <span className="text-xs font-mono">{formatTokens(row.totalTokens)}</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {formatNumber(row.requestCount)} req
-                  </span>
-                </div>
+                )}
               </div>
 
-              {/* Share bar */}
-              <div className="ml-6 h-[2px] rounded-full bg-border overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    backgroundColor: "var(--color-primary)",
-                    width: `${row.share * 100}%`,
-                  }}
-                />
+              {/* Tokens + bar */}
+              <div className="flex items-center gap-[6px] shrink-0">
+                <div className="w-[36px] h-[3px] bg-border rounded overflow-hidden">
+                  <div
+                    className="h-full rounded"
+                    style={{
+                      backgroundColor: "var(--color-primary)",
+                      width: `${row.share * 100}%`,
+                    }}
+                  />
+                </div>
+                <span className="text-[11px] font-medium font-mono tabular-nums">
+                  {formatTokens(row.totalTokens)}
+                </span>
               </div>
             </div>
           ))}
