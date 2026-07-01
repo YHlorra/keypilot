@@ -35,9 +35,10 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
   const monthSummary = periodsData?.periods.month;
   const allTimeSummary = periodsData?.periods.all_time;
 
-  // Trend chart 用 today+month 拼出窗口数据
-  // (或直接用 month 的 daily_series 显示当月趋势)
-  const trendDailySeries = monthSummary?.daily_series ?? [];
+  // Trend chart: rolling N-day window from all_time daily series.
+  // Sourcing from `month` would break the 30d view on day 1 of a month
+  // (only 1-2 entries → chart connects them as a misleading straight line).
+  const trendDailySeries = allTimeSummary?.daily_series ?? [];
 
   // Lifetime daily_series 用于 heatmap(all-time)
   const heatmapDateMap = useMemo(() => {
@@ -67,7 +68,7 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
     return `${spanDays} days`;
   }, [allTimeSummary]);
 
-  // 兼容 selectedRange:仅用于 trend chart 显示 7d/30d 切片(从 month.daily_series 切片)
+  // Rolling N-day window: slice the last N entries from the (all-time) series.
   const slicedTrendSeries = useMemo(() => {
     const series = trendDailySeries;
     if (series.length === 0) return [];
@@ -131,7 +132,7 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
                 <div className="flex flex-col">
                   <h2 className="text-sm font-semibold text-foreground">Trend</h2>
                   <span className="text-[10px] text-muted-foreground mt-0.5">
-                    {selectedRange === "7d" ? "Last 7 days" : "Last 30 days"} (from month daily series)
+                    {selectedRange === "7d" ? "Last 7 days" : "Last 30 days"} (rolling window)
                   </span>
                 </div>
                 {/* Range toggle */}

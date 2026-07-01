@@ -1,6 +1,14 @@
 //! DeepSeek 余额历史追踪。
 //! 每次查 DeepSeek 余额时,把 topped_up_balance 快照存到本地 JSON,
 //! 算出 todaySpend / monthSpend。对齐 token-monitor deepseekBalanceHistory.js。
+//!
+//! TZ invariant (REQ-DATE-LOCAL-001): `now_ms` parameter is a TZ-agnostic
+//! epoch millisecond (`Utc::now()` and `Local::now()` return identical
+//! values). The callee re-attaches Local via `Local.timestamp_millis_opt(now_ms)`
+//! so today/month spending buckets align with the user's wall-clock — same
+//! pattern as `compute_periods_summary` in `services/token_usage.rs`.
+//! Callers MUST pass a current epoch (do NOT pre-convert to a date string).
+//! Audit 2026-07-01: confirmed all production paths consistently Local.
 
 use chrono::{Datelike, Local, TimeZone};
 use serde::{Deserialize, Serialize};

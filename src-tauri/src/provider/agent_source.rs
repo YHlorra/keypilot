@@ -35,6 +35,8 @@ pub fn default_agent_sources() -> Vec<Box<dyn AgentBalanceSource>> {
 /// 并行调所有 source,失败的降级为 QuotaSnapshot,聚合为 LimitsSummary。
 pub async fn fetch_all_agent_balances() -> LimitsSummary {
     let sources = default_agent_sources();
+    // intentional Utc: `now_epoch` (seconds) is TZ-agnostic; downstream sources
+    // pass it as RFC3339 to upstream APIs which all expect UTC timestamps.
     let now_epoch = Utc::now().timestamp();
 
     // 用 tokio::task::JoinSet 并行(不引入 futures crate)。

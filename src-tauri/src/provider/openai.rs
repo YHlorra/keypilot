@@ -90,6 +90,8 @@ impl super::ProviderAdapter for OpenAiAdapter {
         // Spec L98-150: while start < now: end = min(start + 3 months, now); GET usage; start = end
         let mut total_cents: f64 = 0.0;
         let mut start = NaiveDate::from_ymd_opt(2000, 1, 1).unwrap();
+        // intentional Utc: OpenAI billing API expects UTC calendar dates per its spec;
+        // sending Local dates would shift the window by TZ offset and miss usage on edges.
         let now_date = Utc::now().date_naive();
 
         while start < now_date {
@@ -149,6 +151,8 @@ impl super::ProviderAdapter for OpenAiAdapter {
             None
         };
         // 月度窗口:下个月 1 号 00:00 UTC
+        // intentional Utc: OpenAI wallet reset_at is reported in UTC; the unit is
+        // stored verbatim and shown as a UTC clock string to match the source.
         let resets_at_iso = {
             let now = Utc::now();
             // 加 1 个月,然后把日改为 1 号;若失败 fallback 到加 1 月的日期

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useMemo } from "react";
-import { formatTokens } from "@/lib/format";
+import { formatTokens, formatLocalDate } from "@/lib/format";
 
 interface HeatmapCalendarProps {
   /** Map of date string "YYYY-MM-DD" -> token count */
@@ -28,7 +28,7 @@ function buildCalendarGrid(dateMap: Map<string, number>): { date: string; count:
   while (current <= endDate) {
     const week: { date: string; count: number }[] = [];
     for (let day = 0; day < 7; day++) {
-      const iso = current.toISOString().split("T")[0];
+      const iso = formatLocalDate(current);
       week.push({ date: iso, count: dateMap.get(iso) ?? 0 });
       current.setDate(current.getDate() + 1);
     }

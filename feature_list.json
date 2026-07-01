@@ -3,7 +3,54 @@
   "version": "0.1.0",
   "updated": "2026-07-01",
   "source_of_truth": "feature_list.json is the executable feature tracker. PLAN.md holds Stage deep specs. openspec/changes/<topic>/ holds in-progress and recently-approved spec changes (those with pending implementation). openspec/changes/archive/<topic>/ holds completed/archived spec changes (implementation done, retained for historical reference). See AGENTS.md §8 for relationship.",
-  "active_changes": [],
+  "active_changes": [
+    {
+      "id": "fix-date-local-timezone",
+      "status": "done",
+      "started_at": "2026-07-01",
+      "ended_at": "2026-07-01",
+      "summary": "Systemic TZ bug fix: epoch-to-date conversions defaulted to UTC across 6 modules (database.rs, services/token_usage.rs, services/opencode_go_limits.rs, services/deepseek_balance_history.rs, commands/token_usage.rs, webui/components/*). Centralized to two helpers (`timeutil::local_date_str` / `local_date_to_epoch` in Rust; `formatLocalDate` in TS) with system TZ = Local. Schema v6 → v7 migration re-aggregates 173 rows. init.sh §4d-4f added 3 grep gates to prevent future anti-pattern regressions.",
+      "files": [
+        "src-tauri/src/timeutil.rs",
+        "src-tauri/src/services/token_usage.rs",
+        "src-tauri/src/services/opencode_go_limits.rs",
+        "src-tauri/src/services/deepseek_balance_history.rs",
+        "src-tauri/src/commands/token_usage.rs",
+        "src-tauri/src/database.rs",
+        "src-tauri/src/provider/openai.rs",
+        "src-tauri/src/provider/agent_source.rs",
+        "src-tauri/src/provider/deepseek.rs",
+        "src-tauri/src/lib.rs",
+        "webui/src/lib/format.ts",
+        "webui/src/components/UsageKpiCards.tsx",
+        "webui/src/components/UsageHeatmapCalendar.tsx",
+        "webui/src/components/UsageDetailPanel.tsx",
+        "webui/src/components/ManualQuotaModal.tsx",
+        "webui/src/pages/UsagePage.tsx",
+        "webui/tests/usage-page.spec.ts",
+        "init.sh"
+      ],
+      "depends_on": [],
+      "evidence": "cargo test: 139/140 (1 pre-existing env-var race in codex_command_candidates_returns_non_empty; 0 regressions in actual fixes)\n  pnpm tsc --noEmit: 0 errors\n  pnpm playwright test: 4/5 (TC-04 formatLocalDate, TC-05/TC-05b AvgDayCard MTD, trend chart rolls 30d; 1 pre-existing h1 selector)\n  3 grep gates added to init.sh (verified 0 hits)\n  Blast search: 2 acceptable EXCEPTION hits (epoch_to_iso RFC3339, migrate_to_v7 TC discriminator)",
+      "openspec_ref": "openspec/changes/fix-date-local-timezone/",
+      "notes": "Multi-phase deepwork execution (Phases 1-7 done). Two pre-existing test failures are environmental (test code env-var race, page h1 selector), not regressions. Phase 5 init.sh new gates work despite Windows \\r\\n line endings in init.sh pre-existing.",
+      "regression_tests": {
+        "rust": [
+          "TC-01  local_date_str_local_midnight_crosses_utc  (services/token_usage.rs)",
+          "TC-02  local_date_to_epoch_round_trip  (services/token_usage.rs)",
+          "TC-03  get_periods_summary_month_does_not_leak_yesterday  (services/token_usage.rs)",
+          "TC-06  recompute_costs_respects_local_window  (services/token_usage.rs)",
+          "TC-07  migrate_to_v7_*  (database.rs, 7 sub-tests)"
+        ],
+        "playwright": [
+          "formatLocalDate round-trips Local (TC-04)",
+          "AvgDayCard MTD 1-day (TC-05)",
+          "AvgDayCard MTD 15-day (TC-05b)",
+          "Trend chart rolls 30d from all_time on day 1 of a month"
+        ]
+      }
+    }
+  ],
   "archived_changes": [
     {
       "id": "v0.1-spec-alignment",

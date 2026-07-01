@@ -119,6 +119,10 @@ impl super::ProviderAdapter for DeepSeekAdapter {
                 crate::services::deepseek_balance_history::bytes_to_hex(&digest)
             )
         };
+        // intentional: epoch_millis is TZ-agnostic; matches what the callee
+        // (compute_consumption → Local.timestamp_millis_opt) interprets as Local.
+        // Equivalently `Local::now().timestamp_millis()`; kept Utc to mirror
+        // peer callers (claude_oauth.rs:81, codex_rpc.rs:732, etc.).
         let now_ms = chrono::Utc::now().timestamp_millis();
         let consumption = crate::services::deepseek_balance_history::record_consumption(
             &account_key,

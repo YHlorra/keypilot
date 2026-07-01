@@ -2,6 +2,7 @@ pub mod actions;
 pub mod database;
 pub mod error;
 pub mod store;
+pub mod timeutil;
 pub mod tray;
 pub mod types;
 pub mod provider;

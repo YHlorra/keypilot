@@ -355,11 +355,32 @@ mod tests {
 
     #[test]
     fn build_windows_calculates_session_weekly_monthly() {
-        let now_ms = chrono::Local::now().timestamp_millis();
-        let session_ago = now_ms - 3600 * 1000; // 1h ago
-        let week_ago = now_ms - 2 * 24 * 3600 * 1000; // 2d ago
-        let month_ago = now_ms - 20 * 24 * 3600 * 1000; // 20d ago
-        let out_of_month = now_ms - 60 * 24 * 3600 * 1000; // 60d ago
+        // ponytail: use a fixed now_ms (June 26 2026 12:00 local) so the test is
+        // stable across any run date under TZ='Asia/Shanghai'.  month_ago row is
+        // anchored to `month_start_ms + 5d` (June 6 00:00 local) so it always
+        // falls inside the current month bucket regardless of TZ.  Session +
+        // week + month rows sum to 15.0 (3 + 5 + 7).
+        let now_ms = chrono::Local
+            .with_ymd_and_hms(2026, 6, 26, 12, 0, 0)
+            .single()
+            .unwrap()
+            .timestamp_millis();
+        let now_local = chrono::Local.timestamp_millis_opt(now_ms).single().unwrap();
+        let month_start_local = now_local
+            .date_naive()
+            .with_day(1)
+            .and_then(|d| d.and_hms_opt(0, 0, 0))
+            .unwrap();
+        let month_start_ms = chrono::Local
+            .from_local_datetime(&month_start_local)
+            .single()
+            .unwrap()
+            .timestamp_millis();
+
+        let session_ago = now_ms - 3600 * 1000; // 1h ago → June 26 11:00
+        let week_ago = now_ms - 2 * 24 * 3600 * 1000; // 2d ago → June 24 12:00
+        let month_ago = month_start_ms + 5 * 24 * 3600 * 1000; // 5d after month start → June 6 00:00
+        let out_of_month = now_ms - 35 * 24 * 3600 * 1000; // 35d ago → May 22 12:00 (prev month)
 
         let rows = vec![
             (session_ago, 3.0),

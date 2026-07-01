@@ -81,26 +81,28 @@ export const UsageKpiCards = React.memo(function UsageKpiCards({
   );
 });
 
-// ponytail: 4th KPI card — avg tokens/day over last 30d, vs prior 30d delta
-const AvgDayCard = React.memo(function AvgDayCard({ dailySeries }: { dailySeries?: { date: string; total_tokens?: number }[] }) {
+// ponytail: 修复 /30 稀释;Q4=B 锁定为 Month-to-Date (MTD) 语义。
+const AvgDayCard = React.memo(function AvgDayCard({
+  dailySeries,
+}: {
+  dailySeries?: { date: string; total_tokens?: number }[];
+}) {
   const { avg, deltaLabel } = useMemo(() => {
-    if (!dailySeries || dailySeries.length === 0) return { avg: 0, deltaLabel: "vs prior 30d" };
-    const sorted = [...dailySeries].sort((a, b) => b.date.localeCompare(a.date));
-    const last30 = sorted.slice(0, 30);
-    const currentAvg = last30.reduce((s, d) => s + (d.total_tokens ?? 0), 0) / 30;
-    if (last30.length < 30 || sorted.length < 60) {
-      return { avg: currentAvg, deltaLabel: "vs prior 30d" };
+    if (!dailySeries || dailySeries.length === 0) {
+      return { avg: 0, deltaLabel: "" };
     }
-    const prior30 = sorted.slice(30, 60);
-    const priorAvg = prior30.reduce((s, d) => s + (d.total_tokens ?? 0), 0) / 30;
-    const arrow = currentAvg > priorAvg ? "↑" : currentAvg < priorAvg ? "↓" : "";
-    const pct = priorAvg > 0 ? Math.abs(((currentAvg - priorAvg) / priorAvg) * 100).toFixed(0) : "";
-    return { avg: currentAvg, deltaLabel: pct ? `${arrow} ${pct}% vs prior 30d` : "vs prior 30d" };
+    const sorted = [...dailySeries].sort((a, b) => b.date.localeCompare(a.date));
+    const days = sorted.length;
+    const sum = sorted.reduce((s, d) => s + (d.total_tokens ?? 0), 0);
+    return {
+      avg: sum / days,
+      deltaLabel: `${days} day${days === 1 ? "" : "s"} so far`,
+    };
   }, [dailySeries]);
 
   return (
     <KpiCard
-      label="AVG / DAY (30D)"
+      label="AVG / DAY (MTD)"
       value={avg}
       formattedValue={formatTokens(avg)}
       subLabel={deltaLabel}
