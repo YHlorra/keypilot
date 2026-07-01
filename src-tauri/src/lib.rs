@@ -22,9 +22,7 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             // Stage 1: app data dir via Tauri 2 API
-            let app_dir = app.path().app_data_dir().map_err(|e: tauri::Error| {
-                AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-            })?;
+            let app_dir = app.path().app_data_dir()?;
 
             std::fs::create_dir_all(&app_dir).map_err(AppError::Io)?;
 
@@ -96,11 +94,7 @@ pub fn run() {
             let _tray = tray::init_tray(app.handle())?;
 
             // Create main window
-            let unique_id = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(0);
-            let (label, title) = (format!("keypilot-{}", unique_id), "KeyPilot");
+            let (label, title) = ("main".to_string(), "KeyPilot");
 
             let builder = WebviewWindowBuilder::new(
                 app,
@@ -111,9 +105,7 @@ pub fn run() {
             .inner_size(1200.0, 760.0)
             .resizable(true);
 
-            builder.build().map_err(|e| {
-                AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-            })?;
+            builder.build()?;
 
             Ok(())
         })

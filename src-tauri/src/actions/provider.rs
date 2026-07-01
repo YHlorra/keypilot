@@ -151,17 +151,5 @@ pub fn actions() -> Vec<ActionDef> {
             }),
             output_schema: json!({ "type": "null" }),
         },
-        ActionDef {
-            id: "provider.test_connection".into(),
-            name: "Test Connection".into(),
-            description: "Test the API key/connection for a provider. Only enabled for OpenAI, DeepSeek, and Anthropic presets.".into(),
-            category: "provider".into(),
-            input_schema: json!({
-                "type": "object",
-                "properties": { "id": { "type": "integer" } },
-                "required": ["id"]
-            }),
-            output_schema: json!({ "type": "null" }),
-        },
     ]
 }

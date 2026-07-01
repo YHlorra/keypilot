@@ -10,6 +10,7 @@ use crate::error::AppError;
 use crate::services::agent_parser::default_parsers;
 use crate::services::token_usage::deterministic_id;
 use crate::services::TokenUsageService;
+use crate::timeutil;
 #[cfg(test)]
 use crate::types::UsageRecordInput;
 
@@ -43,27 +44,12 @@ pub struct AgentImportEntry {
     pub parse_stats: crate::services::agent_parser::ParseStats,
 }
 
-/// Returns true when the token_usage_records table has more than `threshold`
-/// rows.  Used to skip auto-import on already-populated DBs.
-///
-/// ponytail: kept as a dead helper for now — `scan_and_import_if_empty` used
-/// to gate on this, but a coarse "total > 100 rows" check shut the gate
-/// permanently after 100 records of any agent_type (e.g. 3763 claude OAuth
-/// rows blocked the opencode parser from ever running).  The orchestrator
-/// now runs every startup and relies on FNV-1a dedup in `record_usage` to
-/// skip already-stored rows.  Re-add a per-agent-type cursor when the
-/// opencode.db scan cost justifies it (1k rows today = ~10ms; 100k+ later).
-#[allow(dead_code)]
-fn db_has_records(svc: &TokenUsageService, threshold: u32) -> bool {
-    svc.count_records().map(|c| c > threshold as u64).unwrap_or(false)
-}
-
 /// Run a full auto-import scan across all available agent parsers.
 /// For each parser: if `!is_available()` skip silently; otherwise call
 /// `parse()` and feed every `UsageRecordInput` through `record_usage`.
 /// Returns an `AutoImportSummary` for the caller to store / emit.
 pub fn scan_and_import(svc: &TokenUsageService) -> AutoImportSummary {
-    let started_at = chrono::Utc::now().timestamp_millis();
+    let started_at = timeutil::now_millis();
     let parsers = default_parsers(svc.pricing());
     let mut entries = Vec::new();
     let mut total_imported: u32 = 0;
@@ -116,7 +102,7 @@ pub fn scan_and_import(svc: &TokenUsageService) -> AutoImportSummary {
         });
     }
 
-    let finished_at = chrono::Utc::now().timestamp_millis();
+    let finished_at = timeutil::now_millis();
 
     AutoImportSummary {
         entries,

@@ -97,26 +97,25 @@ impl Theme {
 /// Per-preset shapes:
 /// - 3 LLM (OpenAI/DeepSeek): { total, used, remaining, unit='USD'|'token', level?, reset_at? }
 /// - GitHub: { total, used, remaining, unit='req', level?, reset_at? }
-/// - PostgreSQL: { total=None, used, unit='GB', level? }  (no remaining, no reset_at)
 /// - Anthropic: AppError::ProviderQuotaUnsupported (no QuotaSnapshot returned)
 ///
 /// 2026-06-29 升级:新增 11 个字段对齐 token-monitor normalizeLimitProvider 输出
 /// (windows / status / source / source_detail / account_* / region / balance / used_amount /
 /// balance_usd / used_usd)。旧字段保留向后兼容;旧 JSON 反序列化时新字段走 serde 默认值。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct QuotaSnapshot {
     // === 旧字段(保留,向后兼容) ===
-    /// Total quota limit (None for PostgreSQL which has no quota, only used).
+    /// Total quota limit (None for providers with no quota, only used).
     pub total: Option<f64>,
     /// Amount used (always present).
     pub used: f64,
-    /// Amount remaining (computed if total+used known; None for PostgreSQL).
+    /// Amount remaining (computed if total+used known).
     pub remaining: Option<f64>,
     /// Display unit: "USD" | "CNY" | "req" | "GB" | "token" | etc.
     pub unit: String,
     /// UI color hint based on % remaining: "green" | "amber" | "red" | "ruby".
     pub level: Option<String>,
-    /// Unix epoch seconds when quota resets (None for PostgreSQL).
+    /// Unix epoch seconds when quota resets.
     pub reset_at: Option<i64>,
 
     // === 新字段(对齐 token-monitor normalizeLimitProvider 输出) ===
@@ -173,17 +172,7 @@ impl QuotaSnapshot {
             unit: unit.to_string(),
             level,
             reset_at,
-            windows: Vec::new(),
-            status: LimitStatus::Ok,
-            source: LimitSource::Manual,
-            source_detail: String::new(),
-            account_label: None,
-            account_email: None,
-            region: None,
-            balance: None,
-            used_amount: None,
-            balance_usd: None,
-            used_usd: None,
+            ..Default::default()
         }
     }
 }
@@ -218,30 +207,7 @@ pub struct TokenUsageRecord {
     pub cost_details: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DailyAgentModelUsage {
-    pub date: String,
-    pub agent_type: String,
-    pub model: String,
-    pub provider: String,
-    pub request_count: i64,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
-    pub total_tokens: i64,
-    pub total_cost: f64,
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DailyModelUsage {
-    pub date: String,
-    pub model: String,
-    pub provider: String,
-    pub request_count: i64,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
-    pub total_tokens: i64,
-    pub total_cost: f64,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PricingEntry {
@@ -489,10 +455,11 @@ pub enum LimitWindowKind {
 }
 
 /// 配额状态机(对齐 token-monitor LimitStatus 8 种)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum LimitStatus {
     /// 正常,有数据
+    #[default]
     Ok,
     /// 已禁用
     Disabled,
@@ -511,10 +478,11 @@ pub enum LimitStatus {
 }
 
 /// 配额数据源(对齐 token-monitor LimitSource)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LimitSource {
     /// OAuth token(如 grok.com bearer)
+    #[default]
     Oauth,
     /// CLI 配置文件(如 opencode.db)
     Cli,
@@ -652,6 +620,7 @@ mod tests_quota_snapshot {
         assert_eq!(snap.used, 30.0);
         assert!(snap.windows.is_empty());
         assert_eq!(snap.status, LimitStatus::Ok);
-        assert_eq!(snap.source, LimitSource::Manual);
+        // source defaults to Oauth (#[default] variant), not Manual
+        assert_eq!(snap.source, LimitSource::Oauth);
     }
 }

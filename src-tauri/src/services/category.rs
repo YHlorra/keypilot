@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::store::AppState;
+use crate::timeutil;
 use crate::types::Category;
 use serde::{Deserialize, Serialize};
 
@@ -53,7 +54,7 @@ pub async fn add_category(
 
 pub async fn add_category_by_state(state: &AppState, req: AddCategoryRequest) -> Result<Category, AppError> {
     let db = state.db.clone();
-    let now = chrono::Utc::now().timestamp();
+    let now = timeutil::now_secs();
 
     let category = tauri::async_runtime::spawn_blocking(move || {
         let guard = db.lock().unwrap();

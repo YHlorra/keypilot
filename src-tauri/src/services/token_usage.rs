@@ -11,6 +11,7 @@ use serde::Deserialize;
 use crate::database::Database;
 use crate::error::AppError;
 use crate::services::pricing::PricingService;
+use crate::timeutil;
 use crate::types::{
     DailySeries, ImportError, ImportResult, LimitProvider, LimitsSummary, PeriodWindow,
     PeriodWindowsPair, PeriodsSummary, PeriodsTriplet, RecomputeResult, TokenUsageRecord,
@@ -298,17 +299,6 @@ impl TokenUsageService {
         self.pricing.clone()
     }
 
-    pub fn count_records(&self) -> Result<u64, AppError> {
-        let db = self.db.lock().map_err(|e| {
-            AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-        })?;
-        let count: i64 = db
-            .conn()
-            .query_row("SELECT COUNT(*) FROM token_usage_records", [], |row| row.get(0))
-            .map_err(AppError::Database)?;
-        Ok(count as u64)
-    }
-
     pub fn record_usage(
         &self,
         id: &str,
@@ -358,7 +348,7 @@ impl TokenUsageService {
             model: input.model.clone(),
             provider_name: input.provider_name.clone(),
             occurred_at: input.occurred_at,
-            recorded_at: chrono::Utc::now().timestamp_millis(),
+            recorded_at: timeutil::now_millis(),
             session_id: input.session_id.clone(),
             request_id: input.request_id.clone(),
             input_tokens: input.input_tokens,

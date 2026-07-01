@@ -5,6 +5,16 @@
 use crate::AppError;
 use chrono::{Local, NaiveDate, TimeZone};
 
+/// Current Unix epoch time in seconds.
+pub fn now_secs() -> i64 {
+    chrono::Utc::now().timestamp()
+}
+
+/// Current Unix epoch time in milliseconds.
+pub fn now_millis() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
+
 /// Epoch ms → Local 系统时区的 "YYYY-MM-DD" 字符串。
 /// Local 是 OS TZ,桌面应用系统时区。
 /// 非法 epoch 返回 "1970-01-01"(见 REQ-DATE-LOCAL-003)。

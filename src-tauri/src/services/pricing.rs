@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
-use crate::types::{PricingEntry, TokenCounts, TokenUsageCostBreakdown};
+use crate::types::{PricingEntry, TokenUsageCostBreakdown};
 use crate::error::AppError;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -32,7 +32,7 @@ impl PricingService {
     /// Build a PricingService from an explicit model list (test-only entry point).
     /// `version()` still reads the bundled pricing.json version, since pricing
     /// version is a property of the shipping data, not the in-memory index.
-    pub fn from_models(models: Vec<PricingEntry>) -> Self {
+    pub(crate) fn from_models(models: Vec<PricingEntry>) -> Self {
         let mut model_index = HashMap::new();
         for entry in models {
             model_index.insert(entry.model.clone(), Arc::new(entry));
@@ -56,26 +56,6 @@ impl PricingService {
 
     pub fn all_entries(&self) -> Vec<&PricingEntry> {
         self.model_index.values().map(|arc| arc.as_ref()).collect()
-    }
-
-    pub fn calculate_cost(&self, entry: &PricingEntry, tokens: &TokenCounts) -> f64 {
-        let mut total = 0.0;
-        if let Some(rate) = entry.input_price_per_1m {
-            total += rate * tokens.input as f64 / 1_000_000.0;
-        }
-        if let Some(rate) = entry.output_price_per_1m {
-            total += rate * tokens.output as f64 / 1_000_000.0;
-        }
-        if let Some(rate) = entry.cache_read_price_per_1m {
-            total += rate * tokens.cache_read as f64 / 1_000_000.0;
-        }
-        if let Some(rate) = entry.cache_creation_price_per_1m {
-            total += rate * tokens.cache_creation as f64 / 1_000_000.0;
-        }
-        if let Some(rate) = entry.reasoning_price_per_1m {
-            total += rate * tokens.reasoning as f64 / 1_000_000.0;
-        }
-        total
     }
 
     pub fn calculate_token_usage_cost(

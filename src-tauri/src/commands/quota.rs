@@ -1,19 +1,12 @@
 use crate::error::AppError;
 use crate::provider::{adapter_for, QuotaError};
 use crate::store::AppState;
+use crate::timeutil;
 use crate::types::{LimitSource, LimitStatus, QuotaSnapshot};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 const QUOTA_CACHE_TTL_SECS: i64 = 900; // 15 minutes (REQ-QUOTA-DISPLAY-001)
-
-fn now_secs() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64
-}
 
 /// Manual quota override: Anthropic has no quota API, so the user can persist
 /// a snapshot directly. Manual entries are exempt from the 15-min TTL — once
@@ -73,17 +66,13 @@ pub async fn fetch_quota_by_state(
             .get("base_url")
             .cloned()
             .unwrap_or_default();
-        let api_key = if preset == "postgres" {
-            serde_json::to_string(&field_map).unwrap_or_default()
-        } else {
-            field_map
-                .get("api_key")
-                .cloned()
-                .unwrap_or_default()
-        };
+        let api_key = field_map
+            .get("api_key")
+            .cloned()
+            .unwrap_or_default();
 
         // Check cache: manual source never expires, auto source obeys 15-min TTL.
-        let now = now_secs();
+        let now = timeutil::now_secs();
 
         let cached: Option<QuotaSnapshot> = db
             .conn
@@ -182,7 +171,7 @@ pub async fn fetch_quota_by_state(
     // 即使是 NotConfigured / Error 状态也写入缓存,避免短时间内反复重试
     {
         let db = state.db.lock().unwrap();
-        let now = now_secs();
+        let now = timeutil::now_secs();
         let json = serde_json::to_string(&snapshot)?;
         db.conn.execute(
             "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
@@ -207,7 +196,7 @@ pub async fn set_manual_quota(
     req: SetManualQuotaRequest,
 ) -> Result<(), AppError> {
     let db = state.db.clone();
-    let now = now_secs();
+    let now = timeutil::now_secs();
     let json = serde_json::to_string(&req.snapshot)?;
 
     tauri::async_runtime::spawn_blocking(move || {

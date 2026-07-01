@@ -20,7 +20,9 @@ pub trait ProviderAdapter: Send + Sync {
     fn preset(&self) -> &'static str;
     fn can_test(&self) -> bool;
     fn can_fetch_quota(&self) -> bool;
-    async fn validate_key(&self, base_url: &str, api_key: &str) -> Result<(), ValidateError>;
+    async fn validate_key(&self, _base_url: &str, _api_key: &str) -> Result<(), ValidateError> {
+        Err(ValidateError::Ambiguous)
+    }
     async fn fetch_quota(&self, base_url: &str, api_key: &str) -> Result<QuotaSnapshot, QuotaError>;
 }
 
@@ -30,7 +32,6 @@ pub fn adapter_for(preset: &str) -> Option<Box<dyn ProviderAdapter>> {
         "deepseek" => Some(Box::new(crate::provider::deepseek::DeepSeekAdapter)),
         "anthropic" => Some(Box::new(crate::provider::anthropic::AnthropicAdapter)),
         "github" => Some(Box::new(crate::provider::github::GitHubAdapter)),
-        "postgres" => Some(Box::new(crate::provider::postgres::PostgresAdapter)),
         _ => None,
     }
 }
@@ -72,6 +73,5 @@ mod tests {
         assert!(adapter_for("deepseek").is_some());
         assert!(adapter_for("anthropic").is_some());
         assert!(adapter_for("github").is_some());
-        assert!(adapter_for("postgres").is_some());
     }
 }
