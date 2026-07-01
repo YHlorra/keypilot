@@ -17,10 +17,9 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
 
 export interface UsagePageProps {
   filterProviderName?: string | null;
-  onClearFilter?: () => void;
 }
 
-export default function UsagePage({ filterProviderName, onClearFilter }: UsagePageProps) {
+export default function UsagePage({ filterProviderName }: UsagePageProps) {
   const [selectedRange, setSelectedRange] = useState<RangeOption>("30d");
 
   // 单 IPC:一次拿 today/month/allTime + client_models + limits
@@ -107,28 +106,11 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex-shrink-0 min-h-[64px] flex items-center justify-between px-6 py-4 border-b border-border">
-        <div>
-          <h1 className="text-lg font-semibold text-white" style={{ letterSpacing: "var(--tracking-tight)" }}>
-            Usage
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {filterProviderName != null && (
-            <button
-              onClick={onClearFilter}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-pill border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
-              title="Clear provider filter"
-            >
-              Clear filter
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Page content */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 flex flex-col gap-6 max-w-[1680px] mx-auto">
+      {/* Page content — single scroll context lives in App.tsx (line 215).
+          Removed: overflow-y-auto (was creating the second nested scrollbar
+          that combined with App.tsx's overflow-y-auto to render TWO horizontal
+          bars at the bottom of the window — see docs/usage-page.html). */}
+      <div className="flex-1 min-h-0 max-w-[1600px] mx-auto px-4 py-3 flex flex-col gap-4">
         <section>
           <div className="flex flex-col mb-3">
             <h2 className="text-sm font-semibold text-foreground">Activity</h2>
@@ -142,7 +124,7 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
         </section>
 
         {/* Body: trend chart + leaderboard sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_230px] gap-4">
           <div className="flex flex-col gap-6">
             <section>
               <div className="flex items-center justify-between mb-3">
@@ -188,8 +170,8 @@ export default function UsagePage({ filterProviderName, onClearFilter }: UsagePa
             </section>
           </div>
 
-          {/* Sidebar: tokens leaderboard */}
-          <aside className="lg:sticky lg:top-5 self-start">
+          {/* Sidebar: tokens leaderboard only (4 components in spec, no agent+model breakdown) */}
+          <aside className="lg:sticky lg:top-5 self-start flex flex-col gap-6">
             <TokensLeaderboard providers={providerLeaderboard} isLoading={periodsLoading} />
           </aside>
         </div>

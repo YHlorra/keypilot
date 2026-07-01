@@ -148,8 +148,6 @@ export default function App() {
     setCurrentPage("usage");
   };
 
-  const handleClearUsageFilter = () => setUsageFilterProviderName(null);
-
   // Filtered provider list for ProviderGrid
   const { data: allProviders = [] } = useProviders();
   const { data: categories = [] } = useCategories();
@@ -188,7 +186,9 @@ export default function App() {
         )}
 
         {currentPage === "credentials" && (
-          <div className="flex-1 overflow-y-auto md:pl-16 pb-[56px] md:pb-0">
+          // ponytail: removed `md:pl-16` -- LeftRail is now a flex sibling that
+          // naturally reserves its 64px, no extra indentation needed.
+          <div className="flex-1 overflow-y-auto pb-[56px] md:pb-0">
             <main className="flex-1">
               {categoryFilter !== "all" && (
                 <SectionLabel>
@@ -209,11 +209,9 @@ export default function App() {
           </div>
         )}
         {currentPage === "usage" && (
-          <div className="flex-1 overflow-y-auto md:pl-16 pb-[56px] md:pb-0">
-            <UsagePage
-              filterProviderName={usageFilterProviderName}
-              onClearFilter={handleClearUsageFilter}
-            />
+          // ponytail: removed `md:pl-16` -- see credentials scrollContainer above
+          <div className="flex-1 overflow-y-auto pb-[56px] md:pb-0">
+            <UsagePage filterProviderName={usageFilterProviderName} />
           </div>
         )}
       </div>

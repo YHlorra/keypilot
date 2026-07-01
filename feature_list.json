@@ -1,7 +1,7 @@
 {
   "project": "KeyPilot V0.1",
   "version": "0.1.0",
-  "updated": "2026-06-30",
+  "updated": "2026-07-01",
   "source_of_truth": "feature_list.json is the executable feature tracker. PLAN.md holds Stage deep specs. openspec/changes/<topic>/ holds in-progress and recently-approved spec changes (those with pending implementation). openspec/changes/archive/<topic>/ holds completed/archived spec changes (implementation done, retained for historical reference). See AGENTS.md §8 for relationship.",
   "active_changes": [],
   "archived_changes": [
@@ -615,6 +615,31 @@
       "ended_at": "2026-06-30",
       "assignee": "fixer+orchestrator",
       "notes": "3 个 bug 实际是同一个症状的不同层。Bug A (路径错) 用户最先观察到 'opencode 数据没进来',但根因是 Bug B (gate 阻塞)。如果只修 A 而不动 B,3763 claude 凭据的环境下 opencode 仍然 0 行。如果只修 B 不动 A,新装环境(用户实机)还是 0 行 — 因为 ~/.local/share/opencode 不在 candidate 里。两个都修才彻底。Bug C 是 quality of life,不影响行数但影响 UI 显示。\n\nPonytail 决策:\n  - 'agent_type' 已在 deterministic_id (token_usage.rs:39) 字段里,FNV-1a dedup 天然处理跨 agent_type 碰撞,不需要新加 dedup 层\n  - 'candidate_paths' 和 'opencode_go_limits::discover_db_paths' 复制 5 行扫描逻辑而非抽公共函数 — 2 个 caller,ponytail 倾向复制不抽\n  - 'db_has_records' 标 #[allow(dead_code)] 保留(可能未来 per-agent-type gate 复用),不删\n  - 'incremental_import.rs:487' 已注释 SQLite 不走 byte-stream watcher (全文件读);5.95GB 1.3k 行 ≈ 10ms 暂不优化,但涨到 100k+ 时需 per-agent-type max(time_created) cursor\n\nOut of scope (deferred):\n  - pricing.json 补 6 个 opencode model (MiniMax-M2.7 / M3 / kimi-k2.7-code / step-3.7-flash / mimo-v2.5-pro / deepseek-v4-flash-free) — cost 显示需要\n  - claude-code::derive_provider 加 kimi- prefix — provider 字段从 'unknown' 改 'moonshot'\n  - scan_and_import 5.95GB 全文件读 — 等 100k+ 行再加 cursor",
+      "openspec_ref": null
+    },
+    {
+      "id": "stage-13.3",
+      "name": "UsagePage UI 收紧 + 设计稿冻结 (4 组件布局)",
+      "description": "用户截图报 5 个 UI bug → 创建冻结设计稿 `docs/usage-page.html`(自包含 HTML,所有 token/尺寸/组件/结构 inline)→ 按稿实施到 4 个 React 组件 + 页面布局。**用户拍板 4 组件** = `<UsageHeatmapCalendar/>` / `<UsageTimeSeries/>` / `<TokensLeaderboard/>` / `<UsageKpiCards/>`。**AgentPairChart 是第 5 个,不在设计稿里,删**。\n\n修复映射:\n  1. 双底部滚动条 → `UsagePage.tsx:132` 移除 `overflow-y-auto`(单滚动上下文)\n  2. 窗口太窄放不下 → 内容 `max-width: 1600px` 配合默认 1200×760 自适配\n  3. 右侧滚动条消失 → 同 #1;WebView2 stable gutter\n  4. 顶部白色 'Usage' 字 → 删 `<h1>Usage</h1>` 标题块,LeftRail 承担标识\n  5. 趋势图不可见 → HEIGHT 320→200,PADDING 重排,移除冗余 'tokens' 标注",
+      "files": [
+        "docs/usage-page.html",
+        "webui/src/components/UsageHeatmapCalendar.tsx",
+        "webui/src/components/UsageTimeSeries.tsx",
+        "webui/src/components/TokensLeaderboard.tsx",
+        "webui/src/components/UsageKpiCards.tsx",
+        "webui/src/pages/UsagePage.tsx",
+        "webui/src/App.tsx"
+      ],
+      "depends_on": [
+        "stage-13.1",
+        "stage-f"
+      ],
+      "status": "done",
+      "evidence": "pnpm tsc --noEmit: 0 errors\ncargo check: PASS (无 Rust 改动)\n目视验证 (cargo tauri dev): 4 组件布局,1200×760 一次看完无溢出,拖动到 1800×1000 cells 等比放大不破结构\n\n设计稿→实现漂移(已修):\n  - KPI 3→4 张卡(加 Avg/day 30d,真实 sum/30 + delta vs prior 30d)\n  - 侧栏 240→230(用户反馈 '还多 10px')\n\n设计稿→实现漂移(未修,设计决策):\n  - 章节标题字号三式混用(10px UPPERCASE / 14px 句首大写 / 12px UPPERCASE)\n  - 圆角 token 3px vs 8px(全局 `--radius-sm: 8px` 在 globals.css:105)\n  - Tailwind gap 近似(gap-4=16px vs 规范 14px)\n\nHard constraints: 0 encryption crates (无 Rust 改动), 0 fs::write (无 Rust 改动), schema v6 不动, 0 new IPC, 0 new schema, 0 new backend",
+      "started_at": "2026-07-01",
+      "ended_at": "2026-07-01",
+      "assignee": "fixer+oracle+orchestrator",
+      "notes": "工作流:用户截图 → 第一性原理分析 5 个 bug 根因 → 写 `docs/usage-page.html` 设计稿(自包含 HTML)→ 用户迭代多轮(ref 别人的热力图样式 / 收紧布局)→ 4 个并行 @fixer 实施(heatmap / chart / sidebar / page)→ @oracle 评审发现 KPI 3 卡 + 死代码 + 1600px cap 漏 → 第二轮 @fixer 修复 → 杀掉 AgentPairChart(用户报 5 组件)→ 收尾收紧 10px(sidebar 240→230)\n\nPonytail 决策:\n  - 设计稿 HTML 不用 React 组件写,纯 HTML + CSS(任何浏览器打开就是真相源,不被框架绑架)\n  - `TOTAL_COLS = weeks.length` 而非硬编码 26(grid 从数据派生,数据改了不破)\n  - `usage-page.html` 单文件 ~660 行,组件映射在 IMPLEMENTATION NOTES 注释块里(不用独立 spec 文档)\n  - 设计稿定稿后实现 1:1 翻译,**不**再做调整 — 用户拍板\n\n死代码(留待用户决定是否清):\n  - `webui/src/components/AgentPairChart.tsx`(不再被引用,文件保留)\n  - `webui/src/components/UsageStatsSidebar.tsx`(stage-13.1 残留,需 grep 确认)\n  - `tauri-dev-live.{err,out,pid}` `tauri-dev.{err,out}`(dev 临时日志)\n  - `webui/{capture,inspect,capture-empty}.mjs`(调试脚本,需确认用途)\n\nOut of scope (deferred):\n  - 章节标题样式统一(设计决策待用户)\n  - 圆角 token 统一(全局 token,非 lane scope)\n  - 死代码清理(用户拍板)\n  - Playwright 视觉回归(应跑新 baseline 截图比对)\n  - pricing.json 补 model(沿 stage-13.2 遗留)",
       "openspec_ref": null
     }
   ]

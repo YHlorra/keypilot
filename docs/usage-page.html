@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>KeyPilot · Usage Page Spec (v1 · compact 1200×760)</title>
+  <style>
+    /* ════════════════════════════════════════════════════════════════════════
+       KeyPilot — Usage Page Spec v1
+       Source of truth for the compact 1200×760 default-window layout.
+       Every spacing/font/color decision is frozen in this file.
+       Implementing agents: transcribe to React + Tailwind 1:1, do not redesign.
+       ════════════════════════════════════════════════════════════════════════ */
+
+    /* ─── Design tokens (mirror webui/src/styles/globals.css) ─────────────── */
+    :root {
+      --bg:            #f5f4ed;   /* warm cream (--color-background) */
+      --surface:       #ffffff;   /* card / panel (--color-surface-elevated) */
+      --sunken:        #efeddf;   /* sunken variant (--color-surface-sunken) */
+      --border:        #d4cfc4;   /* (--color-border) */
+      --border-soft:   #e7e3d6;   /* 1 step lighter for inner separators */
+      --fg:            #141413;   /* (--color-foreground) */
+      --muted:         #6b6b65;   /* (--color-muted) */
+      --muted-2:       #9a958d;   /* (--color-muted-foreground) */
+      --primary:       #1b365d;   /* navy (--color-primary) */
+      --primary-2:     #152d4e;   /* hover */
+      --link:          #1d4ed8;   /* (--color-link) */
+      --success:       #46a758;
+      --accent:        #8a6840;   /* warm amber */
+
+      /* Compact type scale (≤ 2/3 of current UsagePage scale) */
+      --t-2xs: 9px;
+      --t-xs:  10px;
+      --t-sm:  11px;
+      --t-md:  12px;   /* body */
+      --t-lg:  13px;   /* page title (replaces 18px) */
+      --t-xl:  15px;
+      --t-2xl: 18px;   /* KPI numbers (replaces ~28px) */
+      --t-3xl: 22px;   /* hero number, used 0 times in this view */
+
+      /* Compact spacing scale */
+      --s-1: 4px;
+      --s-2: 6px;
+      --s-3: 10px;
+      --s-4: 12px;
+      --s-5: 14px;
+      --s-6: 16px;
+      --s-8: 24px;
+
+      --radius:   3px;
+      --pill:     999px;
+      --shadow-1: 0 1px 0 rgba(20,20,19,0.04);
+    }
+
+    /* ─── Reset ──────────────────────────────────────────────────────────── */
+    *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: #2a2a2a;        /* outer chrome (Tauri window frame) */
+      color: var(--fg);
+      font: 400 var(--t-md)/1.45 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: 0;
+      padding: 24px;
+      display: flex; align-items: flex-start; justify-content: center;
+    }
+    button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+    /* ─── Window frame mockup ────────────────────────────────────────────── */
+    .window {
+      width: 1200px;
+      height: 760px;
+      background: var(--bg);
+      border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+      overflow: hidden;            /* ← HARD LOCK: only this scrolls */
+      display: grid;
+      grid-template-rows: 32px 1fr; /* titlebar + main */
+      position: relative;
+    }
+    .window::before {              /* drag region indicator */
+      content: "KeyPilot  ·  Usage   (1200 × 760 — default)";
+      position: absolute; top: 0; left: 0; right: 0; height: 32px;
+      line-height: 32px; padding-left: 14px;
+      font: 500 var(--t-sm)/32px "Charter", Georgia, serif;
+      color: var(--fg); letter-spacing: -0.01em;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      z-index: 0;
+    }
+    .window > * { position: relative; z-index: 1; }
+
+    /* ─── Titlebar (right-side action cluster) ───────────────────────────── */
+    .titlebar {
+      display: flex; align-items: center; justify-content: flex-end;
+      padding: 0 12px;
+      gap: 4px;
+    }
+    .icon-btn {
+      width: 22px; height: 22px;
+      display: grid; place-items: center;
+      color: var(--muted);
+      border-radius: 4px;
+    }
+    .icon-btn:hover { background: var(--sunken); color: var(--fg); }
+    .icon-btn.primary {
+      width: 26px; height: 26px;
+      background: var(--primary); color: var(--bg);
+      border-radius: 50%;
+    }
+    .icon-btn.primary:hover { background: var(--primary-2); }
+    .icon-btn svg { width: 14px; height: 14px; }
+
+    /* ─── Main row: LeftRail + Content ──────────────────────────────────── */
+    .main {
+      display: grid;
+      grid-template-columns: 56px 1fr;   /* slim rail */
+      min-height: 0;
+    }
+
+    /* ─── Left rail ─────────────────────────────────────────────────────── */
+    .rail {
+      background: var(--bg);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center;
+      padding: 12px 0;
+      gap: 6px;
+    }
+    .rail .slot {
+      width: 40px; height: 40px;
+      display: grid; place-items: center;
+      color: var(--muted);
+      border-radius: 6px;
+      font: 500 9px/1.1 sans-serif; text-align: center;
+    }
+    .rail .slot.active { color: var(--primary); background: var(--sunken); }
+    .rail .slot svg { width: 16px; height: 16px; display: block; margin: 0 auto 2px; }
+    .rail .spacer { flex: 1; }
+
+    /* ─── Page content (the only scroll context) ───────────────────────── */
+    /* Real window is 1200×760. Content fills 1112px (1144 content area
+       minus 16+16 padding) — no max-width cap at default. On window resize,
+       .content grows with the parent; 1fr columns inside scale proportionally.
+       max-width: 1600px caps excessive spread at 4K, rare. */
+    .content {
+      overflow-y: auto;          /* ← single scroll context (was 2) */
+      overflow-x: hidden;        /* ← never let inner content widen */
+      max-width: 1600px;         /* ← cap at 1600; no effect at 1200 */
+      margin: 0 auto;
+      padding: 12px 16px 16px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    /* Section header (frozen: 10px uppercase + caption in 1 line) */
+    .sec-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .sec-head .lbl {
+      font: 600 var(--t-xs)/1 sans-serif;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--fg);
+    }
+    .sec-head .sub {
+      font: 400 var(--t-xs)/1 sans-serif;
+      color: var(--muted-2);
+    }
+    .sec-head .right { display: flex; align-items: center; gap: 8px; }
+
+    /* Range toggle (7d/30d) */
+    .toggle {
+      display: inline-flex; padding: 2px; gap: 0;
+      border: 1px solid var(--border); border-radius: var(--pill);
+      background: var(--surface);
+    }
+    .toggle button {
+      padding: 2px 10px; border-radius: var(--pill);
+      font: 500 var(--t-xs)/1.4 sans-serif;
+      color: var(--muted);
+    }
+    .toggle button.on { background: var(--primary); color: var(--bg); }
+
+    /* ─── Section 1: Activity heatmap ───────────────────────────────────── */
+    /* ONE grid. `auto repeat(26, minmax(0, 1fr))`, gap 5px.
+       Day labels and cells share row indices → pixel-aligned by grid math.
+       Cells use aspect-ratio: 1 → square at any column width.
+       Month labels are absolutely positioned in a row that spans the 26 cell
+       columns. No external alignment to compute. */
+    .sec-activity .heatmap { width: 100%; }
+    .heatmap .cells {
+      display: grid;
+      grid-template-columns: auto repeat(26, minmax(0, 1fr));
+      gap: 5px;
+      width: 100%;
+    }
+    .day-label {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 8px;
+      min-width: 36px;
+      font: 400 11px/1 sans-serif;
+      color: var(--muted-2);
+    }
+    .month-row {
+      height: 16px;
+      position: relative;
+      grid-column: 2 / span 26;
+    }
+    .month-row span {
+      position: absolute;
+      top: 0;
+      font: 400 10px/16px sans-serif;
+      color: var(--muted-2);
+      white-space: nowrap;
+    }
+    .cell {
+      aspect-ratio: 1;             /* square, fills 1fr column */
+      width: 100%;
+      background: var(--border);
+      border-radius: 2px;
+    }
+    .cell.l1 { background: color-mix(in srgb, var(--primary) 15%, var(--border)); }
+    .cell.l2 { background: color-mix(in srgb, var(--primary) 35%, var(--border)); }
+    .cell.l3 { background: color-mix(in srgb, var(--primary) 55%, var(--border)); }
+    .cell.l4 { background: color-mix(in srgb, var(--primary) 80%, var(--border)); }
+    .cell.l5 { background: var(--primary); }
+
+    .legend {
+      display: flex; align-items: center; gap: 6px;
+      margin-top: 8px;
+      font: 400 10px/1 sans-serif; color: var(--muted-2);
+    }
+    .legend .swatches { display: flex; gap: 3px; }
+    .legend .sw { width: 11px; height: 11px; border-radius: 2px; }
+
+    /* ─── Section 2: Body grid (chart + sidebar) ────────────────────────── */
+    /* Sidebar trimmed: 230px (was 300, then 240) so the body grid fits in
+       1200×760 without horizontal overflow. 10px tightening per user. */
+    .body-grid {
+      display: grid;
+      grid-template-columns: 1fr 230px;   /* ← sidebar 230 (was 300→240) */
+      gap: 14px;
+      min-height: 0;
+    }
+    .chart-card, .side-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+    }
+
+    /* Trend chart (200px tall, compact) */
+    .chart {
+      position: relative;
+      width: 100%;
+      height: 200px;
+    }
+    .chart svg { width: 100%; height: 100%; display: block; }
+    .chart .ax text { font: 400 9px/1 sans-serif; fill: var(--muted-2); }
+    .chart .grid line { stroke: var(--border); stroke-width: 1; opacity: 0.4; }
+    .chart .area  { fill: var(--primary); opacity: 0.10; }
+    .chart .line  { fill: none; stroke: var(--primary); stroke-width: 1.5; stroke-linejoin: round; }
+    .chart .pt    { fill: var(--primary); stroke: var(--surface); stroke-width: 1; }
+
+    /* Sidebar: leaderboard + agent pair */
+    .side-stack { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+    .side-card .head { margin-bottom: 8px; }
+    .lb-row {
+      display: grid; grid-template-columns: 12px 1fr auto; column-gap: 6px;
+      align-items: center;
+      padding: 3px 0;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .lb-row:last-child { border-bottom: 0; }
+    .lb-row .rk { font: 500 9px/1 sans-serif; color: var(--muted-2); text-align: right; }
+    .lb-row .name { font: 500 11px/1.2 sans-serif; color: var(--fg); }
+    .lb-row .model { font: 400 9px/1.2 sans-serif; color: var(--muted-2); }
+    .lb-row .share { display: flex; align-items: center; gap: 6px; }
+    .lb-row .val { font: 500 11px/1.2 sans-serif; color: var(--fg); font-variant-numeric: tabular-nums; }
+    .lb-row .bar { width: 36px; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .lb-row .bar i { display: block; height: 100%; background: var(--primary); }
+
+    .agent-row {
+      display: grid; grid-template-columns: 1fr auto auto; column-gap: 8px;
+      align-items: baseline;
+      padding: 3px 0;
+    }
+    .agent-row .a { font: 500 var(--t-xs)/1.3 sans-serif; color: var(--fg); }
+    .agent-row .m { font: 400 var(--t-2xs)/1.3 sans-serif; color: var(--muted-2); }
+    .agent-row .v { font: 500 var(--t-xs)/1.3 sans-serif; color: var(--fg); font-variant-numeric: tabular-nums; }
+
+    /* ─── Section 3: KPI cards row ──────────────────────────────────────── */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .kpi {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      min-height: 76px;     /* ← frozen height for visual rhythm */
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .kpi .lbl {
+      font: 500 var(--t-2xs)/1 sans-serif; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted-2);
+    }
+    .kpi .val {
+      font: 600 var(--t-2xl)/1.1 "Charter", Georgia, serif;
+      color: var(--fg);
+      font-variant-numeric: tabular-nums;
+    }
+    .kpi .delta { font: 400 var(--t-2xs)/1 sans-serif; color: var(--muted); }
+    .kpi .delta.up   { color: var(--success); }
+    .kpi .delta.down { color: #b42318; }
+
+    /* ─── Annotations (the spec overlay — only in the spec, NOT shipped) ─ */
+    .ann { position: absolute; font: 500 9px/1.2 ui-monospace, monospace; color: #c2453b; background: rgba(255,255,255,0.92); padding: 2px 4px; border-radius: 2px; pointer-events: none; }
+  </style>
+</head>
+<body>
+
+<!-- ╔═══════════════════════════════════════════════════════════════════════╗
+     ║                       SPEC OVERLAY (skip in implementation)         ║
+     ║  Each section is annotated with: target React component, frozen       ║
+     ║  dimensions, and a numbered list of design decisions.                 ║
+     ╚═══════════════════════════════════════════════════════════════════════╝ -->
+
+<div class="window" role="img" aria-label="KeyPilot Usage page at 1200x760">
+
+  <!-- ┌─────────────────────────────────────────────────────────────────┐
+       │  Component: <Titlebar />   (existing — slimmed only)            │
+       │  Height: 32px  |  Right cluster only, no center title           │
+       └─────────────────────────────────────────────────────────────────┘ -->
+  <div class="titlebar">
+    <button class="icon-btn" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H2a2 2 0 110-4h.09A1.65 1.65 0 003.6 8a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 008 3.6 1.65 1.65 0 009 2.09V2a2 2 0 114 0v.09A1.65 1.65 0 0015 3.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.18.5.6.86 1.11 1H22a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
+    <button class="icon-btn" title="Add credential">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="1.5"/><path d="M8 21h8M12 18v3"/></svg>
+    </button>
+    <button class="icon-btn primary" title="Add (primary)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </div>
+
+  <div class="main">
+
+    <!-- ┌─────────────────────────────────────────────────────────────────┐
+         │  Component: <LeftRail />    (existing — width 56, was 64)        │
+         └─────────────────────────────────────────────────────────────────┘ -->
+    <nav class="rail" aria-label="Primary">
+      <div class="slot" title="Credentials">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="9" cy="15" r="3.5"/><path d="M11 13l8-8M15 5l4 4M5 19l3-3"/></svg>
+        <span>Creds</span>
+      </div>
+      <div class="slot active" title="Usage">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        <span>Usage</span>
+      </div>
+      <div class="spacer"></div>
+      <div class="slot" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+        <span>Set</span>
+      </div>
+    </nav>
+
+    <!-- ┌─────────────────────────────────────────────────────────────────┐
+         │  Component: <UsagePage />                                     │
+         │  Single scroll context. No internal <h1>Usage</h1> header.   │
+         │  Section order: Activity → [Trend | Sidebar] → KPIs.          │
+         │  Total content height ≈ 540px. Fits inside 728px viewport     │
+         │  at default 1200×760 with ~180px headroom (no scroll needed   │
+         │  for the canonical state; KPI row may scroll into view only   │
+         │  on tall-content states).                                     │
+         └─────────────────────────────────────────────────────────────────┘ -->
+    <main class="content">
+
+      <!-- ┌───────────────────────────────────────────────────────────────┐
+           │  Section 1: <UsageHeatmapCalendar />                          │
+           │  ONE grid: `auto repeat(26, minmax(0, 1fr))`, gap 5px.       │
+           │  Row 1: empty corner + .month-row (spans 26 cells).           │
+           │  Rows 2-8: .day-label + 26 .cell each.                       │
+           │  Day labels and cell rows share row indices → pixel-aligned.  │
+           │  Cells use aspect-ratio: 1 → square at any column width.      │
+           │  5-level intensity (l1–l5 = 15/35/55/80/100% primary).        │
+           │  Month labels absolutely placed inside the spanning row.      │
+           └───────────────────────────────────────────────────────────────┘ -->
+      <section class="sec-activity">
+        <div class="sec-head">
+          <div>
+            <span class="lbl">Activity</span>
+            <span class="sub" style="margin-left:8px">26 weeks · token intensity</span>
+          </div>
+        </div>
+        <div class="heatmap">
+          <div class="cells"><!-- 1 empty + 1 month-row + 7 × (1 day-label + 26 cells) = 191 items, generated below --></div>
+        </div>
+        <div class="legend">
+          <span>Less</span>
+          <div class="swatches">
+            <div class="sw" style="background:var(--border)"></div>
+            <div class="sw cell l1"></div>
+            <div class="sw cell l2"></div>
+            <div class="sw cell l3"></div>
+            <div class="sw cell l4"></div>
+            <div class="sw cell l5"></div>
+          </div>
+          <span>More</span>
+        </div>
+      </section>
+
+      <!-- ┌───────────────────────────────────────────────────────────────┐
+           │  Section 2: <BodyGrid> = <TrendChart/> + <Sidebar/>          │
+           │  Grid: 1fr 300px (sidebar narrower than current 380).        │
+           └───────────────────────────────────────────────────────────────┘ -->
+      <div class="body-grid">
+
+        <!-- Trend card -->
+        <section class="chart-card">
+          <div class="sec-head">
+            <div>
+              <span class="lbl">Trend</span>
+              <span class="sub" style="margin-left:8px">Last 30 days</span>
+            </div>
+            <div class="toggle" role="tablist">
+              <button>7d</button>
+              <button class="on">30d</button>
+            </div>
+          </div>
+
+          <!-- ┌──────────────────────────────────────────────────────────┐
+               │  <UsageTimeSeries /> — frozen specs:                    │
+               │  HEIGHT = 200 (was 320)                                 │
+               │  PADDING = { top: 16, right: 16, bottom: 28, left: 44 }│
+               │  Y-axis label size 9px, x-axis label size 9px            │
+               │  Area opacity 0.12 (was 0.1) — keep, but lift stroke 1.5│
+               │  Unit annotation "tokens" removed (redundant at 9px)    │
+               └──────────────────────────────────────────────────────────┘ -->
+          <div class="chart">
+            <svg viewBox="0 0 800 200" preserveAspectRatio="none">
+              <g class="ax grid">
+                <line x1="44" y1="20"  x2="784" y2="20"/>
+                <line x1="44" y1="84"  x2="784" y2="84"/>
+                <line x1="44" y1="148" x2="784" y2="148"/>
+              </g>
+              <g class="ax">
+                <text x="40" y="20"  text-anchor="end" dominant-baseline="middle">400M</text>
+                <text x="40" y="84"  text-anchor="end" dominant-baseline="middle">200M</text>
+                <text x="40" y="148" text-anchor="end" dominant-baseline="middle">0</text>
+                <text x="44"  y="172" text-anchor="middle">12-01</text>
+                <text x="138" y="172" text-anchor="middle">12-05</text>
+                <text x="232" y="172" text-anchor="middle">12-09</text>
+                <text x="326" y="172" text-anchor="middle">12-13</text>
+                <text x="420" y="172" text-anchor="middle">12-17</text>
+                <text x="514" y="172" text-anchor="middle">12-21</text>
+                <text x="608" y="172" text-anchor="middle">12-25</text>
+                <text x="702" y="172" text-anchor="middle">12-29</text>
+                <text x="784" y="172" text-anchor="middle">12-31</text>
+              </g>
+              <!-- area + line for the canonical dataset: low baseline, one spike at day 26 -->
+              <path class="area" d="M44,148 L70,148 L96,148 L122,147 L148,148 L174,147 L200,148 L226,146 L252,147 L278,148 L304,145 L330,147 L356,148 L382,146 L408,148 L434,147 L460,148 L486,144 L512,147 L538,148 L564,145 L590,148 L616,144 L642,147 L668,140 L694,22 L720,148 L746,148 L772,148 L784,148 L784,164 L44,164 Z"/>
+              <path class="line" d="M44,148 L70,148 L96,148 L122,147 L148,148 L174,147 L200,148 L226,146 L252,147 L278,148 L304,145 L330,147 L356,148 L382,146 L408,148 L434,147 L460,148 L486,144 L512,147 L538,148 L564,145 L590,148 L616,144 L642,147 L668,140 L694,22 L720,148 L746,148 L772,148 L784,148"/>
+              <circle class="pt" cx="694" cy="22" r="2.5"/>
+              <circle class="pt" cx="668" cy="140" r="2"/>
+              <circle class="pt" cx="304" cy="145" r="2"/>
+            </svg>
+          </div>
+        </section>
+
+        <!-- ┌───────────────────────────────────────────────────────────────┐
+             │  <Sidebar />  =  <TokensLeaderboard/>  (4 components only)   │
+             │  No AgentPairChart — design has 4 components, not 5.        │
+             │  Sticky inside its column (was: sticky to viewport — wrong).│
+             └───────────────────────────────────────────────────────────────┘ -->
+        <aside class="side-stack">
+          <section class="side-card">
+            <div class="head sec-head">
+              <span class="lbl">Tokens by provider</span>
+            </div>
+            <div class="lb-row">
+              <span class="rk">1</span>
+              <div>
+                <div class="name">minimax-cn-coding-plan</div>
+                <div class="model">MiniMax-M3</div>
+              </div>
+              <div class="share">
+                <span class="val">412M</span>
+                <div class="bar"><i style="width:100%"></i></div>
+              </div>
+            </div>
+            <div class="lb-row">
+              <span class="rk">2</span>
+              <div>
+                <div class="name">opencode-go</div>
+                <div class="model">glm-5.2</div>
+              </div>
+              <div class="share">
+                <span class="val">68M</span>
+                <div class="bar"><i style="width:16%"></i></div>
+              </div>
+            </div>
+            <div class="lb-row">
+              <span class="rk">3</span>
+              <div>
+                <div class="name">opencode</div>
+                <div class="model">deepseek-v4-flash-free</div>
+              </div>
+              <div class="share">
+                <span class="val">24M</span>
+                <div class="bar"><i style="width:6%"></i></div>
+              </div>
+            </div>
+            <div class="lb-row">
+              <span class="rk">4</span>
+              <div>
+                <div class="name">unknown</div>
+                <div class="model">kimi-k2.7-code</div>
+              </div>
+              <div class="share">
+                <span class="val">3M</span>
+                <div class="bar"><i style="width:1%"></i></div>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <!-- ┌───────────────────────────────────────────────────────────────┐
+           │  Section 3: <KpiCards />  — 4 cards across                   │
+           │  Frozen: min-height 76px, padding 10/12, gap 10px.           │
+           │  Number font: 18px Charter serif (was 28px sans).            │
+           └───────────────────────────────────────────────────────────────┘ -->
+      <section class="kpi-row">
+        <div class="kpi">
+          <span class="lbl">Today</span>
+          <span class="val">1.2M</span>
+          <span class="delta up">↑ 18% vs yesterday</span>
+        </div>
+        <div class="kpi">
+          <span class="lbl">This month</span>
+          <span class="val">28 days</span>
+          <span class="delta">507M tokens · $4.21</span>
+        </div>
+        <div class="kpi">
+          <span class="lbl">All time</span>
+          <span class="val">182 days</span>
+          <span class="delta">2.1B tokens · $18.40</span>
+        </div>
+        <div class="kpi">
+          <span class="lbl">Avg / day (30d)</span>
+          <span class="val">16.9M</span>
+          <span class="delta down">↓ 4% vs prior 30d</span>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     IMPLEMENTATION NOTES (not part of the visual, reference only)
+     ════════════════════════════════════════════════════════════════════════
+     Component count (frozen — do not add wrappers / interfaces / IProps):
+       <Titlebar/>           (existing, slim actions only)
+       <LeftRail/>           (existing, 56px wide)
+       <UsagePage/>          (this entire <main> region)
+       <UsageHeatmapCalendar/>(section 1)
+        <BodyGrid>            (grid container for section 2)
+          <TrendChart/>       (UsageTimeSeries, height 200)
+          <Sidebar/>
+            <TokensLeaderboard/>  (4 components total — no AgentPairChart)
+        <KpiCards/>           (section 3, 4 cards, height 76)
+
+     FROZEN DECISIONS (implement verbatim, no override):
+       • Single scroll context: only <main.content> scrolls.
+       • max-w-[1680px] REMOVED from UsagePage.
+       • max-w on <main.content> = 100% (parent constrains).
+       • Sidebar 300px (was 380). Chart column 1fr.
+       • Heatmap: ONE grid, .cells: `auto repeat(26, minmax(0, 1fr))`, gap 5px.
+         Row 1: empty corner + .month-row (spans 26 cells, months absolutely placed).
+         Rows 2-8: .day-label + 26 .cell each. Same row indices → pixel-aligned.
+         .cell { aspect-ratio: 1; width: 100% } → square at any column width.
+         Cell levels: l1-l5 = 15/35/55/80/100% primary on border.
+       • Content max-width 1600px (caps 4K spread). At default 1200×760,
+         content fills 1112px (no cap effect). On window resize, .content
+         width follows parent; 1fr columns inside scale proportionally.
+         Heatmap cells stay square via aspect-ratio: 1 at any width.
+       • No <h1>Usage</h1> page header. LeftRail carries identity.
+       • BodyGrid: 1fr 230px (sidebar trimmed from 300→240, tightened 10px
+         to eliminate horizontal overflow at 1200×760). Leaderboard rows:
+         font 11px (was 12), bar 36px (was 60), row padding 3px (was 5).
+       • Chart HEIGHT 200. PADDING {t:16 r:16 b:28 l:44}.
+       • Y-axis text 9px; x-axis text 9px; no "tokens" annotation.
+       • Section headers: 10px UPPERCASE bold + 10px caption right.
+       • Section gap 14px (was 24). Page padding 12/16 (was 20/24).
+       • KPI card min-height 76px. KPI number 18px Charter.
+       • Default window stays 1200×760. Do NOT change tauri.conf.json.
+       • No <h1>Usage</h1> page header. LeftRail carries identity.
+       • WebView2 scrollbar: stable gutter (CSS `scrollbar-gutter: stable`).
+
+     DELETED (one-shot, do not reintroduce):
+       • UsagePage.tsx line 132  →  remove `overflow-y-auto` from inner
+                                    div (App.tsx:215 keeps the only scroll)
+     ════════════════════════════════════════════════════════════════════════ -->
+
+<script>
+/* Generate heatmap cells. Pure data — no logic to copy.
+   One .cells grid: 1 empty + 1 month-row + 7 × (1 day-label + 26 cells) = 191. */
+(function () {
+  const cells = document.querySelector('.sec-activity .cells');
+  const MONTHS = ['Dec','Jan','Feb','Mar','Apr','May','Jun'];
+  const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  // synthetic intensity: l0 for first 22 weeks, l1-l5 in last 4
+  const DATA = [
+    /* week 22 */ [0,0,0,0,0,2,0],
+    /* week 23 */ [0,1,2,3,2,4,1],
+    /* week 24 */ [0,2,3,5,4,3,1],
+    /* week 25 */ [0,1,2,3,2,2,0],
+  ];
+  const monthStarts = new Set([0, 4, 9, 13, 17, 22]);
+  let html = '';
+  // Row 1, col 1: empty corner.
+  html += '<div></div>';
+  // Row 1, cols 2-27: month labels absolutely positioned by week %.
+  let monthHtml = '';
+  for (let w = 0; w < 26; w++) {
+    if (monthStarts.has(w)) {
+      const pct = (w / 26) * 100;
+      const name = MONTHS[Math.min(MONTHS.length - 1, Math.floor(w/4.5))] || '';
+      monthHtml += `<span style="left:${pct.toFixed(2)}%;">${name}</span>`;
+    }
+  }
+  html += `<div class="month-row">${monthHtml}</div>`;
+  // Rows 2-8: 1 day-label + 26 cells per row.
+  for (let d = 0; d < 7; d++) {
+    html += `<div class="day-label">${DAYS[d]}</div>`;
+    for (let w = 0; w < 26; w++) {
+      const weekData = DATA[w - 22] || [0,0,0,0,0,0,0];
+      const lvl = weekData[d] || 0;
+      html += `<div class="cell ${lvl ? 'l' + lvl : ''}"></div>`;
+    }
+  }
+  cells.innerHTML = html;
+})();
+</script>
+
+</body>
+</html>

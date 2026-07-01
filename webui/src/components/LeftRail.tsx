@@ -22,9 +22,11 @@ export const LeftRail = React.memo(function LeftRail({
 }: LeftRailProps) {
   return (
     <>
-      {/* Desktop: vertical rail - fixed so it stays put while content scrolls */}
+      {/* Desktop: vertical rail -- flex sibling, lets Titlebar/TopBar align
+          cleanly inside the right column without fixed-position magic offsets.
+          Mobile rail (below) stays fixed because it must overlay the bottom. */}
       <nav
-        className="hidden md:flex fixed left-0 top-0 bottom-0 flex-col items-center gap-1 py-3 border-r border-border bg-card z-30"
+        className="hidden md:flex shrink-0 flex-col items-center gap-1 py-3 border-r border-border bg-card"
         style={{ width: 64 }}
         aria-label="Main navigation"
       >

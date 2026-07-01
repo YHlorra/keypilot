@@ -3,6 +3,83 @@
 > Per AGENTS.md §8 — Session 连续性日志。 每个 session 至少更新一次。
 > 真相源: git log (commit 详情) + feature_list.json (feature 状态) + progress.md (session 进度)。
 
+## 2026-07-01 (stage-13.3 — UsagePage UI 收紧 + 设计稿定稿)
+
+**Session scope**: 用户截图报告 UsagePage 5 个 UI bug → 创建冻结设计稿 `docs/usage-page.html` → 按稿实施到 4 个 React 组件 + 页面布局。**用户拍板定稿**(4 组件 = 热力图 / 趋势 / token 使用 / 请求数,与设计稿一致)。
+
+**Files changed**: 7 改 + 1 新
+- `docs/usage-page.html`(新) — 冻结设计稿,自包含 HTML,所有 token/尺寸/组件/结构 inline 标注
+- `webui/src/components/UsageHeatmapCalendar.tsx` — 单 grid 重写(`auto repeat(26, minmax(0, 1fr))`,gap 5px,`aspect-square` cells,15/35/55/80/100% 强度)
+- `webui/src/components/UsageTimeSeries.tsx` — HEIGHT 200,新 PADDING `{t:16 r:16 b:28 l:44}`,9px 坐标轴,删除 "tokens" 标注,stroke 1.5
+- `webui/src/components/TokensLeaderboard.tsx` — grid 布局,11/9px 字号,36px 进度条
+- `webui/src/components/UsageKpiCards.tsx` — 加第 4 张卡 "Avg / day (30d)" + 真实计算
+- `webui/src/pages/UsagePage.tsx` — 删 `<h1>Usage</h1>` 标题块,body grid `1fr 230px`,内容 `max-w-[1600px] mx-auto`,删 `onClearFilter` 死代码
+- `webui/src/App.tsx` — 删 `handleClearUsageFilter` 死函数
+
+### 5 个原始 bug → 修复
+
+| # | Bug | 修复 |
+|---|---|---|
+| 1 | 双底部滚动条 | `UsagePage.tsx:132` 移除 `overflow-y-auto`(单滚动上下文) |
+| 2 | 窗口太窄放不下 | 内容 `max-width: 1600px` 配合窗口 1200×760 自适配 |
+| 3 | 右侧滚动条消失 | 同上(单一滚动上下文,WebView2 stable gutter) |
+| 4 | 顶部白色 "Usage" 字 | 删 `<h1>Usage</h1>` 标题块,LeftRail 承担标识 |
+| 5 | 趋势图不可见 | HEIGHT 320→200,PADDING 重排,移除冗余 "tokens" 标注 |
+
+### 设计稿定稿过程
+
+1. 初版(spec 700px max-width)— 用户确认"短了",调整到 1600px 上限
+2. 热力图单元格长方形 — 加 `aspect-square` + `aspect-ratio: 1`,cells 永正方形
+3. 星期标签不对齐 — 改单 grid(day-labels 和 cells 共享 row indices)
+4. 单元格"分开"— 改用 5px gap 的参考样式
+5. 多余的 AgentPairChart 组件 — 删除,与设计稿 4 组件对齐
+6. 侧栏 240→230(用户反馈"还多 10px")
+
+### 验证
+
+```
+pnpm tsc --noEmit           → 0 errors
+cargo check                 → PASS (无 Rust 改动)
+Vite hot-reload             → 窗口内目视确认 4 组件,1200×760 无溢出
+拖动窗口到 1800×1000        → cells 等比放大,1600px 上限封顶,不破结构
+```
+
+### 设计稿 vs 实现 漂移(已修)
+
+- 规范 NOTES 一处写 `max-w-[1680px]`,CSS 写 `1600px`,代码 1600px → 一致
+- 侧栏一处 NOTES 写 300px,实现 230px(经 240→230 收紧)→ 一致
+- KPI 3 张卡 vs 4 张卡 → 加第 4 张 "Avg / day (30d)"
+
+### 设计稿 vs 实现 漂移(未修,设计决策待用户)
+
+- **章节标题字号** — 规范要 10px UPPERCASE,实际混用 14px 句首大写 + 12px UPPERCASE。三种样式并存于一个视图
+- **圆角 token** — 规范 `--radius: 3px`,`globals.css` `--radius-sm: 8px`,代码 `rounded-sm` → 全局 token 不一致
+- **Tailwind gap 近似** — `gap-4` (16px) vs 规范 14px;`gap-3` (12px) vs 规范 10px。差异 ≤ 2px,可忽略
+
+### 死代码(留待清理,非本 session scope)
+
+- `webui/src/components/AgentPairChart.tsx` — 不再被引用,但文件保留(数据层 `agent_pairs` 仍可用)
+- `webui/src/components/UsageStatsSidebar.tsx` — 上一 stage 残留,本 stage 未检查引用
+- `tauri-dev-live.{err,out,pid}` `tauri-dev.{err,out}` — dev server 临时日志
+- `webui/{capture,inspect,capture-empty}.mjs` — 调试脚本,需确认是否仍需
+
+### 下次 session 起手
+
+1. 跑 `./init.sh`
+2. 读 `feature_list.json` stage-13.3 entry
+3. 决策点:
+   - **立即 commit** 本次改动(working tree dirty,10 webui 改 + 1 docs 新)
+   - 顺手清死代码:删 `AgentPairChart.tsx` + 检查 `UsageStatsSidebar.tsx` 引用 + 删 `tauri-dev-*` 日志
+   - 解决章节标题字号不一致(10px UPPERCASE vs 14px 句首大写)— 设计决策
+   - 重设 `globals.css --radius` 锁 3px 或 8px(全局)— 设计决策
+4. 后续候选(用户拍板):
+   - V0.2 RFC 路线(加密 / Mac port / i18n)
+   - pricing.json 补 6 个 opencode model(沿 stage-13.2 遗留)
+   - `claude-code::derive_provider` 加 `kimi-` prefix
+   - format-number-debt
+
+---
+
 ## 2026-06-30 (deepwork — stage-13.2)
 
 **Session scope**: opencode 数据导入 3 个串联 bug 修复批(用户报告 "opencode 的数据仍然没有加入")
