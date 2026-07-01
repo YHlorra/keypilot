@@ -26,8 +26,10 @@ impl ClaudeCodeParser {
             pricing,
         }
     }
+}
 
-    #[cfg(test)]
+#[cfg(test)]
+impl ClaudeCodeParser {
     pub fn with_path(path: PathBuf, pricing: Arc<PricingService>) -> Self {
         Self { path, pricing }
     }

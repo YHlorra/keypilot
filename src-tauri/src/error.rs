@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("tauri error: {0}")]
+    Tauri(String),
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
 
@@ -51,6 +53,12 @@ pub enum AppError {
     ActionNotFound(String),
 }
 
+impl From<tauri::Error> for AppError {
+    fn from(e: tauri::Error) -> Self {
+        AppError::Tauri(e.to_string())
+    }
+}
+
 // Tauri command serialization: { code: String, message: String }
 impl serde::Serialize for AppError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -60,6 +68,7 @@ impl serde::Serialize for AppError {
         use serde::ser::SerializeStruct;
         let mut s = serializer.serialize_struct("AppError", 2)?;
         let code = match self {
+            Self::Tauri(_) => "TAURI",
             Self::Database(_) => "DATABASE",
             Self::Io(_) => "IO",
             Self::Serde(_) => "SERDE",

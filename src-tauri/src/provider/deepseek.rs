@@ -3,6 +3,7 @@ use serde::Deserialize;
 use std::time::Duration;
 
 use crate::provider::adapter::{QuotaError, ValidateError};
+use crate::timeutil;
 use crate::types::{LimitSource, LimitStatus, LimitWindow, LimitWindowKind, MoneyAmount, QuotaSnapshot};
 
 pub struct DeepSeekAdapter;
@@ -102,7 +103,7 @@ impl super::ProviderAdapter for DeepSeekAdapter {
         let used = 0.0_f64;
         let remaining = total_balance;
 
-        // CNY → USD 换算(硬编码 6.8,对齐 services/currency.rs 默认汇率)
+        // CNY → USD 换算(硬编码 6.8)
         // 若 currency 已是 USD 直接用原值
         let usd_rate = if currency == "USD" { 1.0 } else { 6.8 };
         let balance_usd = remaining / usd_rate;
@@ -121,9 +122,8 @@ impl super::ProviderAdapter for DeepSeekAdapter {
         };
         // intentional: epoch_millis is TZ-agnostic; matches what the callee
         // (compute_consumption → Local.timestamp_millis_opt) interprets as Local.
-        // Equivalently `Local::now().timestamp_millis()`; kept Utc to mirror
-        // peer callers (claude_oauth.rs:81, codex_rpc.rs:732, etc.).
-        let now_ms = chrono::Utc::now().timestamp_millis();
+        // Equivalently `Local::now().timestamp_millis()`; kept Utc.
+        let now_ms = timeutil::now_millis();
         let consumption = crate::services::deepseek_balance_history::record_consumption(
             &account_key,
             &currency,

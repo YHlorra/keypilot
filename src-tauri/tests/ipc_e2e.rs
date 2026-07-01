@@ -21,7 +21,6 @@ use keypilot_lib::commands::provider::{
 use keypilot_lib::commands::quota::{fetch_quota, set_manual_quota, SetManualQuotaRequest};
 use keypilot_lib::commands::token_usage::{
     record_usage, list_usage_records, get_usage_summary, get_usage_periods_summary,
-    get_usage_periods_summary_by_state,
     import_usage, get_pricing,
     RecordUsageRequest, ListUsageRecordsRequest, UsageFilterIpc, UsageRecordInputIpc,
     TokenBreakdownIpc,
@@ -78,8 +77,8 @@ fn as_state<'r>(r: &'r AppState) -> State<'r, AppState> {
 fn e2e_list_providers() {
     let state = build_test_state();
     let response = call_ok("list_providers", block_on(list_providers(as_state(&state))));
-    // 5 presets seeded
-    assert!(response.len() >= 5, "Expected >= 5 preset providers, got {}", response.len());
+    // 4 presets seeded (postgres was deleted in Phase 1)
+    assert!(response.len() >= 4, "Expected >= 4 preset providers, got {}", response.len());
 }
 
 #[test]
@@ -103,7 +102,7 @@ fn e2e_add_provider() {
         fields: Some(vec![]),
     };
     let response = call_ok("add_provider", block_on(add_provider(as_state(&state), req)));
-    assert!(response.id >= 6, "Expected new provider id >= 6, got {}", response.id);
+    assert!(response.id >= 5, "Expected new provider id >= 5, got {}", response.id);
     assert_eq!(response.name, "Test Provider");
 }
 
@@ -207,14 +206,15 @@ fn e2e_set_manual_quota_persists_and_fetch_returns_it() {
     let state = build_test_state();
     let req = SetManualQuotaRequest {
         id: 1, // OpenAI preset
-        snapshot: QuotaSnapshot::legacy(
-            Some(100.0),
-            25.0,
-            Some(75.0),
-            "USD",
-            Some("green".to_string()),
-            None,
-        ),
+        snapshot: QuotaSnapshot {
+            total: Some(100.0),
+            used: 25.0,
+            remaining: Some(75.0),
+            unit: "USD".to_string(),
+            level: Some("green".to_string()),
+            reset_at: None,
+            ..Default::default()
+        },
     };
 
     call_unit("set_manual_quota", block_on(set_manual_quota(as_state(&state), req)));
@@ -233,14 +233,15 @@ fn e2e_set_manual_quota_provider_not_found() {
     let state = build_test_state();
     let req = SetManualQuotaRequest {
         id: 99999, // not seeded
-        snapshot: QuotaSnapshot::legacy(
-            None,
-            0.0,
-            None,
-            "token",
-            None,
-            None,
-        ),
+        snapshot: QuotaSnapshot {
+            total: None,
+            used: 0.0,
+            remaining: None,
+            unit: "token".to_string(),
+            level: None,
+            reset_at: None,
+            ..Default::default()
+        },
     };
     let result = block_on(set_manual_quota(as_state(&state), req));
     assert!(result.is_err(), "Expected error for non-existent provider id");
@@ -487,11 +488,11 @@ fn e2e_get_usage_periods_summary() {
     let id = deterministic_id(&input);
     svc.record_usage(&id, input).expect("record_usage should succeed");
 
-    // 通过 by_state 入口调用(避免 transmute State 的复杂度)
+    // Call via as_state to avoid transmute complexity
     let filter = UsageFilterIpc::default();
     let summary: PeriodsSummaryResponse = call_ok(
         "get_usage_periods_summary",
-        block_on(get_usage_periods_summary_by_state(&state, filter)),
+        block_on(get_usage_periods_summary(as_state(&state), filter)),
     );
 
     // today 应有 1 条
@@ -646,7 +647,7 @@ fn e2e_execute_action_provider_list() {
     };
     let result = call_ok("execute_action provider.list", block_on(execute_action(as_state(&state), req)));
     let arr = result.as_array().expect("Expected array result");
-    assert!(arr.len() >= 5, "Expected >= 5 preset providers, got {}", arr.len());
+    assert!(arr.len() >= 4, "Expected >= 4 preset providers, got {}", arr.len());
 }
 
 #[test]

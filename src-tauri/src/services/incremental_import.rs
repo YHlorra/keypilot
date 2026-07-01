@@ -127,24 +127,6 @@ impl IncrementalImporter {
         }
     }
 
-    /// Signal both the fallback poll thread to exit and drop the watcher.
-    /// Currently unused — V0.1 keeps the importer alive for the process
-    /// lifetime.  Reserved for future "Settings → Pause watching" toggle.
-    pub fn shutdown(&mut self) {
-        if let Some(tx) = self._shutdown_tx.take() {
-            let _ = tx.send(());
-        }
-        self._debouncer = None;
-        if let Some(handle) = self._watcher_thread.take() {
-            let _ = handle.join();
-        }
-    }
-}
-
-impl Drop for IncrementalImporter {
-    fn drop(&mut self) {
-        self.shutdown();
-    }
 }
 
 // ---------- initial catch-up ----------
@@ -397,8 +379,8 @@ fn process_one_file_inner(
 
     if current_size == cursor.byte_offset {
         // No new bytes since last scan.  Refresh cursor timestamp.
-        cursor.last_event_at = Some(chrono::Utc::now().timestamp_millis());
-        cursor.last_scan_at = chrono::Utc::now().timestamp_millis();
+        cursor.last_event_at = Some(crate::timeutil::now_millis());
+        cursor.last_scan_at = crate::timeutil::now_millis();
         let db_guard = db.lock().map_err(|e| {
             AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, format!("db lock: {e}")))
         })?;
@@ -443,7 +425,7 @@ fn process_one_file_inner(
     }
 
     // Phase 4: update cursor to current EOF.
-    let now = chrono::Utc::now().timestamp_millis();
+    let now = crate::timeutil::now_millis();
     cursor.byte_offset = current_size;
     cursor.file_size = current_size;
     cursor.last_scan_at = now;

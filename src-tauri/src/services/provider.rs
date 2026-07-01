@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::store::AppState;
+use crate::timeutil;
 use crate::types::{Provider, ProviderField, Visibility};
 use serde::{Deserialize, Serialize};
 
@@ -140,7 +141,7 @@ pub async fn add_provider(
 
 pub async fn add_provider_by_state(state: &AppState, req: AddProviderRequest) -> Result<Provider, AppError> {
     let db = state.db.clone();
-    let now = chrono::Utc::now().timestamp();
+    let now = timeutil::now_secs();
 
     let provider = tauri::async_runtime::spawn_blocking(move || {
         let guard = db.lock().unwrap();
@@ -202,7 +203,7 @@ pub async fn update_provider(
 
 pub async fn update_provider_by_state(state: &AppState, req: UpdateProviderRequest) -> Result<Provider, AppError> {
     let db = state.db.clone();
-    let now = chrono::Utc::now().timestamp();
+    let now = timeutil::now_secs();
 
     let provider = tauri::async_runtime::spawn_blocking(move || {
         let mut guard = db.lock().unwrap();

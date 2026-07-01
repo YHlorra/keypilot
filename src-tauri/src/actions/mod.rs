@@ -125,12 +125,6 @@ pub async fn dispatch(
             crate::services::provider::delete_provider_by_state(state, id).await?;
             Ok(Value::Null)
         }
-        "provider.test_connection" => {
-            let id = require_i64(&params, "id")?;
-            crate::commands::provider::test_connection_by_state(state, id).await?;
-            Ok(Value::Null)
-        }
-
         // --- category ---
         "category.list" => {
             let r = crate::services::category::list_categories_by_state(state).await?;
