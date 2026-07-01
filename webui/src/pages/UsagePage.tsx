@@ -101,7 +101,7 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
     const withShare = rolled
       .map((r) => ({ ...r, share: total > 0 ? r.totalTokens / total : 0 }))
       .sort((a, b) => b.totalTokens - a.totalTokens)
-      .slice(0, 8);
+      .slice(0, 4);
     return withShare;
   }, [monthSummary]);
 
