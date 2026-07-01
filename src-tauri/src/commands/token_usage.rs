@@ -234,27 +234,6 @@ fn iso_to_epoch(iso: &str) -> Result<i64, AppError> {
         .map_err(|e| AppError::TokenUsageInvalidFormat(format!("invalid ISO8601 '{iso}': {e}")))
 }
 
-/// Parse an ISO calendar date "YYYY-MM-DD" into epoch seconds at 00:00:00 UTC.
-///
-/// When `exclusive` is true, advance one day so the caller can build a
-/// half-open interval `[from_epoch, to_epoch_exclusive)` where `to_date`
-/// covers the full calendar day (e.g. "2026-06-28" → 2026-06-29 00:00 UTC).
-fn iso_date_to_epoch(date_str: &str, exclusive: bool) -> Result<i64, AppError> {
-    let date = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-        .map_err(|e| AppError::TokenUsageInvalidFormat(format!("invalid date '{date_str}': {e}")))?;
-    let actual = if exclusive {
-        date.succ_opt()
-            .ok_or_else(|| AppError::TokenUsageInvalidFormat("date overflow".into()))?
-    } else {
-        date
-    };
-    Ok(actual
-        .and_hms_opt(0, 0, 0)
-        .unwrap()
-        .and_utc()
-        .timestamp_millis())
-}
-
 fn epoch_to_iso(epoch: i64) -> String {
     chrono::DateTime::from_timestamp_millis(epoch)
         .map(|dt| dt.to_rfc3339())
@@ -279,6 +258,9 @@ fn parse_cost_details(json: &Option<String>) -> Option<CostBreakdownIpc> {
 }
 
 fn ipc_to_rust_filter(ipc: UsageFilterIpc) -> Result<RustUsageFilter, AppError> {
+    // intentional: UsageFilterIpc.start_date/end_date arrive as RFC3339 from JS
+    // (see openspec/changes/fix-date-local-timezone/tasks.md T1.3 DO-NOT-TOUCH).
+    // Do NOT swap to timeutil::local_date_to_epoch — JS sends full timestamps.
     let date_from = match ipc.start_date {
         Some(ref s) => Some(iso_to_epoch(s)?),
         None => None,
@@ -690,8 +672,8 @@ pub async fn recompute_costs_by_state(
     state: &AppState,
     req: RecomputeCostsRequest,
 ) -> Result<RecomputeCostsResponse, AppError> {
-    let from_epoch = iso_date_to_epoch(&req.from_date, false)?;
-    let to_epoch_exclusive = iso_date_to_epoch(&req.to_date, true)?;
+    let from_epoch = crate::timeutil::local_date_to_epoch(&req.from_date, false)?;
+    let to_epoch_exclusive = crate::timeutil::local_date_to_epoch(&req.to_date, true)?;
 
     let svc = TokenUsageService::new(state.db.clone(), state.pricing.clone());
     let result = tauri::async_runtime::spawn_blocking(move || {

@@ -3,6 +3,9 @@
 # Reference: AGENTS.md §10 (Sprint Contract)
 set -e
 
+# TZ pin for fix-date-local-timezone regression gates
+export TZ='Asia/Shanghai'
+
 cd "$(dirname "$0")"
 
 echo "=== KeyPilot V0.1 Harness Init ==="
@@ -70,6 +73,50 @@ if [ -d "src-tauri/src" ]; then
         exit 1
     else
         echo "  ✓ all fs::write paths within whitelist"
+    fi
+fi
+
+# 4d. fix-date-local-timezone: TZ anti-pattern gates (REQ-DATE-LOCAL-007).
+# Production code MUST NOT use `from_timestamp_millis(...).format("%Y-%m-%d")`
+# (UTC-bucketing bug) or `date.toISOString().split("T")[0]` (JS UTC-truncation bug).
+# Exceptions:
+#   - src-tauri/src/provider/openai.rs:93 Utc::now().date_naive() — OpenAI billing
+#   - src-tauri/src/provider/openai.rs:153 Utc::now() — OpenAI wallet timestamp
+#   - src-tauri/src/provider/agent_source.rs:38 Utc.timestamp() — cursor wall-clock seconds
+#   - Other peer-callers in claude_oauth / codex_rpc / deepseek — TZ-agnostic epoch
+#   - Test files containing these patterns as discriminators in TC-04 etc.
+if [ -d "src-tauri/src" ]; then
+    BAD_RUST=$(grep -rn 'from_timestamp_millis(.*)\.format("%Y-%m-%d"' src-tauri/src/ 2>/dev/null | \
+              grep -v "// " || true)
+    if [ -n "$BAD_RUST" ]; then
+        echo "  ✗ FAIL: Rust anti-pattern (from_timestamp_millis().format(...%Y...)) — use timeutil::local_date_str:"
+        echo "$BAD_RUST"
+        exit 1
+    else
+        echo "  ✓ no forbidden UTC-date-format patterns in Rust"
+    fi
+fi
+if [ -d "webui/src" ]; then
+    BAD_TS=$(grep -rn '\.toISOString().split("T")\[0\]' webui/src/ 2>/dev/null \
+             | grep -v "lib/format.ts" || true)
+    if [ -n "$BAD_TS" ]; then
+        echo "  ✗ FAIL: TS anti-pattern (toISOString().split(\"T\")[0]) — use formatLocalDate:"
+        echo "$BAD_TS"
+        exit 1
+    else
+        echo "  ✓ no forbidden UTC-truncation patterns in webui"
+    fi
+fi
+if [ -d "src-tauri/src" ]; then
+    BAD_DOT=$(grep -rn '\.and_utc()' src-tauri/src/ 2>/dev/null \
+              | grep -v "// " || true)
+    if [ -n "$BAD_DOT" ]; then
+        echo "  ✗ FAIL: Rust anti-pattern (.and_utc() — implicit UTC interpretation). \
+Use timeutil::local_date_to_epoch for caller-supplied date strings:"
+        echo "$BAD_DOT"
+        exit 1
+    else
+        echo "  ✓ no forbidden .and_utc() in Rust"
     fi
 fi
 

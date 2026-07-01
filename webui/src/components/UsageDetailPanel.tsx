@@ -53,14 +53,16 @@ export interface UsageDetailPanelProps {
   dateRange?: "7d" | "30d" | "90d";
 }
 
+import { formatLocalDate } from "@/lib/format";
+
 function getDateRange(range: "7d" | "30d" | "90d"): { start_date: string; end_date: string } {
   const end = new Date();
   const start = new Date();
   const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
   start.setDate(start.getDate() - days);
   return {
-    start_date: start.toISOString().split("T")[0],
-    end_date: end.toISOString().split("T")[0],
+    start_date: formatLocalDate(start),
+    end_date: formatLocalDate(end),
   };
 }
 

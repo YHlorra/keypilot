@@ -35,11 +35,13 @@ const LEVEL_OPTIONS: Array<{ value: LevelValue; label: string }> = [
   { value: "ruby", label: "红宝石 (紧急)" },
 ];
 
+import { formatLocalDate } from "@/lib/format";
+
 function formatDateInputValue(timestamp: number | undefined): string {
   if (!timestamp) return "";
   // Convert unix epoch seconds to YYYY-MM-DD
   const d = new Date(timestamp * 1000);
-  return d.toISOString().split("T")[0];
+  return formatLocalDate(d);
 }
 
 function parseDateInputValue(dateStr: string): number | undefined {

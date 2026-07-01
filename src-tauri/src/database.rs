@@ -295,8 +295,199 @@ impl Database {
                 "UPDATE meta SET value = '6' WHERE key = 'schema_version'",
                 [],
             )?;
+        } else if current == "6" {
+            // migrate_to_v7() updates schema_version internally inside its own
+            // transaction, so this branch has no extra UPDATE meta step.
+            self.migrate_to_v7()?;
         }
         Ok(())
+    }
+
+    /// Re-aggregate daily_* tables from token_usage_records using Local timezone buckets.
+    /// Idempotent: safe to call multiple times.
+    pub fn migrate_to_v7(&self) -> Result<(), AppError> {
+        // Idempotency guard: version >= 7 means migration already completed
+        let current = self.schema_version().unwrap_or_default();
+        if current == "7" {
+            return Ok(());
+        }
+
+        // Check if _v6 backup tables already exist (incomplete prior attempt)
+        let v6_exists: bool = self.conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='daily_agent_model_usage_v6'",
+            [],
+            |r| Ok(r.get::<_, i64>(0)? > 0),
+        ).unwrap_or(false);
+
+        let conn = self.conn();
+        let tx = conn.unchecked_transaction().map_err(AppError::Database)?;
+
+        if v6_exists {
+            // Prior attempt left _v6 tables; drop them and proceed fresh
+            // (current daily_* tables are the incomplete new ones from prior crash)
+            tx.execute("DROP TABLE IF EXISTS daily_agent_model_usage", []).ok();
+            tx.execute("DROP TABLE IF EXISTS daily_model_usage", []).ok();
+        } else {
+            // First attempt: rename current tables to _v6 backup
+            tx.execute(
+                "ALTER TABLE daily_agent_model_usage RENAME TO daily_agent_model_usage_v6",
+                [],
+            ).map_err(AppError::Database)?;
+            tx.execute(
+                "ALTER TABLE daily_model_usage RENAME TO daily_model_usage_v6",
+                [],
+            ).map_err(AppError::Database)?;
+        }
+
+        // Recreate schema (DDL identical to v6)
+        tx.execute(
+            "CREATE TABLE daily_agent_model_usage (
+                date TEXT NOT NULL,
+                agent_type TEXT NOT NULL,
+                model TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                request_count INTEGER DEFAULT 0,
+                input_tokens INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                total_cost REAL DEFAULT 0.0,
+                PRIMARY KEY (date, agent_type, model, provider)
+            )",
+            [],
+        ).map_err(AppError::Database)?;
+        tx.execute(
+            "CREATE TABLE daily_model_usage (
+                date TEXT NOT NULL,
+                model TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                request_count INTEGER DEFAULT 0,
+                input_tokens INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                total_cost REAL DEFAULT 0.0,
+                PRIMARY KEY (date, model, provider)
+            )",
+            [],
+        ).map_err(AppError::Database)?;
+
+        // Re-aggregate using Rust-side Local date conversion (SQLite strftime 'localtime'
+        // is unreliable on Windows). Group by (date, agent, model, provider) in-memory.
+        // ponytail: 'localtime' on SQLite may diverge from chrono::Local at DST gaps/folds.
+        #[derive(Default, Eq, Hash, PartialEq)]
+        struct AgentModelKey { date: String, agent: String, model: String, provider: String }
+        #[derive(Default)]
+        struct AgentModelAgg { count: i64, inp: i64, out: i64, total: i64, cost: f64 }
+        let mut agent_map: std::collections::HashMap<AgentModelKey, AgentModelAgg> = std::collections::HashMap::new();
+
+        let mut stmt = tx.prepare(
+            "SELECT occurred_at, agent_type, model, provider_name,
+                    input_tokens, output_tokens, cache_creation_input_tokens,
+                    cache_read_input_tokens, total_tokens, total_cost
+             FROM token_usage_records"
+        ).map_err(AppError::Database)?;
+        let rows = stmt.query_map([], |row| Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, i64>(4)?,
+            row.get::<_, i64>(5)?,
+            row.get::<_, i64>(6)?,
+            row.get::<_, i64>(7)?,
+            row.get::<_, i64>(8)?,
+            row.get::<_, f64>(9)?,
+        ))).map_err(AppError::Database)?
+        .collect::<Result<Vec<_>, _>>().map_err(AppError::Database)?;
+        drop(stmt);
+
+        for (occurred_at, agent, model, provider, inp, out, _cache_crea, _cache_read, total, cost) in rows {
+            let date = crate::timeutil::local_date_str(occurred_at);
+            let key = AgentModelKey { date, agent, model, provider };
+            let agg = agent_map.entry(key).or_default();
+            agg.count += 1;
+            agg.inp += inp;
+            agg.out += out;
+            agg.total += total;
+            agg.cost += cost;
+        }
+
+        for (key, agg) in agent_map {
+            tx.execute(
+                "INSERT INTO daily_agent_model_usage
+                 (date, agent_type, model, provider, request_count, input_tokens, output_tokens, total_tokens, total_cost)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                rusqlite::params![key.date, key.agent, key.model, key.provider,
+                    agg.count, agg.inp, agg.out, agg.total, agg.cost],
+            ).map_err(AppError::Database)?;
+        }
+
+        // Re-aggregate daily_model_usage (no agent_type column)
+        #[derive(Default, Eq, Hash, PartialEq)]
+        struct ModelKey { date: String, model: String, provider: String }
+        #[derive(Default)]
+        struct ModelAgg { count: i64, inp: i64, out: i64, total: i64, cost: f64 }
+        let mut model_map: std::collections::HashMap<ModelKey, ModelAgg> = std::collections::HashMap::new();
+
+        let mut stmt2 = tx.prepare(
+            "SELECT occurred_at, model, provider_name,
+                    input_tokens, output_tokens, cache_creation_input_tokens,
+                    cache_read_input_tokens, total_tokens, total_cost
+             FROM token_usage_records"
+        ).map_err(AppError::Database)?;
+        let rows2 = stmt2.query_map([], |row| Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, i64>(4)?,
+            row.get::<_, i64>(5)?,
+            row.get::<_, i64>(6)?,
+            row.get::<_, i64>(7)?,
+            row.get::<_, f64>(8)?,
+        ))).map_err(AppError::Database)?
+        .collect::<Result<Vec<_>, _>>().map_err(AppError::Database)?;
+        drop(stmt2);
+
+        for (occurred_at, model, provider, inp, out, _cache_crea, _cache_read, total, cost) in rows2 {
+            let date = crate::timeutil::local_date_str(occurred_at);
+            let key = ModelKey { date, model, provider };
+            let agg = model_map.entry(key).or_default();
+            agg.count += 1;
+            agg.inp += inp;
+            agg.out += out;
+            agg.total += total;
+            agg.cost += cost;
+        }
+
+        for (key, agg) in model_map {
+            tx.execute(
+                "INSERT INTO daily_model_usage
+                 (date, model, provider, request_count, input_tokens, output_tokens, total_tokens, total_cost)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                rusqlite::params![key.date, key.model, key.provider,
+                    agg.count, agg.inp, agg.out, agg.total, agg.cost],
+            ).map_err(AppError::Database)?;
+        }
+
+        // Update schema_version to "7" inside the tx so a post-commit crash can
+        // only leave either the FULL migration applied (both data + version) or
+        // NEITHER — strict atomicity per REQ-DATE-LOCAL-008.
+        tx.execute(
+            "UPDATE meta SET value = '7' WHERE key = 'schema_version'",
+            [],
+        ).map_err(AppError::Database)?;
+
+        tx.commit().map_err(AppError::Database)?;
+        Ok(())
+    }
+
+    fn schema_version(&self) -> Result<String, AppError> {
+        let v: String = self.conn.query_row(
+            "SELECT value FROM meta WHERE key = 'schema_version'",
+            [],
+            |row| row.get(0),
+        ).map_err(AppError::Database)?;
+        Ok(v)
     }
 
     pub fn seed_preset_providers(&self) -> Result<()> {
@@ -409,10 +600,7 @@ impl Database {
                 record.usage_details, record.cost_details,
             ],
         )?;
-        let day = chrono::DateTime::from_timestamp_millis(record.occurred_at)
-            .unwrap_or_default()
-            .format("%Y-%m-%d")
-            .to_string();
+        let day = crate::timeutil::local_date_str(record.occurred_at);
         let day_copy = day.clone();
         tx.execute(
             "INSERT OR REPLACE INTO daily_agent_model_usage
@@ -997,5 +1185,281 @@ mod tests {
             )
             .unwrap();
         assert_eq!(auto_new_count, 1, "recent auto row must be preserved");
+    }
+
+    // ============================================================
+    // fix-date-local-timezone TC-07 (see spec.md REQ-DATE-LOCAL-005, REQ-DATE-LOCAL-008)
+    //
+    //   TC-07.1  migrate_to_v7_empty_db                     — schema-only smoke
+    //   TC-07.2  migrate_to_v7_rebuckets_cross_boundary      — UTC→Local shift
+    //   TC-07.3  migrate_to_v7_two_epochs_different_local    — local-date split
+    //   TC-07.4  migrate_to_v7_sums_conserved               — input/output/cost sum
+    //   TC-07.5  migrate_to_v7_dual_table_coverage           — both tables
+    //   TC-07.6  migrate_to_v7_idempotent                   — second call no-op
+    //   TC-07.7  migrate_to_v7_no_local_now_dependency     — absolute epoch
+    //
+    // All assertions use `crate::timeutil::local_date_str(epoch)` so they
+    // are deterministic across CI hosts regardless of system TZ.
+    // ============================================================
+
+    /// F.1: Empty DB → migrate_to_v7 creates tables, no rows, version "7"
+    #[test]
+    fn migrate_to_v7_empty_db() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        db.migrate().unwrap();
+        assert_eq!(db.schema_version().unwrap(), "7");
+        let count: i64 = db.conn().query_row(
+            "SELECT COUNT(*) FROM daily_agent_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(count, 0);
+        let count2: i64 = db.conn().query_row(
+            "SELECT COUNT(*) FROM daily_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(count2, 0);
+    }
+
+    /// F.2: Single record at epoch 1782809400000 → bucket must match `local_date_str(epoch)`
+    ///       (chrono's host-system Local). On a non-UTC host (e.g. Asia/Shanghai) this also
+    ///       discriminates from the UTC date string, proving no UTC-revert regression.
+    ///       ponytail: assertion is dynamical — `chrono::Local` is what `timeutil::local_date_str`
+    ///       uses, so the assertion holds across CI hosts regardless of TZ while still tripping
+    ///       when the implementation regresses to UTC bucketing on a non-UTC host.
+    #[test]
+    fn migrate_to_v7_rebuckets_cross_boundary_epoch() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        db.conn().execute(
+            "INSERT INTO token_usage_records
+                (id, agent_type, model, provider_name, occurred_at, recorded_at,
+                 input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens,
+                 total_tokens, total_cost, session_id, request_id, reasoning_tokens,
+                 prompt_cost, completion_cost, cache_read_cost, cache_creation_cost,
+                 reasoning_cost, currency, pricing_version, usage_details, cost_details)
+             VALUES ('rec1', 'claude-code', 'claude-opus', 'anthropic',
+                     1782809400000, 1782809400000,
+                     1000, 500, 0, 0, 1500, 1.0,
+                     NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 'USD', NULL, '{}', NULL)",
+            [],
+        ).unwrap();
+        db.migrate_to_v7().unwrap();
+
+        let actual_date: String = db.conn().query_row(
+            "SELECT date FROM daily_agent_model_usage LIMIT 1",
+            [], |r| r.get(0)
+        ).unwrap();
+        let epoch = 1782809400000_i64;
+        let expected_local = crate::timeutil::local_date_str(epoch);
+        // Implementation uses `local_date_str`, so actual must equal Local-bucketed date.
+        assert_eq!(actual_date, expected_local,
+            "migration must bucket at the host's chrono::Local date for epoch {epoch}, got {actual_date} expected {expected_local}");
+        // On non-UTC hosts the Local date differs from UTC date — assert migration didn't fall
+        // back to UTC bucketing. Skip the second assertion on UTC hosts where dates are equal.
+        // ponytail: discriminator pattern — intentional UTC-bucketing probe to detect impl
+        //           regression even though REQ-DATE-LOCAL-007 forbids it in production.
+        let utc_date = chrono::DateTime::from_timestamp_millis(epoch)
+            .unwrap().format("%Y-%m-%d").to_string();
+        if expected_local != utc_date {
+            assert_ne!(actual_date, utc_date,
+                "on non-UTC host, migration must NOT bucket at the UTC date {utc_date}");
+        }
+    }
+
+    /// F.3: Two records in same Local day → one row with request_count=2; in different
+    ///       Local days → two rows. Uses two epochs bracketed to (probably) the same Local
+    ///       day across hosts, with second assertion gated on Local distinction.
+    #[test]
+    fn migrate_to_v7_two_epochs_different_local_days() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        // Epochs bracket a value within minutes; on Asia/Shanghai both are Local 2026-07-01.
+        let e1 = 1782809400000_i64;
+        let e2 = 1782837000000_i64;
+        for (i, ts) in [e1, e2].iter().enumerate() {
+            db.conn().execute(
+                "INSERT INTO token_usage_records
+                    (id, agent_type, model, provider_name, occurred_at, recorded_at,
+                     input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens,
+                     total_tokens, total_cost, session_id, request_id, reasoning_tokens,
+                     prompt_cost, completion_cost, cache_read_cost, cache_creation_cost,
+                     reasoning_cost, currency, pricing_version, usage_details, cost_details)
+                 VALUES (?1, 'a', 'm', 'p', ?2, ?2, 100, 50, 0, 0, 150, 0.5,
+                         NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 'USD', NULL, '{}', NULL)",
+                rusqlite::params![format!("rec{i}"), ts],
+            ).unwrap();
+        }
+        db.migrate_to_v7().unwrap();
+
+        let d1 = crate::timeutil::local_date_str(e1);
+        let d2 = crate::timeutil::local_date_str(e2);
+        if d1 == d2 {
+            // Same Local day → exactly one row in daily_agent_model_usage
+            let count: i64 = db.conn().query_row(
+                "SELECT request_count FROM daily_agent_model_usage WHERE agent_type='a' AND model='m' AND provider='p'",
+                [], |r| r.get(0)
+            ).unwrap();
+            assert_eq!(count, 2, "same Local day → count=2");
+            let in_t: i64 = db.conn().query_row(
+                "SELECT input_tokens FROM daily_agent_model_usage WHERE agent_type='a' AND model='m' AND provider='p'",
+                [], |r| r.get(0)
+            ).unwrap();
+            assert_eq!(in_t, 200, "2 × 100 = 200");
+        } else {
+            // Different Local days → two distinct rows
+            let count: i64 = db.conn().query_row(
+                "SELECT COUNT(*) FROM daily_agent_model_usage WHERE agent_type='a' AND model='m' AND provider='p'",
+                [], |r| r.get(0)
+            ).unwrap();
+            assert_eq!(count, 2, "different Local days → 2 distinct rows");
+            let mut stmt = db.conn().prepare(
+                "SELECT date FROM daily_agent_model_usage WHERE agent_type='a' AND model='m' AND provider='p'"
+            ).unwrap();
+            let date_set: std::collections::HashSet<String> = stmt
+                .query_map([], |r| r.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<_, _>>().unwrap();
+            assert!(date_set.contains(&d1) && date_set.contains(&d2),
+                "rows must include both Local dates {:?}", date_set);
+        }
+    }
+
+    /// F.4: SUM conservation — aggregate of input/output/total/cost equals raw sum
+    #[test]
+    fn migrate_to_v7_sums_conserved() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        // Seed 3 records with known totals
+        for (i, ts) in [1782837000000_i64, 1782837100000, 1782837200000].iter().enumerate() {
+            db.conn().execute(
+                "INSERT INTO token_usage_records
+                    (id, agent_type, model, provider_name, occurred_at, recorded_at,
+                     input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens,
+                     total_tokens, total_cost, session_id, request_id, reasoning_tokens,
+                     prompt_cost, completion_cost, cache_read_cost, cache_creation_cost,
+                     reasoning_cost, currency, pricing_version, usage_details, cost_details)
+                 VALUES (?1, 'a', 'm', 'p', ?2, ?2, 100, 50, 0, 0, 150, 0.5,
+                         NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 'USD', NULL, '{}', NULL)",
+                rusqlite::params![format!("rec{i}"), ts],
+            ).unwrap();
+        }
+        db.migrate_to_v7().unwrap();
+        let sum_input: i64 = db.conn().query_row(
+            "SELECT SUM(input_tokens) FROM daily_agent_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(sum_input, 300, "3 records × 100 input = 300");
+        let sum_output: i64 = db.conn().query_row(
+            "SELECT SUM(output_tokens) FROM daily_agent_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(sum_output, 150, "3 × 50 = 150");
+        let sum_total: i64 = db.conn().query_row(
+            "SELECT SUM(total_tokens) FROM daily_agent_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(sum_total, 450, "3 × 150 = 450");
+        let sum_cost: f64 = db.conn().query_row(
+            "SELECT SUM(total_cost) FROM daily_agent_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(sum_cost, 1.5, "3 × 0.5 = 1.5");
+    }
+
+    /// F.5: Dual-table coverage — daily_model_usage also re-aggregated correctly.
+    ///       Date assertions use `local_date_str` for host-TZ portability.
+    #[test]
+    fn migrate_to_v7_dual_table_coverage() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        let epoch = 1782809400000_i64;
+        db.conn().execute(
+            "INSERT INTO token_usage_records
+                (id, agent_type, model, provider_name, occurred_at, recorded_at,
+                 input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens,
+                 total_tokens, total_cost, session_id, request_id, reasoning_tokens,
+                 prompt_cost, completion_cost, cache_read_cost, cache_creation_cost,
+                 reasoning_cost, currency, pricing_version, usage_details, cost_details)
+             VALUES ('rec1', 'claude-code', 'claude-opus', 'anthropic',
+                     1782809400000, 1782809400000,
+                     1000, 500, 0, 0, 1500, 1.0,
+                     NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 'USD', NULL, '{}', NULL)",
+            [],
+        ).unwrap();
+        db.migrate_to_v7().unwrap();
+        let count: i64 = db.conn().query_row(
+            "SELECT COUNT(*) FROM daily_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(count, 1, "daily_model_usage should have 1 row");
+        let date: String = db.conn().query_row(
+            "SELECT date FROM daily_model_usage LIMIT 1", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(date, crate::timeutil::local_date_str(epoch),
+            "daily_model_usage date should be chrono::Local-bucketed");
+        let in_t: i64 = db.conn().query_row(
+            "SELECT input_tokens FROM daily_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(in_t, 1000);
+    }
+
+    /// F.6: Idempotency — calling migrate_to_v7() twice is a no-op
+    #[test]
+    fn migrate_to_v7_idempotent() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        // Seed one record
+        db.conn().execute(
+            "INSERT INTO token_usage_records
+                (id, agent_type, model, provider_name, occurred_at, recorded_at,
+                 input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens,
+                 total_tokens, total_cost, session_id, request_id, reasoning_tokens,
+                 prompt_cost, completion_cost, cache_read_cost, cache_creation_cost,
+                 reasoning_cost, currency, pricing_version, usage_details, cost_details)
+             VALUES ('rec1', 'a', 'm', 'p', 1782809400000, 1782809400000,
+                     100, 50, 0, 0, 150, 0.5,
+                     NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 'USD', NULL, '{}', NULL)",
+            [],
+        ).unwrap();
+        db.migrate_to_v7().unwrap();
+        let count1: i64 = db.conn().query_row(
+            "SELECT request_count FROM daily_agent_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        // Call again — should not duplicate
+        db.migrate_to_v7().unwrap();
+        let count2: i64 = db.conn().query_row(
+            "SELECT request_count FROM daily_agent_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(count2, count1, "Second call must not duplicate rows");
+        assert_eq!(db.schema_version().unwrap(), "7");
+    }
+
+    /// F.7: No dependency on Local::now() — uses absolute epoch timestamps only
+    #[test]
+    fn migrate_to_v7_no_local_now_dependency() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        // epoch 0 = UTC 1970-01-01 00:00:00 = Local 1970-01-01 00:00 (if TZ=UTC or Asia/Shanghai without DST)
+        // We just verify the migration runs correctly with absolute epoch, not Local::now()
+        db.conn().execute(
+            "INSERT INTO token_usage_records
+                (id, agent_type, model, provider_name, occurred_at, recorded_at,
+                 input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens,
+                 total_tokens, total_cost, session_id, request_id, reasoning_tokens,
+                 prompt_cost, completion_cost, cache_read_cost, cache_creation_cost,
+                 reasoning_cost, currency, pricing_version, usage_details, cost_details)
+             VALUES ('rec1', 'a', 'm', 'p', 0, 0,
+                     1, 1, 0, 0, 2, 0.01,
+                     NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 'USD', NULL, '{}', NULL)",
+            [],
+        ).unwrap();
+        db.migrate_to_v7().unwrap();
+        // Should have exactly one row — doesn't crash, doesn't depend on current time
+        let count: i64 = db.conn().query_row(
+            "SELECT COUNT(*) FROM daily_agent_model_usage", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(count, 1);
+        // Verify _v6 backup table exists (from rename of original empty daily table)
+        let v6_table_exists: i64 = db.conn().query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='daily_agent_model_usage_v6'",
+            [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(v6_table_exists, 1, "v6 backup table should exist");
+        // Verify version is now 7
+        assert_eq!(db.schema_version().unwrap(), "7");
     }
 }
