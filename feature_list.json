@@ -1,7 +1,7 @@
 {
   "project": "KeyPilot V0.1",
   "version": "0.1.0",
-  "updated": "2026-07-01",
+  "updated": "2026-07-02",
   "source_of_truth": "feature_list.json is the executable feature tracker. PLAN.md holds Stage deep specs. openspec/changes/<topic>/ holds in-progress and recently-approved spec changes (those with pending implementation). openspec/changes/archive/<topic>/ holds completed/archived spec changes (implementation done, retained for historical reference). See AGENTS.md §8 for relationship.",
   "active_changes": [
     {
@@ -101,6 +101,40 @@
         "openspec/changes/archive/token-usage-history/design.md",
         "openspec/changes/archive/token-usage-history/tasks.md"
       ]
+    },
+    {
+      "id": "over-engineering-execution-v1",
+      "status": "archived",
+      "archived_on": "2026-07-02",
+      "archived_reason": "Execution complete — ~5,086 LOC removed across 48 files. All hard constraints verified.",
+      "date": "2026-07-02",
+      "summary": "Over-engineering audit execution: removed ~5,086 LOC across 48 files (37 Rust + 11 WebUI). Rust: 8 dead files deleted (agent_sources/{claude_oauth,codex_rpc,cursor_probe,mod}.rs + provider/agent_source.rs + postgres.rs + services/{currency,opencode_go_limits}.rs), 5 DB methods deleted, 2 types deleted, QuotaSnapshot derives Default, helpers added (timeutil::now_secs/now_millis, From<tauri::Error>, validate_key default), IncrementalImporter shutdown+Drop removed, test_connection action removed, tokio-postgres dep removed. WebUI: 9 dead files deleted (ManualQuotaModal/ImportModal/TrayHoverCard/UsageDetailPanel/QuotaBadge/AgentPairChart + ui/card + ui/toast + useActions), dead IPC wrappers deleted, dead hooks deleted (useQuota/usePricing/useUsageRecords), dead types deleted (Limit*/MoneyAmount etc), date-fns dropped replaced with two-mode Intl.RelativeTimeFormat helper.",
+      "files": [
+        "src-tauri/src/provider/agent_source.rs",
+        "src-tauri/src/provider/agent_sources/claude_oauth.rs",
+        "src-tauri/src/provider/agent_sources/codex_rpc.rs",
+        "src-tauri/src/provider/agent_sources/cursor_probe.rs",
+        "src-tauri/src/provider/agent_sources/mod.rs",
+        "src-tauri/src/provider/postgres.rs",
+        "src-tauri/src/services/currency.rs",
+        "src-tauri/src/services/opencode_go_limits.rs",
+        "webui/src/components/ManualQuotaModal.tsx",
+        "webui/src/components/ImportModal.tsx",
+        "webui/src/components/TrayHoverCard.tsx",
+        "webui/src/components/UsageDetailPanel.tsx",
+        "webui/src/components/QuotaBadge.tsx",
+        "webui/src/components/AgentPairChart.tsx",
+        "webui/src/components/ui/card.tsx",
+        "webui/src/components/ui/toast.tsx",
+        "webui/src/hooks/useActions.ts",
+        "webui/src/hooks/useQuota.ts",
+        "webui/src/hooks/useUsage.ts",
+        "webui/src/lib/api.ts",
+        "webui/src/types/api.ts",
+        "webui/src/lib/format.ts"
+      ],
+      "evidence": "cargo check: PASS\ncargo test --lib: 89/89 PASS\ncargo test --test ipc_e2e: 32/32 PASS\npnpm tsc --noEmit: PASS\npnpm build: PASS\nHard constraints: 4 encryption crates grep PASS (argon2/chacha20/aes-gcm/sodiumoxide/age empty), fs::write whitelist PASS (only %APPDATA% in lib.rs), .and_utc() PASS, toISOString().split PASS",
+      "notes": "Net ~5,086 LOC removed. Deferred: Phase 5 IPC DTO collapse (needs serde round-trip spike), borderline items (provider.test_and_refresh, cva, executeAction generic dispatch, _by_state duplication) — all oracle-verified or kept for reason. sha2/once_cell/uuid kept (hash stability, one-time init, req-id site)."
     }
   ],
   "stages": [

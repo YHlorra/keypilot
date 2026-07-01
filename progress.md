@@ -3,6 +3,43 @@
 > Per AGENTS.md §8 — Session 连续性日志。 每个 session 至少更新一次。
 > 真相源: git log (commit 详情) + feature_list.json (feature 状态) + progress.md (session 进度)。
 
+## 2026-07-02 — Over-engineering execution (Phase 0-7.5 complete)
+
+**Goal**: Execute audit findings from prior session (5,000-5,500 LOC removal target).
+
+**Result**:
+- Rust dead code: 8 files deleted (provider/agent_source.rs + agent_sources/{claude_oauth,codex_rpc,cursor_probe,mod}.rs + postgres.rs + services/{currency,opencode_go_limits}.rs = 2,447 lines)
+- Rust structural: 5 DB methods deleted, 2 types deleted, QuotaSnapshot derives Default, helpers added (timeutil::now_secs/now_millis, From<tauri::Error>, validate_key default), IncrementalImporter shutdown+Drop removed, test_connection action removed
+- Rust deps: tokio-postgres removed, base64 still as transitive (reqwest chain)
+- WebUI dead code: 9 files deleted (ManualQuotaModal/ImportModal/TrayHoverCard/UsageDetailPanel/QuotaBadge/AgentPairChart + ui/card + ui/toast + useActions)
+- WebUI structural: dead IPC wrappers deleted (testConnection/pinProvider/etc), dead hooks deleted (useQuota/usePricing/etc), dead types deleted (Limit*/MoneyAmount etc)
+- WebUI deps: date-fns dropped, two-mode Intl.RelativeTimeFormat helper added
+
+**Net**: ~4,781 lines removed across 37 Rust files + 305 lines removed across 11 WebUI files = ~5,086 LOC
+
+**Verification**:
+- cargo check: PASS
+- cargo test: 121/121 PASS (89 lib + 32 e2e)
+- pnpm tsc --noEmit: PASS
+- pnpm build: PASS
+- Hard constraints: 4 encryption crates grep PASS, fs::write whitelist PASS, .and_utc() PASS, toISOString().split PASS
+
+**Deferred**:
+- Phase 5 IPC DTO collapse — needs serde round-trip spike first (structural drift: Langfuse fields, ISO8601 vs epoch, total_cost_usd vs total_cost)
+- provider.test_and_refresh action — borderline, kept
+- cva for button.tsx only — borderline, kept
+- executeAction generic dispatch — borderline, kept
+- _by_state duplication — oracle-verified misguided (Tauri State<'_, T> vs &AppState distinct)
+- sha2 dep — kept for hash stability (deepseek account_key persisted, SipHash would orphan data)
+- once_cell dep — kept (one-time init pattern)
+- uuid dep — kept (1 req-id site)
+
+**Commits**:
+- 1231cd6 Phase 3b (Rust: 8 dead files + helpers + structural, 37 files, 4781 deletions)
+- e355b5d Phase 4+6 (WebUI: dead wrappers + date-fns drop, 11 files, 305 deletions)
+
+---
+
 ## 2026-07-01 (stage-13.3 — UsagePage UI 收紧 + 设计稿定稿)
 
 **Session scope**: 用户截图报告 UsagePage 5 个 UI bug → 创建冻结设计稿 `docs/usage-page.html` → 按稿实施到 4 个 React 组件 + 页面布局。**用户拍板定稿**(4 组件 = 热力图 / 趋势 / token 使用 / 请求数,与设计稿一致)。

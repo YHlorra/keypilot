@@ -3,9 +3,9 @@
 > Per AGENTS.md §8 / §12 — 正式 session 交接。
 > 目的: 让下次 session / 下个 Agent 能 `./init.sh` 起来就直接干活, 不需要问"上次搞到哪了"。
 
-**Last updated**: 2026-07-01
-**Last commit**: `4250896 stage-13.1: UsagePage dashboard UX fix batch (4 bugs)` (stage-13.2 + stage-13.3 **未 commit**)
-**Branch state**: `main`, working tree **dirty** (10 webui 改 + 1 docs 新;`tauri-dev-*` 临时日志)
+**Last updated**: 2026-07-02
+**Last commit**: `e355b5d Phase 4+6: WebUI over-engineering shrink + date-fns removal` (over-engineering execution COMPLETE)
+**Branch state**: `main`, working tree **clean** (pending state artifact commit)
 
 ---
 
@@ -16,34 +16,35 @@ KeyPilot V0.1 已交付(stage-9 完成 sign-off)。
 
 ## 下次 session 起手
 
-1. **跑 `./init.sh`** 验证环境 (AGENTS.md §1 强制)。
-2. **读 `progress.md`** — 顶部 "2026-07-01 (stage-13.3 — UsagePage UI 收紧)" entry 是本 session 完整记录。
-3. **stage-13.3 状态**:`feature_list.json` 已加 stage-13.3 entry (status=done),**代码未 commit**。决策点:
-   - 立即 commit 锁住本次改动
-   - 顺手清死代码:`AgentPairChart.tsx` + `UsageStatsSidebar.tsx` + `tauri-dev-*` 日志
-   - 解决章节标题字号不一致(10px UPPERCASE vs 14px 句首大写)
-4. **历史未 commit**(stage-13.2 同样 dirty):
-   - stage-13.2:opencode 数据导入 3 串联 bug 修复
-   - 候选:一并 commit stage-13.2 + stage-13.3,或分别 commit
-5. **后续候选**(stage-13.3 commit 后):
-   - pricing.json 补 6 个 opencode model(沿 stage-13.2 遗留)
+1. **跑 `./init.sh`** 验证环境 (AGENTS.md §1 强制)。先修 CRLF: `sed -i 's/\r$//' init.sh`
+2. **读 `progress.md`** — 顶部 "2026-07-02 — Over-engineering execution" entry 是本 session 完整记录。
+3. **Over-engineering execution 已完成**:
+   - Rust over-engineering: commit `1231cd6` (Phase 3b, 37 Rust files, 4781 deletions)
+   - WebUI over-engineering: commit `e355b5d` (Phase 4+6, 11 webui files, 305 deletions)
+   - 所有 cargo + pnpm tests pass
+4. **下一步侯选**(按优先级):
+   - Phase 5 IPC DTO collapse (deferred — needs serde round-trip spike first)
+   - Review borderline items: provider.test_and_refresh / cva / executeAction
+   - Add sha2/once_cell/uuid to "considered but kept" doc for future audits
+   - Clean `from_models pub(crate)` warning with `#[cfg(test)]`
+5. **后续候选**:
+   - pricing.json 补 6 个 opencode model
    - `claude-code::derive_provider` 加 `kimi-` prefix
    - format-number-debt
-   - DESIGN.md UTF-16 → UTF-8 编码
    - V0.2 RFC 评估(用户拍板)
 
 ## 当前环境状态
 
 | 项 | 状态 |
 |---|---|
-| Rust 工具链 | ✅ `cargo check` PASS;无 Rust 改动 |
-| Node 工具链 | ✅ `pnpm tsc --noEmit` 0 errors |
-| WebUI 构建 | ✅ `pnpm build` 应仍 PASS(无新依赖) |
-| Playwright | ⚠️ 未跑(stage-13.3 UI 重设计后建议跑视觉回归) |
-| Tauri 2 启动 | ✅ 冷启动 → Vite + Rust 编译 + 窗口弹出,目视 4 组件 / 无溢出 |
+| Rust 工具链 | ✅ `cargo check` PASS;`cargo test` 121/121 PASS |
+| Node 工具链 | ✅ `pnpm tsc --noEmit` 0 errors;`pnpm build` PASS |
+| WebUI 构建 | ✅ `pnpm build` PASS |
+| Playwright | ⚠️ 未跑(over-engineering 无 UI 行为变更) |
+| Tauri 2 启动 | ✅ 冷启动 → Vite + Rust 编译 + 窗口弹出 |
 | SQLite db | `%APPDATA%\com.keypilot.app\keypilot.db`, **schema v6** (8 张表) |
-| db 总行 | **20019**:18853 claude + 1166 opencode |
-| 设计稿 | ✅ `docs/usage-page.html` 冻结(自包含 HTML,可直接打开预览) |
+| Over-engineering | ✅ 37 Rust files + 11 WebUI files deleted (~5,086 LOC) |
+| Dep cleanups | ✅ tokio-postgres removed; date-fns removed |
 
 ## 关键文件 cheat-sheet
 
@@ -102,3 +103,26 @@ KeyPilot V0.1 已交付(stage-9 完成 sign-off)。
 2. **圆角 token 统一** — 规范 3px vs `globals.css` 8px
 3. **死代码清理** — `AgentPairChart.tsx` + `UsageStatsSidebar.tsx` + dev 日志 + 调试 mjs
 4. **Playwright 视觉回归** — 4 组件新布局应跑 baseline 截图比对
+
+---
+
+## Next session start
+
+Repo state at HEAD (post this session):
+- Rust over-engineering execution: DONE in commit 1231cd6 (Phase 3b mega-commit absorbed Phase 1-3b work)
+- WebUI over-engineering execution: DONE in commit e355b5d (Phase 4+6)
+- Dep cleanups: tokio-postgres removed (Phase 2); date-fns removed (Phase 6)
+- All cargo + pnpm tests pass (121 + tsc + build)
+
+Open work:
+1. Phase 5 IPC DTO collapse (deferred — needs serde round-trip spike first)
+2. Review remaining borderline items: provider.test_and_refresh / cva / executeAction
+3. Add sha2/once_cell/uuid to a "considered but kept" doc if relevant for future audits
+4. The "from_models pub(crate)" warning could be cleaned with `#[cfg(test)]` (currently produces warning)
+
+Run `./init.sh` (after fixing CRLF line endings with `sed -i 's/\r$//' init.sh`) to verify before any new work.
+
+Audit artifacts:
+- Audit plan: .slim/deepwork/over-engineering-execution.md
+- This handoff: .slim/deepwork/session-handoff.md
+- Audit history: prior session memory in knowledge base (search "over-engineering")
