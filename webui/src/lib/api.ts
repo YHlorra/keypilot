@@ -8,14 +8,11 @@ import type {
   AddProviderRequest, AddProviderResponse, UpdateProviderRequest, UpdateProviderResponse,
   DeleteProviderRequest, DeleteProviderResponse, ListCategoriesResponse,
   AddCategoryRequest, AddCategoryResponse, DeleteCategoryRequest, DeleteCategoryResponse,
-  TestConnectionRequest, TestConnectionResponse, FetchQuotaRequest, FetchQuotaResponse,
+  FetchQuotaRequest, FetchQuotaResponse,
   GetThemeResponse, SetThemeRequest, SetThemeResponse,
-  PinProviderResponse,
-  UnpinProviderResponse,
-  QuitAppResponse,
   SetManualQuotaRequest, SetManualQuotaResponse,
-  UsageRecordInput, UsageRecord, UsageFilter, UsageSummary,
-  ImportFormat, ImportResult, PricingEntry, PaginatedResponse,
+  UsageFilter,
+  ImportFormat, ImportResult, PricingEntry,
   QuotaSnapshot,
   PeriodsSummary,
 } from "@/types/api";
@@ -55,10 +52,6 @@ export async function deleteCategory(req: DeleteCategoryRequest): Promise<Delete
   return invoke<DeleteCategoryResponse>("delete_category", { req });
 }
 
-export async function testConnection(req: TestConnectionRequest): Promise<TestConnectionResponse> {
-  return invoke<TestConnectionResponse>("test_connection", { id: req.id });
-}
-
 export async function fetchQuota(req: FetchQuotaRequest): Promise<FetchQuotaResponse> {
   return invoke<FetchQuotaResponse>("fetch_quota", { id: req.id });
 }
@@ -71,45 +64,11 @@ export async function setTheme(req: SetThemeRequest): Promise<SetThemeResponse> 
   return invoke<SetThemeResponse>("set_theme", { theme: req.theme });
 }
 
-export async function pinProvider(id: number): Promise<PinProviderResponse> {
-  return invoke<PinProviderResponse>("pin_provider", { provider_id: id });
-}
-
-export async function unpinProvider(id: number): Promise<UnpinProviderResponse> {
-  return invoke<UnpinProviderResponse>("unpin_provider", { provider_id: id });
-}
-
-export async function quitApp(): Promise<QuitAppResponse> {
-  return invoke<QuitAppResponse>("quit_app");
-}
-
 export async function setManualQuota(req: SetManualQuotaRequest): Promise<SetManualQuotaResponse> {
   return invoke<SetManualQuotaResponse>("set_manual_quota", { req });
 }
 
 // === Token Usage IPC wrappers (REQ-TOKEN-002) ===
-
-export async function recordUsage(input: UsageRecordInput): Promise<UsageRecord> {
-  return invoke<UsageRecord>("record_usage", { req: input });
-}
-
-export async function listUsageRecords(
-  filter: UsageFilter,
-  page: number,
-  perPage: number
-): Promise<PaginatedResponse<UsageRecord>> {
-  // Bug #2 fix 2026-06-29: Rust handler signature is `req: ListUsageRecordsRequest`.
-  // Tauri 2 matches arguments by parameter name, so the payload must be wrapped
-  // in `{ req: { filter, page, per_page } }` — flat keys fail to deserialize and
-  // the IPC call rejects.
-  return invoke<PaginatedResponse<UsageRecord>>("list_usage_records", {
-    req: { filter, page, per_page: perPage },
-  });
-}
-
-export async function getUsageSummary(filter: UsageFilter): Promise<UsageSummary> {
-  return invoke<UsageSummary>("get_usage_summary", { filter });
-}
 
 // getUsagePeriodsSummary -- token-monitor-alignment Part A #1
 // 一次返回 today/month/allTime 三周期 + client_models + limits(对齐 token-monitor usage.js 主数据契约)
@@ -157,10 +116,8 @@ export async function openForEdit(req: { id: number }): Promise<GetProviderRespo
   return executeAction("provider.open_for_edit", req) as Promise<GetProviderResponse>;
 }
 
-export async function usageSummaryForProvider(req: { provider_id: number }): Promise<UsageSummary> {
-  return executeAction("token_usage.summary", { ...req }) as Promise<UsageSummary>;
-}
-
 export async function deleteProviderViaAction(req: { id: number }): Promise<void> {
   return executeAction("provider.delete", req) as Promise<void>;
 }
+
+

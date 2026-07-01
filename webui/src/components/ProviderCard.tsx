@@ -7,9 +7,9 @@ import {
   Terminal,
   Trash2,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 import { cn, isLlmCategory } from "@/lib/utils";
 import type { Provider, Category } from "@/types/api";
+import { formatRelative } from "@/lib/format";
 import { ContextMenu } from "./ContextMenu";
 
 interface ProviderCardProps {
@@ -30,7 +30,6 @@ const PRESET_TINTS: Record<string, { bg: string; label: string }> = {
   deepseek: { bg: "#1d4ed8", label: "DS" },
   anthropic: { bg: "#f76808", label: "AN" },
   github: { bg: "#6b6b65", label: "GH" },
-  postgres: { bg: "#1d4ed8", label: "PG" },
   redis: { bg: "#b42318", label: "RE" },
 };
 
@@ -66,11 +65,9 @@ export const ProviderCard = ({
     (f) => f.key === "quota_remaining" || f.key === "quota_used"
   );
   const quotaNum = quotaField ? Number(quotaField.value) : null;
-  const quotaUnit = provider.preset === "postgres" ? "GB" : "USD";
+  const quotaUnit = "USD";
 
-  const timeAgo = formatDistanceToNow(new Date(provider.updated_at * 1000), {
-    addSuffix: true,
-  });
+  const timeAgo = formatRelative(provider.updated_at * 1000, "suffix");
 
   const handleRefresh = (e: React.MouseEvent) => {
     e.stopPropagation();
