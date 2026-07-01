@@ -1,8 +1,8 @@
 import * as React from "react";
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
 import { Trash2, Eye, EyeOff, Copy, ExternalLink, Terminal, Pencil, X, RefreshCw, Loader2 } from "lucide-react";
+import { formatRelative } from "@/lib/format";
 import { Modal } from "./Modal";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -112,7 +112,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   // Status pill
   const lastTested = (provider as any)?.last_tested ?? null;
   const statusPillText = lastTested
-    ? `Tested ${formatDistanceToNow(new Date(lastTested * 1000))} ago`
+    ? `Tested ${formatRelative(lastTested * 1000, "bare")} ago`
     : "Not tested";
 
   // LLM detection for "test connection" action -- driven by category, not preset.

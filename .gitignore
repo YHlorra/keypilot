@@ -66,3 +66,11 @@ docs/references/
 
 # Icon generation scratch (final icons live under src-tauri/icons/)
 src-tauri/icons/_candidates/
+
+# Tauri dev server transient logs
+tauri-dev-live.*
+tauri-dev.*
+
+# WebUI debug/capture scripts
+webui/capture*.mjs
+webui/inspect.mjs

@@ -32,3 +32,43 @@ export function formatLocalDate(date: Date): string {
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+
+/**
+ * Format a date relative to now, e.g. "2 hours ago" or "in 3 days".
+ * @param d - Date or epoch milliseconds (number)
+ * @param mode - "suffix" appends "ago"/"in"; "bare" returns just "2 hours"
+ */
+export function formatRelative(
+  d: Date | number | string,
+  mode: "suffix" | "bare" = "suffix"
+): string {
+  const ts =
+    typeof d === "string" ? Date.parse(d) :
+    d instanceof Date ? d.getTime() : d;
+  const diffMs = ts - Date.now();
+  const abs = Math.abs(diffMs);
+
+  let unit: Intl.RelativeTimeFormatUnit = "second";
+  if (abs >= 31_536_000_000) unit = "year";
+  else if (abs >= 2_592_000_000) unit = "month";
+  else if (abs >= 86_400_000) unit = "day";
+  else if (abs >= 3_600_000) unit = "hour";
+  else if (abs >= 60_000) unit = "minute";
+
+  const value = Math.round(diffMs / (
+    unit === "year" ? 31_536_000_000 :
+    unit === "month" ? 2_592_000_000 :
+    unit === "day" ? 86_400_000 :
+    unit === "hour" ? 3_600_000 :
+    60_000
+  ));
+
+  const formatted = new Intl.RelativeTimeFormat("en", { numeric: "auto" })
+    .format(value, unit);
+
+  if (mode === "bare") {
+    // "in 2 hours" -> "2 hours"; "-2 hours ago" -> "2 hours"
+    return formatted.replace(/^(in )?/, "").replace(/ ago$/, "").replace(/^-/, "");
+  }
+  return formatted;
+}

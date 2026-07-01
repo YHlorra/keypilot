@@ -50,25 +50,12 @@ export interface Category {
 // - Anthropic: AppError::ProviderQuotaUnsupported (no QuotaSnapshot returned)
 // `fetched_at` is NOT in the wire shape -- frontend uses TanStack Query staleTime.
 export interface QuotaSnapshot {
-  // === 旧字段(保留) ===
-  total: number | null;                // null = PostgreSQL or N/A
-  used: number;                        // always present
-  remaining?: number;                  // computed if total+used known; null for PostgreSQL
-  unit: 'USD' | 'CNY' | 'req' | 'GB' | 'token' | string;  // 加 | string 容错(对齐 token-monitor normalizeLimitProvider)
-  level?: 'green' | 'amber' | 'red' | 'ruby' | string;     // UI visual hint
-  reset_at?: number;                   // unix epoch seconds, optional
-  // === 新字段(对齐 token-monitor normalizeLimitProvider) ===
-  windows?: LimitWindow[];
-  status?: LimitStatus;
-  source?: LimitSource;
-  source_detail?: string;
-  account_label?: string | null;
-  account_email?: string | null;
-  region?: string | null;
-  balance?: MoneyAmount | null;
-  used_amount?: MoneyAmount | null;
-  balance_usd?: number | null;
-  used_usd?: number | null;
+  total: number | null;
+  used: number;
+  remaining?: number;
+  unit: 'USD' | 'CNY' | 'req' | 'GB' | 'token' | string;
+  level?: 'green' | 'amber' | 'red' | 'ruby' | string;
+  reset_at?: number;
 }
 
 // === AppError (mirrors src-tauri/src/error.rs -- 15 codes) ===
@@ -101,7 +88,6 @@ export interface AppError {
 // JS calls: invoke<Res>('cmd_name', req)  where req is the Request struct.
 
 // list_providers
-export type ListProvidersRequest = void;       // no filters in V0.1 (Phase 2A scope creep)
 export type ListProvidersResponse = Provider[];
 
 // get_provider
@@ -152,10 +138,6 @@ export type AddCategoryResponse = Category;
 export interface DeleteCategoryRequest { id: number; migrate_to: number; }
 export type DeleteCategoryResponse = void;
 
-// test_connection
-export interface TestConnectionRequest { id: number; }
-export type TestConnectionResponse = void;
-
 // fetch_quota
 export interface FetchQuotaRequest { id: number; }
 export type FetchQuotaResponse = QuotaSnapshot;
@@ -166,17 +148,6 @@ export type GetThemeResponse = Theme;
 // set_theme
 export interface SetThemeRequest { theme: Theme; }
 export type SetThemeResponse = void;
-
-// pin_provider (Stage 5)
-export interface PinProviderRequest { id: number; }
-export type PinProviderResponse = void;
-
-// unpin_provider
-export interface UnpinProviderRequest { id: number; }
-export type UnpinProviderResponse = void;
-
-// quit_app
-export type QuitAppResponse = void;
 
 // set_manual_quota (Phase 3 -- stores in quota_cache without touching provider notes)
 export interface SetManualQuotaRequest { id: number; snapshot: QuotaSnapshot; }
@@ -326,19 +297,6 @@ export interface PaginatedResponse<T> {
   per_page: number;
 }
 
-// UsageError -- error detail for a failed import row
-export interface UsageError {
-  line: number;
-  message: string;
-}
-
-// UsageBreakdown -- summary of usage by category (used in detail panel)
-export interface UsageBreakdown {
-  label: string;
-  value: number;
-  cost?: number;
-}
-
 // === Auto-import (Stage F+) ===
 // Mirrors src-tauri/src/services/auto_import.rs.  Returned by
 // `get_last_auto_import` Tauri command as raw JSON string; frontend parses
@@ -375,8 +333,8 @@ export interface AutoImportSummary {
 // Mirrors src-tauri/src/types.rs PeriodsSummary / PeriodsTriplet / PeriodWindowsPair / PeriodWindow
 
 export interface PeriodWindow {
-  key: string;                // today: "YYYY-MM-DD", month: "YYYY-MM"
-  ends_at: string;            // ISO 8601 with timezone
+  key: string;
+  ends_at: string;
 }
 
 export interface PeriodWindowsPair {
@@ -390,74 +348,9 @@ export interface PeriodsTriplet {
   all_time: UsageSummary;
 }
 
-// === Money / Limits (token-monitor-alignment Part B #6A) ===
-// Mirrors src-tauri/src/types.rs LimitWindow / LimitStatus / LimitSource / MoneyAmount / LimitsSummary
-
-export interface MoneyAmount {
-  amount: number;
-  currency: string;
-}
-
-export type LimitWindowKind = 'session' | 'weekly' | 'billing';
-
-export type LimitStatus =
-  | 'ok'
-  | 'disabled'
-  | 'not_configured'
-  | 'unauthorized'
-  | 'rate_limited'
-  | 'source_rate_limited'
-  | 'unavailable'
-  | 'error';
-
-export type LimitSource =
-  | 'oauth'
-  | 'cli'
-  | 'web'
-  | 'rpc'
-  | 'local'
-  | 'api'
-  | 'manual';
-
-export interface LimitWindow {
-  kind: LimitWindowKind;
-  label: string;
-  used: number;
-  limit?: number | null;
-  remaining?: number | null;
-  used_percent?: number | null;
-  remaining_percent?: number | null;
-  resets_at?: string | null;          // ISO 8601
-  window_minutes?: number | null;
-  reset_description: string;
-  show_meter: boolean;
-}
-
-export interface LimitProvider {
-  provider: string;
-  windows: LimitWindow[];
-  status: LimitStatus;
-  source: LimitSource;
-  source_detail: string;
-  account_label?: string | null;
-  account_email?: string | null;
-  region?: string | null;
-  balance?: MoneyAmount | null;
-  used_amount?: MoneyAmount | null;
-  balance_usd?: number | null;
-  used_usd?: number | null;
-}
-
-export interface LimitsSummary {
-  providers: LimitProvider[];
-  updated_at: number;        // unix epoch seconds
-}
-
-// === PeriodsSummary main contract ===
-
 export interface PeriodsSummary {
   periods: PeriodsTriplet;
   period_windows: PeriodWindowsPair;
-  client_models: Record<string, Record<string, number>>;  // agent_type -> model -> total_tokens
-  limits?: LimitsSummary | null;
+  client_models: Record<string, Record<string, number>>;
+  limits?: unknown | null;
 }

@@ -2,36 +2,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import {
   getLastAutoImport,
-  getPricing,
-  getUsageSummary,
   getUsagePeriodsSummary,
   importUsage,
-  listUsageRecords,
 } from "@/lib/api";
 import type {
   AutoImportSummary,
   ImportFormat,
   ImportResult,
-  PaginatedResponse,
   PeriodsSummary,
-  PricingEntry,
   UsageFilter,
-  UsageRecord,
-  UsageSummary,
 } from "@/types/api";
-
-// useUsageSummary -- REQ-TOKEN-003.3
-// @deprecated since token-monitor-alignment Part A #1 -- 新代码应使用 useUsagePeriodsSummary
-// (单 IPC 拿 today/month/allTime 三周期 + client_models + limits)。保留以兼容旧调用点。
-export function useUsageSummary(
-  filter: UsageFilter
-): UseQueryResult<UsageSummary> {
-  return useQuery({
-    queryKey: ["usage", "summary", filter],
-    queryFn: () => getUsageSummary(filter),
-    staleTime: 5 * 60 * 1000, // 5 min
-  });
-}
 
 // useUsagePeriodsSummary -- token-monitor-alignment Part A #1
 // 一次返回 today/month/allTime 三周期 + client_models + limits,不再双 useQuery
@@ -42,19 +22,6 @@ export function useUsagePeriodsSummary(
     queryKey: ["usage", "periods", filter],
     queryFn: () => getUsagePeriodsSummary(filter),
     staleTime: 60 * 1000, // 1 min(对齐 token-monitor usage.js 主数据契约)
-  });
-}
-
-// useUsageRecords -- REQ-TOKEN-003.3
-export function useUsageRecords(
-  filter: UsageFilter,
-  page: number,
-  perPage: number
-): UseQueryResult<PaginatedResponse<UsageRecord>> {
-  return useQuery({
-    queryKey: ["usage", "records", filter, page, perPage],
-    queryFn: () => listUsageRecords(filter, page, perPage),
-    staleTime: 5 * 60 * 1000, // 5 min
   });
 }
 
@@ -72,15 +39,6 @@ export function useImportUsage(): UseMutationResult<
       queryClient.invalidateQueries({ queryKey: ["usage", "summary"] });
       queryClient.invalidateQueries({ queryKey: ["usage", "records"] });
     },
-  });
-}
-
-// usePricing -- REQ-TOKEN-003.3
-export function usePricing(): UseQueryResult<PricingEntry[]> {
-  return useQuery({
-    queryKey: ["usage", "pricing"],
-    queryFn: () => getPricing(),
-    staleTime: 60 * 60 * 1000, // 1 hour
   });
 }
 

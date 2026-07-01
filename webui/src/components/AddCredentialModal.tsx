@@ -17,14 +17,13 @@ interface AddCredentialModalProps {
 
 // Two-level cascade: template → preset list
 // @see openspec/changes/v0.1-general-credentials/spec.md REQ-PROV-007
-type TemplateId = "custom" | "llm" | "dev-tools" | "database";
+type TemplateId = "custom" | "llm" | "dev-tools";
 const CUSTOM_PRESET_ID = "__custom__";
 
 const TEMPLATES: Array<{ id: TemplateId; label: string }> = [
   { id: "custom", label: "自定义" },
   { id: "llm", label: "大模型 (LLM)" },
   { id: "dev-tools", label: "开发工具" },
-  { id: "database", label: "数据库" },
 ];
 
 const PRESETS_BY_TEMPLATE: Record<TemplateId, Array<{ id: string; label: string }>> = {
@@ -37,10 +36,6 @@ const PRESETS_BY_TEMPLATE: Record<TemplateId, Array<{ id: string; label: string 
   ],
   "dev-tools": [
     { id: "github", label: "GitHub" },
-    { id: CUSTOM_PRESET_ID, label: "自定义..." },
-  ],
-  database: [
-    { id: "postgres", label: "PostgreSQL" },
     { id: CUSTOM_PRESET_ID, label: "自定义..." },
   ],
 };
@@ -60,11 +55,6 @@ const PRESET_DEFAULTS: Record<string, Array<{ key: string; value: string; visibi
   ],
   github: [
     { key: "access_token", value: "", visibility: "masked" },
-  ],
-  postgres: [
-    { key: "connection_string", value: "", visibility: "masked" },
-    { key: "host", value: "localhost", visibility: "visible" },
-    { key: "port", value: "5432", visibility: "visible" },
   ],
 };
 
