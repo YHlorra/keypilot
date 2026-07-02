@@ -113,13 +113,13 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
       <div className="space-y-6">
         {/* Theme */}
         <div>
-          <h3 className="text-sm font-medium mb-3">主题</h3>
+          <h3 className="text-lg font-semibold font-serif mb-3">主题</h3>
           <ThemeToggle />
         </div>
 
         {/* Categories */}
         <div>
-          <h3 className="text-sm font-medium mb-3">分类</h3>
+          <h3 className="text-lg font-semibold font-serif mb-3">分类</h3>
           <div className="space-y-2">
             {categories.length === 0 && (
               <p className="text-xs text-muted-foreground py-2">暂无分类</p>
@@ -143,7 +143,7 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
                       variant="ghost"
                       onClick={() => handleDeleteClick(cat.id)}
                       disabled={isDeleting}
-                      className="text-danger hover:text-danger"
+                      className="text-destructive hover:text-destructive"
                     >
                       删除
                     </Button>
@@ -187,7 +187,7 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
 
         {/* About */}
         <div>
-          <h3 className="text-sm font-medium mb-3">关于</h3>
+          <h3 className="text-lg font-semibold font-serif mb-3">关于</h3>
           <div className="text-sm text-muted-foreground space-y-1">
             <p>KeyPilot V0.1</p>
             <p className="text-xs">轻量级 API 凭证管理</p>

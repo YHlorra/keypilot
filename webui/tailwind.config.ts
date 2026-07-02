@@ -25,20 +25,39 @@ const config: Config = {
         /* shadcn-compatible base */
         background: "var(--color-background)",
         foreground: "var(--color-foreground)",
-        card: "var(--color-surface)",
-        cardForeground: "var(--color-on-surface)",
-        popover: "var(--color-popover)",
-        popoverForeground: "var(--color-on-surface)",
-        primary: "var(--color-primary)",
-        primaryForeground: "var(--color-secondary)",
-        secondary: "var(--color-surface-elevated)",
-        secondaryForeground: "var(--color-on-surface)",
-        muted: "var(--color-muted)",
-        "muted-foreground": "var(--color-muted-foreground)",
-        accent: "var(--color-accent)",
-        accentForeground: "var(--color-accent-foreground)",
-        destructive: "var(--color-destructive)",
-        destructiveForeground: "var(--color-destructive-foreground)",
+        // Nested shape so `*-foreground` classes resolve. Flat keys like
+        // `primaryForeground` (camelCase top-level) are NOT kebab-cased by
+        // Tailwind v3's flattenColorPalette — only nested objects get the
+        // `primary-foreground` kebab variant. See button.tsx / select.tsx /
+        // Icon.tsx for the consumers.
+        card: {
+          DEFAULT: "var(--color-surface)",
+          foreground: "var(--color-on-surface)",
+        },
+        popover: {
+          DEFAULT: "var(--color-popover)",
+          foreground: "var(--color-on-surface)",
+        },
+        primary: {
+          DEFAULT: "var(--color-primary)",
+          foreground: "var(--color-secondary)",
+        },
+        secondary: {
+          DEFAULT: "var(--color-surface-elevated)",
+          foreground: "var(--color-on-surface)",
+        },
+        muted: {
+          DEFAULT: "var(--color-muted)",
+          foreground: "var(--color-muted-foreground)",
+        },
+        accent: {
+          DEFAULT: "var(--color-accent)",
+          foreground: "var(--color-accent-foreground)",
+        },
+        destructive: {
+          DEFAULT: "var(--color-destructive)",
+          foreground: "var(--color-destructive-foreground)",
+        },
         border: "var(--color-border)",
         input: "var(--color-input)",
         ring: "var(--color-ring)",

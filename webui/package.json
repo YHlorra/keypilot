@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "audit:tailwind": "node scripts/check-tw-classes.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.17",

@@ -4,29 +4,30 @@
 > 目的: 让下次 session / 下个 Agent 能 `./init.sh` 起来就直接干活, 不需要问"上次搞到哪了"。
 
 **Last updated**: 2026-07-02
-**Last commit**: `e355b5d Phase 4+6: WebUI over-engineering shrink + date-fns removal` (over-engineering execution COMPLETE)
-**Branch state**: `main`, working tree **clean** (pending state artifact commit)
+**Last commit**: 见 `git log -1` (UI 可读性 P0-P2 全量修复 + 回归检查脚本)
+**Branch state**: `main`, working tree **clean**
 
 ---
 
 ## 一句话定位
 
 KeyPilot V0.1 已交付(stage-9 完成 sign-off)。
-**当前 session (2026-07-01 stage-13.3)**:UsagePage UI 收紧 — 用户截图报 5 个 bug,创建冻结设计稿 `docs/usage-page.html`,按稿实施 4 组件布局。**用户拍板定稿**。Working tree dirty,**待 commit**。
+**当前 session (2026-07-02 UI 可读性)**:用户报"添加按钮文字看不见" → 启动 hunt → 3 轮 audit 发现系统性 Tailwind token + 对比度 bug (camelCase 顶层键 / `var(--*)` 不可被 opacity 解析 / `bg-muted text-muted-foreground` 同色陷阱) → 全量修复 + 写回归检查脚本 + 加 Icon 组件测试。**用户目视确认通过**。已 commit, working tree clean。
 
 ## 下次 session 起手
 
 1. **跑 `./init.sh`** 验证环境 (AGENTS.md §1 强制)。先修 CRLF: `sed -i 's/\r$//' init.sh`
-2. **读 `progress.md`** — 顶部 "2026-07-02 — Over-engineering execution" entry 是本 session 完整记录。
-3. **Over-engineering execution 已完成**:
-   - Rust over-engineering: commit `1231cd6` (Phase 3b, 37 Rust files, 4781 deletions)
-   - WebUI over-engineering: commit `e355b5d` (Phase 4+6, 11 webui files, 305 deletions)
-   - 所有 cargo + pnpm tests pass
+2. **读 `progress.md`** — 顶部 "2026-07-02 — UI 可读性 P0-P2 全量修复" entry 是本 session 完整记录 (3 轮 audit + 22 文件改动 + 反思)。
+3. **本 session 完成**:
+   - 3 轮 audit 收口: 6 个 `*-foreground` 死类 / 9 个 `bg-*/N` 死类 / 1 个同色陷阱 + 杂类 (text-danger, text-red-500, border-border-soft, text-headline-md, text-body-md, body-sm, bg-surface)
+   - `tailwind.config.ts` 改成嵌套 color 对象 + 4 个新 hover token + 15+ 条 CR 注释清理
+   - `webui/scripts/check-tw-classes.mjs` 新增 (3 轮迭代, JSX className vs 编译 CSS 交叉验证, 0 噪声模式)
+   - `webui/src/components/Icon.test.tsx` 新增 (3 cases, 永久 guard 原 TypeError)
 4. **下一步侯选**(按优先级):
+   - 接 `pretest: "pnpm audit:tailwind"` 进 CI (~1 行, 阻止未来 UI 改动引入新死类)
    - Phase 5 IPC DTO collapse (deferred — needs serde round-trip spike first)
-   - Review borderline items: provider.test_and_refresh / cva / executeAction
-   - Add sha2/once_cell/uuid to "considered but kept" doc for future audits
-   - Clean `from_models pub(crate)` warning with `#[cfg(test)]`
+   - `PRESET_COLORS` (Icon.tsx) / `PRESET_TINTS` (ProviderCard.tsx) hardcoded hex 共享 const 抽取
+   - 状态徽章另一支 `bg-[color-mix(...primary...10%)]` 在 light 模式 alpha 边缘, 视觉已确认通过, 可不追究
 5. **后续候选**:
    - pricing.json 补 6 个 opencode model
    - `claude-code::derive_provider` 加 `kimi-` prefix
@@ -40,11 +41,13 @@ KeyPilot V0.1 已交付(stage-9 完成 sign-off)。
 | Rust 工具链 | ✅ `cargo check` PASS;`cargo test` 121/121 PASS |
 | Node 工具链 | ✅ `pnpm tsc --noEmit` 0 errors;`pnpm build` PASS |
 | WebUI 构建 | ✅ `pnpm build` PASS |
-| Playwright | ⚠️ 未跑(over-engineering 无 UI 行为变更) |
+| Playwright | ⚠️ 未跑(本 session 纯 UI 修正, 无行为变更) |
 | Tauri 2 启动 | ✅ 冷启动 → Vite + Rust 编译 + 窗口弹出 |
 | SQLite db | `%APPDATA%\com.keypilot.app\keypilot.db`, **schema v6** (8 张表) |
 | Over-engineering | ✅ 37 Rust files + 11 WebUI files deleted (~5,086 LOC) |
+| UI 可读性 | ✅ 22 files: tailwind.config 重构 + 6 dead class 修复 + 9 opacity bug 修复 + 同色陷阱 + 回归脚本 + Icon 测试 |
 | Dep cleanups | ✅ tokio-postgres removed; date-fns removed |
+| 回归检查 | ✅ `pnpm audit:tailwind` 0 真死类 (脚本: `webui/scripts/check-tw-classes.mjs`) |
 
 ## 关键文件 cheat-sheet
 
@@ -52,6 +55,11 @@ KeyPilot V0.1 已交付(stage-9 完成 sign-off)。
 |---|---|
 | **设计稿(冻结)** | `docs/usage-page.html` — 打开浏览器看 |
 | 本 session 工作笔记 + 决策 | `progress.md` 顶部 entry;`feature_list.json` stage-13.3 entry |
+| **本 session (UI 可读性) audit 工件** | `.slim/deepwork/ui-audit/` (gitignored) — `design-readability.md` / `code-readability.md` / `SUMMARY.md` / `FIX-PLAN.md` |
+| **回归检查脚本** | `webui/scripts/check-tw-classes.mjs` (`pnpm audit:tailwind`) |
+| **Token 系统结构** | `webui/tailwind.config.ts` (嵌套 color 对象) + `webui/src/styles/globals.css` (`--color-*` tokens) |
+| ProviderIcon 修原始 TypeError | `webui/src/components/Icon.tsx:54` (`(preset && PRESET_LABELS[preset]) || name`) + `webui/src/components/Icon.test.tsx` (regression guard) |
+| 状态徽章组合修复 | `webui/src/components/ProviderDetailModal.tsx:273` (`bg-secondary text-muted-foreground` 而非 `bg-muted text-muted-foreground`) |
 | 热力图单 grid 实现 | `webui/src/components/UsageHeatmapCalendar.tsx` |
 | 趋势图新尺寸 | `webui/src/components/UsageTimeSeries.tsx` (HEIGHT=200, PADDING 重排) |
 | 4 组件布局 | `webui/src/pages/UsagePage.tsx` (body grid 1fr 230px) |

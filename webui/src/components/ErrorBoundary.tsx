@@ -29,12 +29,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       return (
         <div className="flex items-center justify-center h-screen bg-background">
           <div className="rounded-md border border-border bg-card p-6 max-w-lg w-full">
-            <h2 className="text-lg font-semibold text-danger">出错了</h2>
+            <h2 className="text-lg font-semibold text-destructive">出错了</h2>
             <p className="text-sm text-muted-foreground break-all mt-2">
               {this.state.error?.message || "发生了未知错误"}
             </p>
             {this.state.error?.stack && (
-              <pre className="text-xs bg-surface border border-border rounded p-3 overflow-auto max-h-60 mt-3">
+              <pre className="text-xs bg-card border border-border rounded p-3 overflow-auto max-h-60 mt-3">
                 {this.state.error.stack}
               </pre>
             )}

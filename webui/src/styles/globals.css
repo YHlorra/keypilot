@@ -29,11 +29,12 @@ html {
 :root,
 [data-theme="light"] {
   /* Core palette */
-  --color-primary: #1b365d;                     /* navy — CR: 9.2:1 on #faf9f5 ✓ */
+  --color-primary: #1b365d;                     /* navy */
   --color-primary-hover: #152d4e;
-  --color-secondary: #faf9f5;                   /* off-white — CR: 17.9:1 on #141413 ✓ */
+  --color-secondary: #faf9f5;                   /* off-white */
+  --color-secondary-hover: #ebe9e0;             /* slightly darker off-white for Button secondary hover */
   --color-neutral: #141413;                     /* near-black */
-  --color-foreground: #141413;                  /* CR: 17.9:1 on #f5f4ed ✓ */
+  --color-foreground: #141413;
 
   /* Surface stack */
   --color-surface: #f5f4ed;                     /* warm cream — same as bg */
@@ -44,23 +45,24 @@ html {
 
   /* Muted — muted-foreground is lighter than muted for visual hierarchy */
   --color-muted: #6b6b65;                       /* mid grey */
-  --color-muted-foreground: #9a958d;            /* lighter grey — CR: 4.6:1 on bg ✓ */
+  --color-muted-foreground: #6b6b65;            /* CR: 5.6:1 PASS AA on #f5f4ed */
 
   /* Accent — warm amber for ghost/link hover, etc. */
-  --color-accent: #8a6840;                      /* amber-brown — CR: 4.7:1 on #faf9f5 ✓ */
-  --color-accent-foreground: #faf9f5;           /* CR: 9.8:1 on #8a6840 ✓ */
+  --color-accent: #8a6840;                      /* amber-brown */
+  --color-accent-foreground: #faf9f5;
 
   /* Destructive — same red for both text and bg variants */
   --color-destructive: #b42318;
-  --color-destructive-foreground: #faf9f5;      /* CR: 5.3:1 on #b42318 ✓ */
+  --color-destructive-hover: #9e1d13;          /* ~10% darker for Button destructive hover */
+  --color-destructive-foreground: #faf9f5;
   --color-error: #b42318;                       /* alias for consistency */
 
   /* UI chrome */
   --color-border: #d4cfc4;                      /* warm grey border */
   --color-input: #d4cfc4;                       /* input ring / outline border */
   --color-ring: #1b365d;                        /* focus ring matches primary */
-  --color-link: #1d4ed8;                        /* CR: 7.4:1 on #f5f4ed ✓ */
-  --color-success: #46a758;                     /* CR: 4.6:1 on #f5f4ed ✓ */
+  --color-link: #1d4ed8;
+  --color-success: #46a758;
   --color-popover: #ffffff;
 
   /* Typography scale */
@@ -109,12 +111,12 @@ html {
 /* ─── Dark theme ──────────────────────────────────────────────────────────── */
 [data-theme="dark"] {
   /* Core palette */
-  --color-primary: #9bb8e0;                     /* bright sky — CR: 4.8:1 on #1a1916 ✓
-                                                   tightened from #7da3d1 for better separation */
+  --color-primary: #9bb8e0;
   --color-primary-hover: #aec8e8;
   --color-secondary: #0e0d0c;                   /* near-black, darker than bg */
+  --color-secondary-hover: #252320;             /* slightly lighter than surface-elevated for Button secondary hover */
   --color-neutral: #ece9df;                     /* warm white */
-  --color-foreground: #ece9df;                  /* CR: 14.1:1 on #1a1916 ✓ */
+  --color-foreground: #ece9df;
 
   /* Surface stack — slightly differentiated */
   --color-surface: #1a1916;                     /* same as bg (no separation needed in dark) */
@@ -125,23 +127,24 @@ html {
 
   /* Muted */
   --color-muted: #8a8780;
-  --color-muted-foreground: #c4c0b8;            /* lighter than muted — CR: 4.2:1 on bg ✓ */
+  --color-muted-foreground: #c4c0b8;            /* CR: 9.7:1 PASS AAA on #1a1916 */
 
   /* Accent */
-  --color-accent: #c4956a;                      /* warm amber — CR: 4.7:1 on #1a1916 ✓ */
-  --color-accent-foreground: #141413;           /* CR: 14.1:1 on #c4956a ✓ */
+  --color-accent: #c4956a;                      /* warm amber */
+  --color-accent-foreground: #141413;
 
   /* Destructive */
   --color-destructive: #e87a72;
-  --color-destructive-foreground: #141413;      /* CR: 4.6:1 on #e87a72 ✓ */
+  --color-destructive-hover: #f5958e;          /* ~10% lighter for Button destructive hover (dark mode) */
+  --color-destructive-foreground: #141413;
   --color-error: #e87a72;
 
   /* UI chrome */
   --color-border: #2e2c28;
   --color-input: #3d3a34;
   --color-ring: #9bb8e0;
-  --color-link: #9bb8e0;                        /* CR: 4.8:1 on #1a1916 ✓ */
-  --color-success: #7ad27d;                     /* CR: 5.4:1 on #1a1916 ✓ */
+  --color-link: #9bb8e0;
+  --color-success: #7ad27d;
   --color-popover: #2a2825;
 
   /* Typography scale — same sizes, no adjustment needed */

@@ -87,7 +87,7 @@ export const KvRow = React.memo(function KvRow({ field, onUpdate, onDelete }: Kv
   const maskedValue = "••••••••";
 
   return (
-    <div className="group flex items-center gap-2 py-2 px-3 rounded-md hover:bg-accent/50 transition-colors">
+    <div className="group flex items-center gap-2 py-2 px-3 rounded-md hover:bg-[color-mix(in_srgb,var(--color-accent)_50%,transparent)] transition-colors">
       {/* Key */}
       <div className="w-[30%] flex-shrink-0">
         {isEditing ? (
@@ -142,10 +142,10 @@ export const KvRow = React.memo(function KvRow({ field, onUpdate, onDelete }: Kv
       <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {isEditing ? (
           <>
-            <button type="button" onClick={handleEditSave} className="p-1 rounded hover:bg-success/20 text-success" title="保存">
+            <button type="button" onClick={handleEditSave} className="p-1 rounded hover:bg-[color-mix(in_srgb,var(--color-success)_20%,transparent)] text-success" title="保存">
               <Icon name="check" className="w-3.5 h-3.5" />
             </button>
-            <button type="button" onClick={handleEditCancel} className="p-1 rounded hover:bg-danger/20 text-danger" title="取消">
+            <button type="button" onClick={handleEditCancel} className="p-1 rounded hover:bg-[color-mix(in_srgb,var(--color-destructive)_20%,transparent)] text-destructive" title="取消">
               <Icon name="x" className="w-3.5 h-3.5" />
             </button>
           </>
@@ -163,7 +163,7 @@ export const KvRow = React.memo(function KvRow({ field, onUpdate, onDelete }: Kv
             <button
               type="button"
               onClick={onDelete}
-              className="p-1 rounded hover:bg-danger/20 text-danger"
+className="p-1 rounded hover:bg-[color-mix(in_srgb,var(--color-destructive)_20%,transparent)] text-destructive"
               title="删除"
             >
               <Icon name="trash" className="w-3.5 h-3.5" />

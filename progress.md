@@ -3,6 +3,52 @@
 > Per AGENTS.md §8 — Session 连续性日志。 每个 session 至少更新一次。
 > 真相源: git log (commit 详情) + feature_list.json (feature 状态) + progress.md (session 进度)。
 
+## 2026-07-02 — UI 可读性 P0-P2 全量修复 + 回归脚本 (3 轮 audit 收口)
+
+**Goal**: 用户报"添加按钮文字看不见" → 启动 hunt → 3 轮 audit 发现系统性 Tailwind token + 对比度 bug → 全量修复 + 写回归检查。
+
+**3 轮 audit 发现 (按发现顺序)**:
+1. `tailwind.config.ts` 把 `primaryForeground` 等 6 个 `*-foreground` 类放在 camelCase 顶层键, Tailwind v3 不 kebab-case 拆分 → 全部 Button / Toast / Select dropdown 文字透明。**Root cause 1 句: 配置用 flat camelCase 顶层键而非嵌套对象, Tailwind v3 flattenColorPalette 只对嵌套对象做 kebab-case 拆分**。
+2. `bg-primary/90` / `hover:bg-destructive/20` 等 9 个 `bg-color/N` 修饰类, 因为 token 都是 `var(--color-*)`, Tailwind 无法解析 RGB channels 应用 alpha, **类从未被生成**。所有 button hover / destructive 红色 tint / active 状态不可见。
+3. (用户第二次报错) ProviderDetailModal 状态徽章 `bg-muted text-muted-foreground` — 我上一轮把 muted-foreground 从 `#9a958d` 改成 `#6b6b65` (跟 muted 同值), 1.00:1 完全融在一起, 文字不可见。
+
+**修复结果** (22 文件):
+- `webui/tailwind.config.ts` — 6 个 `*Foreground` flat 顶层键改成 `{ DEFAULT, foreground }` 嵌套对象
+- `webui/src/styles/globals.css` — 4 个新 token (light + dark × secondary-hover + destructive-hover); 15+ 条误导性 CR 注释删除, 留 2 条真值
+- 6 个未定义 / 漂移 class 替换: `border-border-soft` / `text-headline-md` / `text-red-500` / `text-danger` (×5+) / `bg-danger` / `bg-surface` (×2) / `text-body-md` (×2) / `body-sm` (×1)
+- 9 个 `bg-color/N` opacity 修饰符 → 显式 `var(--color-*-hover)` 或 `color-mix()`
+- 状态徽章 `bg-muted text-muted-foreground` 同色陷阱 → `bg-secondary text-muted-foreground`
+- h2/h3 字号统一 (UsagePage h2 `text-sm` → `text-xl`, SettingsModal h3 `text-sm` → `text-lg`)
+- 9-11px 字号收敛到 `text-xs` / `var(--font-size-2xs)` (LeftRail / TokensLeaderboard / UsageHeatmapCalendar / UsageTimeSeries)
+- AI tell 修复: `Credential deleted` → `凭证已删除`, `Cancel` → `取消`, App.tsx 过时 ponytail 注释删除, UsagePage 长注释精简
+
+**新增工具**:
+- `webui/scripts/check-tw-classes.mjs` (118 lines) — JSX className vs 编译后 CSS 交叉验证。`pnpm audit:tailwind`。3 轮迭代: 1) extractFromTemplate 递归处理 `${...}`; 2) extractDefinedClasses 用 lookbehind `(?<=[{};,>+~\s]|^)` 排除 rule body 内 `.`; 3) fetchCSS 解析 Vite JS 包装, unescape `\\` → `\`。最终 0 真死类 / 5 已知 template literal 噪声 (数字 1/2, 字符串值 success/masked, Radix 内部 popper)。
+- `webui/src/components/Icon.test.tsx` (3 tests) — 覆盖 `ProviderIcon` 修原始 TypeError 的 3 个 case (已知 preset, 自定义 preset, null preset)。Permanent regression guard。
+
+**审计盲点反思 (累计 3 轮)**:
+- 共同模式: 我之前**没有查 Tailwind 编译后 CSS 实际生成了哪些类**。只看 token 名称和 config 表面, 跳过了 Hunt 协议要求的"看见渲染态再下结论"。
+- audit 脚本写进仓, 后续任何 UI 改动 `pnpm audit:tailwind` 即可扫一遍, 防止第 4 次踩坑。
+- 旁系: 配 `pretest: "pnpm audit:tailwind"` 进 CI 是下个 session 一行可加的事。
+
+**Verification**:
+- `pnpm typecheck` OK
+- `pnpm test src/components/Icon.test.tsx` 3/3 PASS
+- `pnpm audit:tailwind` 0 real dead classes
+- cargo tauri dev 重启 3 次, 用户目视确认 "添加按钮" / "测试按钮" 全部可见
+
+**Commit**: 见 git log, message: `UI: 可读性 P0-P2 全量修复 + 回归检查脚本 (22 files)`
+
+**Deferred (候补)**:
+- 把 `pretest: "pnpm audit:tailwind"` 接入 CI (1 行)
+- audit 脚本 5 个 template literal 噪声 (1/2/success/masked/popper) 可精细化, 不影响信号
+- `PRESET_COLORS` (Icon.tsx) 和 `PRESET_TINTS` (ProviderCard.tsx) 仍是 hardcoded hex, 共享 const 抽取是低优 polish
+- 状态徽章另一支 `bg-[color-mix(...primary...10%)]` 用了 90% alpha, 在 light 模式 `--color-primary 10%` 可能边缘 — 视觉用户已确认, 不再追究
+
+**Worktree 状态**: 22 files modified, 2 untracked. 待 commit。`progress.md` + `session-handoff.md` 同步。
+
+---
+
 ## 2026-07-02 — Over-engineering execution (Phase 0-7.5 complete)
 
 **Goal**: Execute audit findings from prior session (5,000-5,500 LOC removal target).

@@ -319,7 +319,7 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
                   <button
                     type="button"
                     onClick={() => handleRemoveField(index)}
-                    className="p-1 text-danger hover:bg-danger/20 rounded"
+                    className="p-1 text-destructive hover:bg-[color-mix(in_srgb,var(--color-destructive)_20%,transparent)] rounded"
                   >
                     <span className="text-xs">×</span>
                   </button>

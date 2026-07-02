@@ -107,15 +107,12 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Page content — single scroll context lives in App.tsx (line 215).
-          Removed: overflow-y-auto (was creating the second nested scrollbar
-          that combined with App.tsx's overflow-y-auto to render TWO horizontal
-          bars at the bottom of the window — see docs/usage-page.html). */}
+      {/* Page content — single scroll context owned by App.tsx */}
       <div className="flex-1 min-h-0 max-w-[1600px] mx-auto px-4 py-3 flex flex-col gap-4">
         <section>
           <div className="flex flex-col mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Activity</h2>
-            <span className="text-[10px] text-muted-foreground mt-0.5">Last 26 weeks - token intensity</span>
+            <h2 className="text-xl font-semibold font-serif text-foreground">Activity</h2>
+            <span className="text-xs text-muted-foreground mt-0.5">Last 26 weeks - token intensity</span>
           </div>
           {periodsLoading ? (
             <div className="h-48 animate-pulse bg-muted rounded" />
@@ -130,8 +127,8 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
             <section>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex flex-col">
-                  <h2 className="text-sm font-semibold text-foreground">Trend</h2>
-                  <span className="text-[10px] text-muted-foreground mt-0.5">
+                  <h2 className="text-xl font-semibold font-serif text-foreground">Trend</h2>
+                  <span className="text-xs text-muted-foreground mt-0.5">
                     {selectedRange === "7d" ? "Last 7 days" : "Last 30 days"} (rolling window)
                   </span>
                 </div>
