@@ -16,7 +16,7 @@ export const DensityToggle = ({ value, onChange }: DensityToggleProps) => {
         aria-pressed={value === "1"}
         className={cn(
           "inline-flex items-center justify-center w-8 h-8 rounded-pill transition-colors",
-          // ponytail: desaturated selected state -- was bg-[var(--color-primary)] which
+          // desaturated selected state -- was bg-[var(--color-primary)] which
           // matched the TopRightActions primary "+" button exactly, creating a visual
           // twin that made users perceive the add credential CTA as obscured.
           value === "1"

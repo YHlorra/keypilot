@@ -11,6 +11,7 @@ import { cn, isLlmCategory } from "@/lib/utils";
 import type { Provider, Category } from "@/types/api";
 import { formatRelative } from "@/lib/format";
 import { ContextMenu } from "./ContextMenu";
+import { ProviderIcon } from "./Icon";
 
 interface ProviderCardProps {
   provider: Provider;
@@ -25,21 +26,6 @@ interface ProviderCardProps {
   onTest?: (id: number) => void;
 }
 
-const PRESET_TINTS: Record<string, { bg: string; label: string }> = {
-  openai: { bg: "#46a758", label: "AI" },
-  deepseek: { bg: "#1d4ed8", label: "DS" },
-  anthropic: { bg: "#f76808", label: "AN" },
-  github: { bg: "#6b6b65", label: "GH" },
-  redis: { bg: "#b42318", label: "RE" },
-};
-
-function getFamilyTint(preset: string | null): { bg: string; label: string } {
-  if (preset && PRESET_TINTS[preset]) return PRESET_TINTS[preset];
-  return { bg: "var(--color-muted)", label: "" };
-}
-
-
-
 export const ProviderCard = ({
   provider,
   categories,
@@ -52,8 +38,6 @@ export const ProviderCard = ({
   onTokenUsage,
   onTest,
 }: ProviderCardProps) => {
-  const tint = getFamilyTint(provider.preset);
-  const iconLabel = tint.label || provider.name.charAt(0).toUpperCase();
   const isLlm = isLlmCategory(provider.category_id, categories);
 
   // Derive a display URL from base_url field if present
@@ -133,12 +117,13 @@ export const ProviderCard = ({
         )}
       >
         {/* Provider icon */}
-        <div
-          data-testid="provider-icon"
-          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[var(--color-secondary)] text-xs font-mono font-bold"
-          style={{ backgroundColor: tint.bg }}
-        >
-          {iconLabel}
+        <div data-testid="provider-icon" className="shrink-0">
+          <ProviderIcon
+            preset={provider.preset}
+            name={provider.name}
+            icon={provider.icon}
+            className="w-8 h-8 rounded"
+          />
         </div>
 
         {/* Provider info */}

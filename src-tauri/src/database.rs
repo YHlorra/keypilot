@@ -5,6 +5,68 @@ use crate::timeutil;
 use std::time::Duration;
 use crate::types::TokenUsageRecord;
 
+/// One preset template used by `seed_preset_providers` (and mirrored in
+/// `migrate_to_v8` for V0.0 backfill, and in the webui AddCredentialModal
+/// picker). All three places must agree on `(name, preset, base_url)` — keep
+/// this struct as the single Rust source of truth.
+struct PresetSeed {
+    name: &'static str,
+    preset: &'static str,
+    base_url: &'static str,
+    icon_path: &'static str,
+}
+
+/// 20 curated LLM presets. See `.slim/deepwork/preset-templates-from-cc-switch.md`
+/// for selection rationale (覆盖中文 8 + 西方 6 + 聚合器 6). 适配器映射见
+/// `src-tauri/src/provider/adapter.rs::adapter_for`。`icon_color` is not
+/// stored — Icon.tsx::PRESET_COLORS is the de-facto source; the DB column
+/// exists but is dead data and the UI ignores it.
+const PRESETS: &[PresetSeed] = &[
+    PresetSeed { name: "OpenAI",                preset: "openai",                base_url: "https://api.openai.com/v1",                       icon_path: "/icons/providers/openai.svg"     },
+    PresetSeed { name: "Anthropic",             preset: "anthropic",             base_url: "https://api.anthropic.com",                       icon_path: "/icons/providers/anthropic.svg"  },
+    PresetSeed { name: "DeepSeek",              preset: "deepseek",              base_url: "https://api.deepseek.com/v1",                     icon_path: "/icons/providers/deepseek.svg"   },
+    PresetSeed { name: "GitHub",                preset: "github",                base_url: "https://api.github.com",                          icon_path: "/icons/providers/github.svg"     },
+    PresetSeed { name: "Moonshot Kimi",         preset: "kimi",                  base_url: "https://api.moonshot.cn/v1",                      icon_path: "/icons/providers/kimi.svg"       },
+    PresetSeed { name: "智谱 GLM",              preset: "zhipu",                 base_url: "https://open.bigmodel.cn/api/paas/v4",            icon_path: ""                                  },
+    PresetSeed { name: "阿里通义千问",          preset: "qwen",                  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", icon_path: "/icons/providers/qwen.svg"      },
+    PresetSeed { name: "OpenRouter",            preset: "openrouter",            base_url: "https://openrouter.ai/api/v1",                    icon_path: "/icons/providers/openrouter.svg" },
+    PresetSeed { name: "Groq",                  preset: "groq",                  base_url: "https://api.groq.com/openai/v1",                  icon_path: ""                                  },
+    PresetSeed { name: "Mistral AI",            preset: "mistral",               base_url: "https://api.mistral.ai/v1",                       icon_path: "/icons/providers/mistral.svg"    },
+    PresetSeed { name: "硅基流动",              preset: "siliconflow",           base_url: "https://api.siliconflow.cn/v1",                   icon_path: ""                                  },
+    PresetSeed { name: "Together AI",           preset: "together",              base_url: "https://api.together.xyz/v1",                     icon_path: ""                                  },
+    PresetSeed { name: "火山引擎 Ark",          preset: "volcengine",            base_url: "https://ark.cn-beijing.volces.com/api/v3",        icon_path: "/icons/providers/volcengine.svg" },
+    PresetSeed { name: "阶跃星辰",              preset: "stepfun",               base_url: "https://api.stepfun.com/v1",                      icon_path: ""                                  },
+    PresetSeed { name: "Cohere",                preset: "cohere",                base_url: "https://api.cohere.ai/v1",                        icon_path: ""                                  },
+    PresetSeed { name: "Perplexity",            preset: "perplexity",            base_url: "https://api.perplexity.ai",                       icon_path: "/icons/providers/perplexity.svg"  },
+    PresetSeed { name: "Moonshot Kimi (Anthropic)", preset: "kimi-anthropic",    base_url: "https://api.moonshot.cn/anthropic",              icon_path: "/icons/providers/kimi.svg"       },
+    PresetSeed { name: "智谱 GLM (Anthropic)",      preset: "zhipu-anthropic",   base_url: "https://open.bigmodel.cn/api/anthropic",         icon_path: ""                                  },
+    PresetSeed { name: "DeepSeek (Anthropic)",      preset: "deepseek-anthropic", base_url: "https://api.deepseek.com/anthropic",             icon_path: "/icons/providers/deepseek.svg"   },
+    PresetSeed { name: "火山引擎 (Anthropic)",      preset: "volcengine-anthropic", base_url: "https://ark.cn-beijing.volces.com/api/coding",  icon_path: "/icons/providers/volcengine.svg" },
+    // MiniMax — 4 nodes (2 regions × 2 protocols). Official docs:
+    // api.minimaxi.com (CN) / api.minimax.io (overseas) × /anthropic + /v1.
+    // "Coding Plan" is NOT a separate endpoint — it shares the same 4 URLs
+    // with regular API; the only difference is the API key type (group-key)
+    // and rate-limit pool. 4 picker rows give users 1-click access to each
+    // distinct base_url, matching the "4 nodes, 4 base URLs" mental model.
+    //
+    // convention here is OpenAI-protocol is the short id (kimi /
+    // zhipu / qwen / etc.), Anthropic gets `-anthropic` suffix. MiniMax's
+    // first-party docs lead with /anthropic but we follow the codebase
+    // convention for consistency; "MiniMax" in the picker = OpenAI CN, same
+    // shape as "Kimi" / "Zhipu" / "Qwen" = OpenAI CN.
+    PresetSeed { name: "MiniMax",                  preset: "minimax",              base_url: "https://api.minimaxi.com/v1",               icon_path: "/icons/providers/minimax.svg"     },
+    PresetSeed { name: "MiniMax 海外",             preset: "minimax-overseas",     base_url: "https://api.minimax.io/v1",                icon_path: "/icons/providers/minimax.svg"     },
+    PresetSeed { name: "MiniMax (Anthropic)",      preset: "minimax-anthropic",    base_url: "https://api.minimaxi.com/anthropic",       icon_path: "/icons/providers/minimax.svg"     },
+    PresetSeed { name: "MiniMax 海外 (Anthropic)", preset: "minimax-overseas-anthropic", base_url: "https://api.minimax.io/anthropic",  icon_path: "/icons/providers/minimax.svg"     },
+];
+
+/// Public list of all preset IDs. Used by adapter_for tests and any future
+/// IPC handler that wants to enumerate registered presets without exposing
+/// the full `PresetSeed` struct.
+pub fn preset_ids() -> Vec<&'static str> {
+    PRESETS.iter().map(|p| p.preset).collect()
+}
+
 /// Per-file cursor row used by the incremental JSONL importer
 /// (services/incremental_import.rs).  See Bug #3 fix 2026-06-29.
 #[derive(Debug, Clone)]
@@ -300,7 +362,55 @@ impl Database {
             // migrate_to_v7() updates schema_version internally inside its own
             // transaction, so this branch has no extra UPDATE meta step.
             self.migrate_to_v7()?;
+        } else if current == "7" {
+            // migrate_to_v8() updates schema_version internally inside its own
+            // transaction, mirroring the v7 pattern.
+            self.migrate_to_v8()?;
         }
+        Ok(())
+    }
+
+    /// v8: Backfill `providers.icon` for V0.0 seeded presets so existing users
+    /// see real brand icons instead of stale emoji strings (`'🤖'`, `'🧠'`, …)
+    /// rendered as broken `<img src>` URLs. Idempotent — safe to call on a DB
+    /// that already has v8 applied or on a fresh DB where no presets exist.
+    pub fn migrate_to_v8(&self) -> Result<(), AppError> {
+        let current = self.schema_version().unwrap_or_default();
+        if current == "8" {
+            return Ok(());
+        }
+
+        let conn = self.conn();
+        let tx = conn.unchecked_transaction().map_err(AppError::Database)?;
+
+        // Build the CASE WHEN from `PRESETS` so the migration and seed stay in
+        // sync. The `NOT LIKE '/icons/%'` guard skips rows whose icon is
+        // already a /icons/* path — either v8 already applied, or the user set
+        // a custom path under public/icons/providers/. Updating to the same
+        // value would be a no-op; the guard makes the "leave user customizations
+        // alone" intent explicit.
+        let mut case_sql = String::from("UPDATE providers SET icon = CASE preset");
+        let mut in_list = Vec::new();
+        for p in PRESETS {
+            if !p.icon_path.is_empty() {
+                case_sql.push_str(&format!(" WHEN '{}' THEN '{}'", p.preset, p.icon_path));
+                in_list.push(format!("'{}'", p.preset));
+            }
+        }
+        case_sql.push_str(" ELSE icon END");
+        case_sql.push_str(&format!(
+            " WHERE preset IN ({}) AND icon NOT LIKE '/icons/%'",
+            in_list.join(",")
+        ));
+
+        tx.execute(&case_sql, []).map_err(AppError::Database)?;
+
+        tx.execute(
+            "UPDATE meta SET value = '8' WHERE key = 'schema_version'",
+            [],
+        ).map_err(AppError::Database)?;
+
+        tx.commit().map_err(AppError::Database)?;
         Ok(())
     }
 
@@ -373,7 +483,7 @@ impl Database {
 
         // Re-aggregate using Rust-side Local date conversion (SQLite strftime 'localtime'
         // is unreliable on Windows). Group by (date, agent, model, provider) in-memory.
-        // ponytail: 'localtime' on SQLite may diverge from chrono::Local at DST gaps/folds.
+        // 'localtime' on SQLite may diverge from chrono::Local at DST gaps/folds.
         #[derive(Default, Eq, Hash, PartialEq)]
         struct AgentModelKey { date: String, agent: String, model: String, provider: String }
         #[derive(Default)]
@@ -504,45 +614,25 @@ impl Database {
 
         let now = timeutil::now_secs();
 
-        // OpenAI: base_url + api_key
-        self.conn.execute(
-            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, icon_color, sort_index, created_at, updated_at)
-             VALUES ('OpenAI', 'openai', 1, 1, 1, '🤖', '#10a37f', 0, ?1, ?1)",
-            [now],
-        )?;
-        let openai_id: i64 = self.conn.last_insert_rowid();
-        self.add_field(openai_id, "base_url", "https://api.openai.com/v1", "visible", 0, now)?;
-        self.add_field(openai_id, "api_key", "", "masked", 1, now)?;
-
-        // DeepSeek: base_url + api_key
-        self.conn.execute(
-            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, icon_color, sort_index, created_at, updated_at)
-             VALUES ('DeepSeek', 'deepseek', 1, 1, 1, '🔍', '#0066cc', 1, ?1, ?1)",
-            [now],
-        )?;
-        let deepseek_id: i64 = self.conn.last_insert_rowid();
-        self.add_field(deepseek_id, "base_url", "https://api.deepseek.com/v1", "visible", 0, now)?;
-        self.add_field(deepseek_id, "api_key", "", "masked", 1, now)?;
-
-        // Anthropic: base_url + api_key
-        self.conn.execute(
-            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, icon_color, sort_index, created_at, updated_at)
-             VALUES ('Anthropic', 'anthropic', 1, 1, 1, '🧠', '#d91666', 2, ?1, ?1)",
-            [now],
-        )?;
-        let anthropic_id: i64 = self.conn.last_insert_rowid();
-        self.add_field(anthropic_id, "base_url", "https://api.anthropic.com", "visible", 0, now)?;
-        self.add_field(anthropic_id, "api_key", "", "masked", 1, now)?;
-
-        // GitHub: base_url + api_key
-        self.conn.execute(
-            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, icon_color, sort_index, created_at, updated_at)
-             VALUES ('GitHub', 'github', 1, 1, 1, '🐙', '#24292e', 3, ?1, ?1)",
-            [now],
-        )?;
-        let github_id: i64 = self.conn.last_insert_rowid();
-        self.add_field(github_id, "base_url", "https://api.github.com", "visible", 0, now)?;
-        self.add_field(github_id, "api_key", "", "masked", 1, now)?;
+        // assumes category 1 ("凭证") exists. setup_schema() inserts it
+        // with INSERT OR IGNORE so order is safe, but a future reader must NOT
+        // renumber default categories without updating this seed.
+        //
+        // 20 curated LLM presets — same source-of-truth as
+        // webui/src/components/AddCredentialModal.tsx PRESETS_BY_TEMPLATE. When
+        // adding a preset, update both this table AND the TS picker (and the
+        // adapter_for() mapping in src-tauri/src/provider/adapter.rs for
+        // non-trivial protocols).
+        for (idx, p) in PRESETS.iter().enumerate() {
+            self.conn.execute(
+                "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, sort_index, created_at, updated_at)
+                 VALUES (?1, ?2, 1, 1, 1, ?3, ?4, ?5, ?5)",
+                rusqlite::params![p.name, p.preset, p.icon_path, idx as i64, now],
+            )?;
+            let id: i64 = self.conn.last_insert_rowid();
+            self.add_field(id, "base_url", p.base_url, "visible", 0, now)?;
+            self.add_field(id, "api_key", "", "masked", 1, now)?;
+        }
 
         // Mark as seeded
         self.conn.execute(
@@ -1075,7 +1165,7 @@ mod tests {
     /// F.2: Single record at epoch 1782809400000 → bucket must match `local_date_str(epoch)`
     ///       (chrono's host-system Local). On a non-UTC host (e.g. Asia/Shanghai) this also
     ///       discriminates from the UTC date string, proving no UTC-revert regression.
-    ///       ponytail: assertion is dynamical — `chrono::Local` is what `timeutil::local_date_str`
+    ///       assertion is dynamical — `chrono::Local` is what `timeutil::local_date_str`
     ///       uses, so the assertion holds across CI hosts regardless of TZ while still tripping
     ///       when the implementation regresses to UTC bucketing on a non-UTC host.
     #[test]
@@ -1108,7 +1198,7 @@ mod tests {
             "migration must bucket at the host's chrono::Local date for epoch {epoch}, got {actual_date} expected {expected_local}");
         // On non-UTC hosts the Local date differs from UTC date — assert migration didn't fall
         // back to UTC bucketing. Skip the second assertion on UTC hosts where dates are equal.
-        // ponytail: discriminator pattern — intentional UTC-bucketing probe to detect impl
+        // discriminator pattern — intentional UTC-bucketing probe to detect impl
         //           regression even though REQ-DATE-LOCAL-007 forbids it in production.
         let utc_date = chrono::DateTime::from_timestamp_millis(epoch)
             .unwrap().format("%Y-%m-%d").to_string();
@@ -1314,5 +1404,60 @@ mod tests {
         assert_eq!(v6_table_exists, 1, "v6 backup table should exist");
         // Verify version is now 7
         assert_eq!(db.schema_version().unwrap(), "7");
+    }
+
+    /// v8: Backfill the `icon` column for V0.0 users whose seeded presets
+    /// still hold stale emoji strings. Covers the expanded 20-preset set: rows
+    /// matching any of the 13 icon-having presets get their SVG path; the 7
+    /// icon-less presets are skipped; custom user icons under /icons/* are
+    /// preserved (NOT LIKE guard).
+    #[test]
+    fn migrate_to_v8_backfills_icons_for_all_icon_having_presets() {
+        let db = Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        // Force schema to v7 to mimic a V0.0 user about to upgrade.
+        db.conn().execute("UPDATE meta SET value = '7' WHERE key = 'schema_version'", []).unwrap();
+
+        // Insert a row for every preset that has a non-empty icon_path, with a
+        // stale emoji as the icon. Covers all icon-having presets from PRESETS.
+        let now = timeutil::now_secs();
+        for p in PRESETS.iter().filter(|p| !p.icon_path.is_empty()) {
+            db.conn().execute(
+                "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, sort_index, created_at, updated_at)
+                 VALUES (?1, ?2, 1, 1, 1, '🤖', 0, ?3, ?3)",
+                rusqlite::params![p.name, p.preset, now],
+            ).unwrap();
+        }
+        // Insert one user-customized row that should be preserved by the NOT LIKE guard.
+        db.conn().execute(
+            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, sort_index, created_at, updated_at)
+             VALUES ('My Kimi', 'kimi', 0, 1, 0, '/icons/providers/my-custom-kimi.svg', 0, ?1, ?1)",
+            [now],
+        ).unwrap();
+
+        db.migrate_to_v8().unwrap();
+        assert_eq!(db.schema_version().unwrap(), "8");
+
+        // Every icon-having preset got its expected path.
+        for p in PRESETS.iter().filter(|p| !p.icon_path.is_empty()) {
+            let icon: String = db.conn().query_row(
+                "SELECT icon FROM providers WHERE preset = ?1 AND is_preset = 1",
+                [p.preset],
+                |r| r.get(0),
+            ).unwrap();
+            assert_eq!(icon, p.icon_path, "preset {} should get {}", p.preset, p.icon_path);
+        }
+
+        // The user's custom kimi row was left alone.
+        let custom_icon: String = db.conn().query_row(
+            "SELECT icon FROM providers WHERE name = 'My Kimi'",
+            [],
+            |r| r.get(0),
+        ).unwrap();
+        assert_eq!(custom_icon, "/icons/providers/my-custom-kimi.svg");
+
+        // Idempotent — re-running doesn't change anything.
+        db.migrate_to_v8().unwrap();
+        assert_eq!(db.schema_version().unwrap(), "8");
     }
 }

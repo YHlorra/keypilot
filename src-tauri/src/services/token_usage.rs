@@ -948,7 +948,7 @@ impl TokenUsageService {
             [date],
         ).map_err(AppError::Database)?;
 
-        // ponytail: interpret `date` as Local midnight (consistent with record_usage
+        // interpret `date` as Local midnight (consistent with record_usage
         // bucketing, which uses local_date_str).  Old code used `.and_utc()`, which
         // was correct when callers passed UTC date strings but breaks under the
         // fix-date-local-timezone change where callers (record_usage / recompute_costs
@@ -1915,7 +1915,7 @@ mod tests {
         // epoch 1782837000000 = Local 2026-07-01 00:30+08:00 = UTC 2026-06-30 16:30
         // buggy from_timestamp_millis(...).format → "2026-06-30"
         // fixed timeutil::local_date_str → "2026-07-01"
-        // ponytail: 钉死 epoch 而不是 Local::now(),跨日期边界红绿稳定。
+        // 钉死 epoch 而不是 Local::now(),跨日期边界红绿稳定。
         assert_eq!(timeutil::local_date_str(1782837000000), "2026-07-01");
     }
 
@@ -1942,7 +1942,7 @@ mod tests {
         //   - record bucketed "2026-07-01" (Local)
         //   - month filter shows row with date "2026-07-01" in some Local-month range
         //
-        // ponytail: the assertion is the negative form so it stays portable across
+        // the assertion is the negative form so it stays portable across
         // calendar months / years.  If the test runs in some other month, today_series
         // may not include the inserted row, and the assertion trivially passes under
         // both buggy and fixed — acceptable regression-guard degradation.

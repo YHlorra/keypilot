@@ -236,7 +236,8 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
               <ProviderIcon
                 preset={provider.preset}
                 name={provider.name}
-                className="w-8 h-8 text-sm"
+                icon={provider.icon}
+                className="w-8 h-8 rounded"
               />
               <div>
                 {editMode === "edit" ? (

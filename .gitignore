@@ -74,3 +74,10 @@ tauri-dev.*
 # WebUI debug/capture scripts
 webui/capture*.mjs
 webui/inspect.mjs
+
+# bd internal task tracker
+/.bd/
+
+# Temporary layout/redesign scratch files
+/usage-layout-fix-plan.md
+/usage-redesign.html

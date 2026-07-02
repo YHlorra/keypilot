@@ -3,19 +3,66 @@ import { createContext, useContext, useState, useCallback } from "react";
 import { Eye, EyeOff, Copy, Trash2, Plus, RefreshCw, Check, X, Loader2, Search, Pencil, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Provider preset colors (Option A: teal/indigo/orange/gray/cyan)
+// Provider preset colors (Radix color scale tones, picked for visual variety).
+// 20 presets → 20 colors. When adding a new preset, pick an unused
+// tone; the fallback color (#8e8e8e) catches unknown presets.
 export const PRESET_COLORS: Record<string, string> = {
-  openai: "#00a2a2",     // teal
-  deepseek: "#3e63dd",   // indigo
-  anthropic: "#f76808", // orange
-  github: "#8e8e8e",     // gray
+  // Original 4
+  openai: "#10a37f",      // OpenAI green
+  anthropic: "#d97706",   // Anthropic orange
+  deepseek: "#1d4ed8",    // DeepSeek blue
+  github: "#24292e",      // GitHub near-black
+  // OpenAI-compatible (each its own brand tone)
+  kimi: "#1e40af",        // Moonshot navy
+  zhipu: "#0ea5e9",       // Zhipu sky
+  qwen: "#ff6a00",        // Alibaba orange
+  openrouter: "#7c3aed",  // OpenRouter violet
+  groq: "#f97316",        // Groq orange
+  mistral: "#dc2626",     // Mistral red
+  siliconflow: "#0891b2", // SiliconFlow teal
+  together: "#059669",    // Together emerald
+  volcengine: "#2563eb",  // Volcengine blue
+  stepfun: "#7c2d12",     // Stepfun brown
+  cohere: "#be185d",      // Cohere pink
+  perplexity: "#22c55e",  // Perplexity green
+  // Anthropic-compat variants — same color as their brand (visual consistency)
+  "kimi-anthropic": "#1e40af",
+  "zhipu-anthropic": "#0ea5e9",
+  "deepseek-anthropic": "#1d4ed8",
+  "volcengine-anthropic": "#2563eb",
+  // MiniMax — 4 nodes share the brand orange (radix-amber)
+  minimax: "#f59e0b",
+  "minimax-overseas": "#f59e0b",
+  "minimax-anthropic": "#f59e0b",
+  "minimax-overseas-anthropic": "#f59e0b",
 };
 
 export const PRESET_LABELS: Record<string, string> = {
   openai: "OpenAI",
-  deepseek: "DeepSeek",
   anthropic: "Anthropic",
+  deepseek: "DeepSeek",
   github: "GitHub",
+  kimi: "Moonshot Kimi",
+  zhipu: "智谱 GLM",
+  qwen: "通义千问",
+  openrouter: "OpenRouter",
+  groq: "Groq",
+  mistral: "Mistral AI",
+  siliconflow: "硅基流动",
+  together: "Together AI",
+  volcengine: "火山引擎",
+  stepfun: "阶跃星辰",
+  cohere: "Cohere",
+  perplexity: "Perplexity",
+  "kimi-anthropic": "Kimi (Anthropic)",
+  "zhipu-anthropic": "GLM (Anthropic)",
+  "deepseek-anthropic": "DeepSeek (Anthropic)",
+  "volcengine-anthropic": "Volcengine (Anthropic)",
+  // MiniMax — compact tooltip variant (full labels in AddCredentialModal picker)
+  minimax: "MiniMax",
+  "minimax-overseas": "MiniMax",
+  "minimax-anthropic": "MiniMax (Anthropic)",
+  "minimax-overseas-anthropic": "MiniMax (Anthropic)",
 };
 
 interface IconProps {
@@ -46,15 +93,30 @@ export const Icon = React.memo(function Icon({ name, className, color }: IconPro
 interface ProviderIconProps {
   preset: string | null;
   name: string;
+  // Optional icon asset (path under /icons/ or absolute URL). When set, renders
+  // an <img> instead of the tinted-circle fallback. Custom providers without
+  // an icon fall through to the fallback.
+  icon?: string | null;
   className?: string;
 }
 
-export const ProviderIcon = React.memo(function ProviderIcon({ preset, name, className }: ProviderIconProps) {
+export const ProviderIcon = React.memo(function ProviderIcon({ preset, name, icon, className }: ProviderIconProps) {
   const color = preset ? PRESET_COLORS[preset] : "#8e8e8e";
   // Custom preset names typed in AddCredentialModal land as truthy strings not in
   // PRESET_LABELS (e.g. "openrouter"). Fall back to `name` so we never call .charAt
   // on undefined — mirrors the guarded pattern in ProviderCard.getFamilyTint.
   const label = (preset && PRESET_LABELS[preset]) || name;
+
+  if (icon) {
+    return (
+      <span
+        title={label}
+        className={cn("inline-flex items-center justify-center overflow-hidden", className)}
+      >
+        <img src={icon} alt={name} className="w-full h-full object-contain" />
+      </span>
+    );
+  }
 
   return (
     <span

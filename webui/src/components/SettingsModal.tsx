@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Modal } from "./Modal";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { ThemeToggle } from "./ThemeToggle";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useCategories } from "@/hooks/useCategories";
@@ -213,21 +214,24 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
           deleteCategoryFor !== null ? (
             <div className="space-y-2">
               <p>删除后，该分类下的 {providersInCategory(deleteCategoryFor)} 个凭证将被迁移到：</p>
-              <select
-                value={migrateTo}
-                onChange={(e) => handleMigrateTargetChange(Number(e.target.value))}
+              <Select
+                value={String(migrateTo)}
+                onValueChange={(v) => handleMigrateTargetChange(Number(v))}
                 disabled={isDeleting}
-                className="flex h-9 w-full rounded-sm border border-border px-3 py-1 text-sm"
-                style={{ backgroundColor: "var(--color-surface)" }}
               >
-                {categories
-                  .filter((c) => c.id !== deleteCategoryFor)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories
+                    .filter((c) => c.id !== deleteCategoryFor)
+                    .map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
           ) : (
             "确定要删除此分类吗？"

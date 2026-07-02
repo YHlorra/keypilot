@@ -23,4 +23,16 @@ describe('ProviderIcon', () => {
     render(<ProviderIcon preset={null} name="My Custom" />);
     expect(screen.getByTitle('My Custom').textContent).toBe('M');
   });
+
+  it('renders an <img> when icon is set, with src and alt derived from the path and name', () => {
+    render(
+      <ProviderIcon
+        preset="openai"
+        name="My OpenAI"
+        icon="/icons/providers/openai.svg"
+      />
+    );
+    const img = screen.getByRole('img', { name: 'My OpenAI' });
+    expect(img).toHaveAttribute('src', '/icons/providers/openai.svg');
+  });
 });
