@@ -24,3 +24,20 @@ do not suggest endorsement by the trademark holders.
 
 The `base_url` / `api_key` / `visibility` shape was inspired by
 `farion1231/cc-switch` (MIT). No code or assets were copied.
+
+## cc-switch
+
+- **Source**: https://github.com/JasonYoung04/cc-switch (commit hash to be filled)
+- **License**: MIT (Copyright 2025 Jason Young)
+- **Files in keypilot**: `src-tauri/src/provider/coding_plan/*.rs` (design pattern adapted, no source code copied)
+- **License copy**: [cc-switch.LICENSE](docs/third-party/cc-switch.LICENSE)
+
+The coding plan quota framework (subscription quota model + dispatcher +
+provider-specific query implementations) in `src-tauri/src/provider/coding_plan/`
+takes design inspiration from cc-switch's `services/coding_plan.rs` and
+`services/subscription.rs`. The data model (`SubscriptionQuota`, `QuotaTier`,
+`CredentialStatus`, `parse_minimax_tiers` style parsing helpers) follows the
+same shape. KeyPilot's implementation is original; no Rust source was copied.
+The MIT license text is reproduced verbatim in
+[`docs/third-party/cc-switch.LICENSE`](docs/third-party/cc-switch.LICENSE)
+to satisfy the upstream license's attribution clause.

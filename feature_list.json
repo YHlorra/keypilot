@@ -722,6 +722,47 @@
       "assignee": "fixer+oracle+orchestrator",
       "notes": "工作流:用户截图 → 第一性原理分析 5 个 bug 根因 → 写 `docs/usage-page.html` 设计稿(自包含 HTML)→ 用户迭代多轮(ref 别人的热力图样式 / 收紧布局)→ 4 个并行 @fixer 实施(heatmap / chart / sidebar / page)→ @oracle 评审发现 KPI 3 卡 + 死代码 + 1600px cap 漏 → 第二轮 @fixer 修复 → 杀掉 AgentPairChart(用户报 5 组件)→ 收尾收紧 10px(sidebar 240→230)\n\nPonytail 决策:\n  - 设计稿 HTML 不用 React 组件写,纯 HTML + CSS(任何浏览器打开就是真相源,不被框架绑架)\n  - `TOTAL_COLS = weeks.length` 而非硬编码 26(grid 从数据派生,数据改了不破)\n  - `usage-page.html` 单文件 ~660 行,组件映射在 IMPLEMENTATION NOTES 注释块里(不用独立 spec 文档)\n  - 设计稿定稿后实现 1:1 翻译,**不**再做调整 — 用户拍板\n\n死代码(留待用户决定是否清):\n  - `webui/src/components/AgentPairChart.tsx`(不再被引用,文件保留)\n  - `webui/src/components/UsageStatsSidebar.tsx`(stage-13.1 残留,需 grep 确认)\n  - `tauri-dev-live.{err,out,pid}` `tauri-dev.{err,out}`(dev 临时日志)\n  - `webui/{capture,inspect,capture-empty}.mjs`(调试脚本,需确认用途)\n\nOut of scope (deferred):\n  - 章节标题样式统一(设计决策待用户)\n  - 圆角 token 统一(全局 token,非 lane scope)\n  - 死代码清理(用户拍板)\n  - Playwright 视觉回归(应跑新 baseline 截图比对)\n  - pricing.json 补 model(沿 stage-13.2 遗留)",
       "openspec_ref": null
+    },
+    {
+      "id": "stage-coding-plan-quota",
+      "name": "Coding Plan Quota (Kimi / GLM / MiniMax / Volcengine / ZenMux)",
+      "description": "Per-provider coding plan quota query inspired by cc-switch MIT project (Copyright 2025 Jason Young). 7 providers supported (kimi / zhipu_cn / zhipu_en / minimax_cn / minimax_en / volcengine / zenmux), separate from billing USD model. New types::subscription module + provider::coding_plan tree, 152/152 tests PASS.",
+      "files": [
+        "docs/third-party/cc-switch.LICENSE",
+        "docs/THIRD_PARTY_LICENSES.md",
+        "src-tauri/src/types/subscription.rs",
+        "src-tauri/src/types/mod.rs",
+        "src-tauri/src/provider/coding_plan/mod.rs",
+        "src-tauri/src/provider/coding_plan/subscription.rs",
+        "src-tauri/src/provider/coding_plan/minimax.rs",
+        "src-tauri/src/provider/coding_plan/kimi.rs",
+        "src-tauri/src/provider/coding_plan/zhipu_cn.rs",
+        "src-tauri/src/provider/coding_plan/zhipu_en.rs",
+        "src-tauri/src/provider/coding_plan/volcengine.rs",
+        "src-tauri/src/provider/coding_plan/zenmux.rs",
+        "src-tauri/src/provider/coding_plan/tests.rs",
+        "src-tauri/src/provider/adapter.rs",
+        "src-tauri/src/provider/mod.rs",
+        "src-tauri/src/commands/quota.rs",
+        "src-tauri/src/database.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/Cargo.toml",
+        "src-tauri/Cargo.lock",
+        "webui/src/types/api.ts",
+        "webui/src/lib/api.ts",
+        "webui/src/hooks/useCodingPlanQuota.ts",
+        "webui/src/components/CodingPlanQuotas.tsx",
+        "webui/src/pages/UsagePage.tsx"
+      ],
+      "depends_on": [
+        "stage-c"
+      ],
+      "status": "done",
+      "evidence": "cargo test --lib: 152/152 PASS (90 prior + 62 new); pnpm tsc --noEmit: PASS; pnpm build: PASS",
+      "started_at": "2026-07-02",
+      "ended_at": "2026-07-02",
+      "assignee": "fixer",
+      "notes": "MIT compliance: docs/third-party/cc-switch.LICENSE 是上游 LICENSE 的 verbatim 副本(attribution 义务满足)。Volcengine HMAC-SHA256 签名要求 AK + SK 双串,keypilot 的 api_key 单字符串字段用 newline 拼装:`AKLTxxx\\nSKltxxx`,fetch 时自动 split。V0.1 UI 范围:CodingPlanQuota section 仅在 UsagePage 上对 MiniMax * 四个 preset 显示(其他 6 provider 后端 fetch_coding_plan_quota IPC 已就位,UI 联动留 V0.2)。schema 不动(coding_plan_quota_cache 表与 quota_cache 平级,separate cache pool)。Lane A/B/C1/C2 已分四次 commit 落码,Lane C3 单次 commit 收尾。"
     }
   ]
 }

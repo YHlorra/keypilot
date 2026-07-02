@@ -5,13 +5,34 @@
 
 ## Features
 
-- **5 Preset Providers**: OpenAI / DeepSeek / Anthropic / GitHub / PostgreSQL
+- **20+ Preset Providers** across LLM (Anthropic-compat + OpenAI-compat) and Dev Tools categories
+- **7 Coding Plan Quota Support**: Kimi For Coding, GLM CN / EN, MiniMax CN / EN, 火山方舟 Coding/Agent Plan, ZenMux (5-hour + weekly tier windows)
 - **3 Themes**: Dark / Light / Follow System (Radix UI Colors)
 - **CopyButton 3-state**: visible → masked → revealed
 - **Detail + Tray Quota**: Single quota_cache data source, 5-min staleTime
 - **Plaintext Storage**: V0.1 不加密 (明文 SQLite + Windows ACL)
 - **Token Usage History**: OpenCode / Claude Code / Codex sessions 自动解析,`agent_file_cursor` 增量追踪 + notify-debouncer-full 实时推送 `token_usage_tick` 事件
 - **Usage Page**: 三周期 PeriodsSummary(today/month/all_time)+ 26 周热力图 + 趋势折线 + agent 配对排行
+
+### Coding Plan Quota
+
+For users on a **coding plan subscription** (Kimi For Coding / GLM Coding / MiniMax Token Plan / 火山方舟 Coding Plan / ZenMux), keypilot queries each provider's quota endpoint and shows tier windows (5-hour rolling + weekly) directly in the usage page.
+
+Note for **火山方舟 (Volcengine)**: `api_key` field is single-string but HMAC-SHA256 requires AK + SK. Paste as two lines separated by a newline:
+```
+AKLTxxxxxxxxxxxxxxxx
+SKltxxxxxxxxxxxxxxxx
+```
+The split happens automatically at fetch time.
+
+Supported providers (5-hour + weekly tier windows):
+
+- Kimi For Coding — `https://api.kimi.com/coding/v1/usages`
+- GLM CN — `https://open.bigmodel.cn/api/monitor/usage/quota/limit`
+- GLM EN — `https://api.z.ai/api/monitor/usage/quota/limit`
+- MiniMax CN/EN — `https://www.minimaxi.com/v1/token_plan/remains`
+- 火山方舟 — `https://open.volcengineapi.com` (HMAC-SHA256 signed)
+- ZenMux — `base_url` (uses provider-configured host)
 
 ## Tech Stack
 
@@ -112,6 +133,7 @@ keypilot-dev/
 ## Acknowledgements
 
 - [token-monitor](https://github.com/Javis603/token-monitor) — token usage 解析逻辑(client 归一化、total_tokens 公式、时间戳处理)参考
+- **[cc-switch](https://github.com/JasonYoung04/cc-switch)** — coding plan quota query architecture inspired by their per-provider dispatcher pattern (MIT, Copyright 2025 Jason Young). See [LICENSE](docs/third-party/cc-switch.LICENSE).
 
 ## License
 

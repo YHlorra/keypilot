@@ -15,6 +15,7 @@ import type {
   ImportFormat, ImportResult, PricingEntry,
   QuotaSnapshot,
   PeriodsSummary,
+  FetchCodingPlanQuotaRequest, FetchCodingPlanQuotaResponse,
 } from "@/types/api";
 import { executeAction } from "@/lib/action-registry";
 
@@ -54,6 +55,15 @@ export async function deleteCategory(req: DeleteCategoryRequest): Promise<Delete
 
 export async function fetchQuota(req: FetchQuotaRequest): Promise<FetchQuotaResponse> {
   return invoke<FetchQuotaResponse>("fetch_quota", { id: req.id });
+}
+
+// Coding-plan quota (Lane C). Always returns a SubscriptionQuota
+// (success: false + error string on transport / auth failure). Provider
+// preset must be one of the 5 coding-plan families; otherwise the
+// backend returns ProviderQuotaUnsupported and the hook surfaces the
+// rejection to the UI.
+export async function fetchCodingPlanQuota(req: FetchCodingPlanQuotaRequest): Promise<FetchCodingPlanQuotaResponse> {
+  return invoke<FetchCodingPlanQuotaResponse>("fetch_coding_plan_quota", { id: req.id });
 }
 
 export async function getTheme(): Promise<GetThemeResponse> {
