@@ -4,6 +4,9 @@ import { UsageHeatmapCalendar } from "@/components/UsageHeatmapCalendar";
 import { useUsagePeriodsSummary } from "@/hooks/useUsage";
 import { UsageKpiCards } from "@/components/UsageKpiCards";
 import { TokensLeaderboard } from "@/components/TokensLeaderboard";
+import { CodingPlanQuotas } from "@/components/CodingPlanQuotas";
+import { useProviders } from "@/hooks/useProviders";
+import { SectionLabel } from "@/components/SectionLabel";
 import type { UsageFilter } from "@/types/api";
 import type { ProviderRow } from "@/components/TokensLeaderboard";
 import { cn } from "@/lib/utils";
@@ -29,6 +32,21 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
   }, [filterProviderName]);
 
   const { data: periodsData, isLoading: periodsLoading } = useUsagePeriodsSummary(periodsFilter);
+
+  // Coding Plan (Lane C): resolves the numeric provider id for the currently
+  // filtered provider, but only when its preset is in the supported family.
+  // V0.1 scope: minimax* presets only. kimi / zhipu / volcengine / zenmux
+  // are recognised by the backend (Lane A) but stay out of the UI until
+  // V0.2 wires per-provider extenders.
+  const { data: providers = [] } = useProviders();
+  const codingPlanProviderId = useMemo<number | null>(() => {
+    if (!filterProviderName) return null;
+    const provider = providers.find((p) => p.name === filterProviderName);
+    if (!provider) return null;
+    const preset = provider.preset ?? "";
+    if (!preset.startsWith("minimax")) return null;
+    return provider.id;
+  }, [filterProviderName, providers]);
 
   // 三周期直接读
   const todaySummary = periodsData?.periods.today;
@@ -181,6 +199,16 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
           monthLabel={monthLabel}
           allTimeLabel={allTimeLabel}
         />
+
+        {/* Lane C: coding plan quota panel (minimax* presets only for V0.1) */}
+        {codingPlanProviderId != null && (
+          <section className="flex flex-col gap-2">
+            <SectionLabel>Coding Plan</SectionLabel>
+            <div className="flex flex-col gap-3 rounded-sm border border-border bg-card px-4 py-3">
+              <CodingPlanQuotas providerId={codingPlanProviderId} />
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

@@ -354,3 +354,57 @@ export interface PeriodsSummary {
   client_models: Record<string, Record<string, number>>;
   limits?: unknown | null;
 }
+
+// === Coding Plan Quota (Lane C) ===
+//
+// Mirrors src-tauri/src/types/subscription.rs SubscriptionQuota / QuotaTier /
+// QuotaTierKind / CredentialStatus / TierStatus. Field names are SNAKE_CASE
+// to match the Rust serde default output (see notes at the top of this file
+// and the convention established by the token-usage types above).
+//
+// `SubscriptionQuota` is the wire shape returned by the
+// `fetch_coding_plan_quota` IPC handler. Distinguishing features:
+// - `success: false` always carries an `error` string; UI surfaces it
+//   in the card footer.
+// - `credential_status: "invalid"` ⇒ API key rejected (HTTP 401/403);
+//   "expired" ⇒ upstream reported expiry; "unknown" ⇒ transport / parse
+//   error; "valid" ⇒ upstream accepted.
+// - `tiers` is empty on failure; on success it carries 1-3
+//   QuotaTier entries (5-hour / weekly / monthly, in that order).
+// - `queried_at_ms` is the local Unix epoch milliseconds when the
+//   fetch completed — used by the frontend for cache math / "X min
+//   ago" labels.
+//
+// QuotaTier.used and .limit are absolute values (USD / token / request
+// count depending on provider). Volcengine AFP reports absolute
+// `Used/Quota`; ZenMux reports absolute USD; most percentage-only
+// providers (Kimi / GLM / MiniMax) leave both fields null.
+
+export type CredentialStatus = "valid" | "invalid" | "expired" | "unknown";
+export type TierStatus = "active" | "inactive" | "unknown";
+export type QuotaTierKind = "five_hour" | "weekly" | "monthly";
+
+export interface QuotaTier {
+  kind: QuotaTierKind;
+  label: string;
+  used: number | null;
+  limit: number | null;
+  used_percent: number | null;
+  remaining_percent: number | null;
+  resets_at_ms: number | null;
+  reset_description: string;
+  status: TierStatus;
+}
+
+export interface SubscriptionQuota {
+  provider_id: string;
+  credential_status: CredentialStatus;
+  credential_message: string | null;
+  success: boolean;
+  tiers: QuotaTier[];
+  error: string | null;
+  queried_at_ms: number;
+}
+
+export interface FetchCodingPlanQuotaRequest { id: number; }
+export type FetchCodingPlanQuotaResponse = SubscriptionQuota;

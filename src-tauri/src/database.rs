@@ -235,6 +235,22 @@ impl Database {
             )?;
         }
 
+        // coding_plan_quota_cache (Lane A: coding plan providers — MiniMax /
+        // Kimi / GLM / Volcengine / ZenMux). Separate table from `quota_cache`
+        // because the snapshot type differs (`SubscriptionQuota` vs
+        // `QuotaSnapshot`) and the per-provider cache key would otherwise
+        // collide on the primary key.
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS coding_plan_quota_cache (
+                provider_id INTEGER PRIMARY KEY,
+                snapshot_json TEXT NOT NULL,
+                fetched_at INTEGER NOT NULL,
+                source TEXT NOT NULL DEFAULT 'auto',
+                FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE
+            )",
+            [],
+        )?;
+
         // token_usage_records (v5 schema — no prompt_tokens / completion_tokens
         // legacy cols; those are dropped from v4→v5 migration for old DBs)
         conn.execute(

@@ -121,6 +121,7 @@ pub fn run() {
     commands::provider::test_connection,
     commands::quota::fetch_quota,
     commands::quota::set_manual_quota,
+    commands::quota::fetch_coding_plan_quota,
     commands::provider::get_theme,
     commands::provider::set_theme,
     commands::tray::pin_provider,

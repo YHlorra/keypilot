@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use crate::error::AppError;
 
+pub mod subscription;
+pub use subscription::{CredentialStatus, QuotaTier, QuotaTierKind, SubscriptionQuota, TierStatus};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Visibility {

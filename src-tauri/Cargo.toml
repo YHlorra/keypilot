@@ -34,3 +34,4 @@ custom-protocol = ["tauri/custom-protocol"]
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
+tokio = { version = "1", features = ["macros", "rt"] }

@@ -1,8 +1,8 @@
 use crate::error::AppError;
-use crate::provider::{adapter_for, QuotaError};
+use crate::provider::{adapter_for, coding_plan_adapter_for, QuotaError};
 use crate::store::AppState;
 use crate::timeutil;
-use crate::types::{LimitSource, LimitStatus, QuotaSnapshot};
+use crate::types::{LimitSource, LimitStatus, QuotaSnapshot, SubscriptionQuota};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -231,4 +231,125 @@ pub async fn set_manual_quota(
     .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
 
     Ok(())
+}
+
+/// Fetch coding plan quota for a provider with 15-minute TTL cache.
+///
+/// Mirrors `fetch_quota_by_state` but targets a different data flow:
+/// - Reads preset + base_url + api_key from `providers` / `provider_fields`.
+/// - Routes via `coding_plan_adapter_for(preset)`; unknown presets return
+///   `ProviderQuotaUnsupported` (consistent with the existing fetch_quota
+///   behavior).
+/// - Calls `fetch_coding_plan_quota(base_url, api_key)` which dispatches
+///   to the per-provider implementation (MiniMax in Lane A).
+/// - Persists the result in `coding_plan_quota_cache` (separate table from
+///   `quota_cache` because the snapshot type and JSON shape differ).
+///
+/// Unlike `fetch_quota_by_state`, the cached `SubscriptionQuota` is
+/// returned as-is on every error path — there is no equivalent of the
+/// "transport-failed → stale snapshot" fallback because coding-plan
+/// failures carry their own `error` field, and surfacing a stale 15-min
+/// reading would mislead the user more than an honest "fetch failed".
+#[tauri::command]
+pub async fn fetch_coding_plan_quota(
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<SubscriptionQuota, AppError> {
+    fetch_coding_plan_quota_by_state(&state, id).await
+}
+
+pub async fn fetch_coding_plan_quota_by_state(
+    state: &AppState,
+    id: i64,
+) -> Result<SubscriptionQuota, AppError> {
+    // Phase A: read preset + base_url + api_key + cached snapshot (sync SQLite)
+    // `preset` is consumed inside the closure for the coding-plan routing
+    // check; it does not need to escape to the outer scope (unlike
+    // `fetch_quota_by_state` which re-uses it for the adapter call).
+    let (_preset, base_url, api_key, cached) = {
+        let db = state.db.lock().unwrap();
+
+        let preset: Option<String> = db
+            .conn
+            .prepare("SELECT preset FROM providers WHERE id = ?1")
+            .and_then(|mut stmt| {
+                stmt.query_row([id], |row| row.get::<_, Option<String>>(0))
+            })
+            .ok()
+            .flatten();
+
+        let preset = preset.ok_or_else(|| AppError::ProviderNotFound(id))?;
+
+        // If this preset has no coding-plan provider mapped, return the
+        // existing USD-style `ProviderQuotaUnsupported` so callers don't
+        // silently render an empty card.
+        if coding_plan_adapter_for(&preset).is_none() {
+            return Err(AppError::ProviderQuotaUnsupported(preset));
+        }
+
+        // base_url + api_key
+        let mut field_stmt = db
+            .conn
+            .prepare("SELECT key, value FROM provider_fields WHERE provider_id = ?1")?;
+        let mut field_rows: Vec<(String, String)> = Vec::new();
+        let mut rows = field_stmt.query([id])?;
+        while let Some(row) = rows.next()? {
+            let k: String = row.get(0)?;
+            let v: String = row.get(1)?;
+            field_rows.push((k, v));
+        }
+        let field_map: HashMap<String, String> = field_rows.into_iter().collect();
+
+        let base_url = field_map.get("base_url").cloned().unwrap_or_default();
+        let api_key = field_map.get("api_key").cloned().unwrap_or_default();
+
+        // 15-min TTL cache; manual source never expires.
+        let now = timeutil::now_secs();
+        let cached: Option<SubscriptionQuota> = db
+            .conn
+            .query_row(
+                "SELECT snapshot_json, fetched_at, source FROM coding_plan_quota_cache WHERE provider_id = ?1",
+                [id],
+                |row| Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                )),
+            )
+            .ok()
+            .filter(|(_, fetched_at, source)| {
+                source == "manual" || now - fetched_at < QUOTA_CACHE_TTL_SECS
+            })
+            .and_then(|(json, _, _)| serde_json::from_str(&json).ok());
+
+        (preset, base_url, api_key, cached)
+    }; // Lock released
+
+    if let Some(snapshot) = cached {
+        return Ok(snapshot);
+    }
+
+    // Phase B: fetch from coding plan dispatcher (async HTTP).
+    // Use fully-qualified path: the local function `fetch_coding_plan_quota`
+    // is the IPC handler and shadows the provider re-export of the same name.
+    let snapshot = crate::provider::coding_plan::fetch_coding_plan_quota(&base_url, &api_key).await;
+
+    // Phase C: write cache (sync SQLite). Both success and failure snapshots
+    // are cached to avoid hammering the upstream API on repeated errors.
+    {
+        let db = state.db.lock().unwrap();
+        let now = timeutil::now_secs();
+        let json = serde_json::to_string(&snapshot)?;
+        db.conn.execute(
+            "INSERT INTO coding_plan_quota_cache (provider_id, snapshot_json, fetched_at, source)
+             VALUES (?1, ?2, ?3, 'auto')
+             ON CONFLICT(provider_id) DO UPDATE SET
+                snapshot_json = excluded.snapshot_json,
+                fetched_at = excluded.fetched_at,
+                source = 'auto'",
+            rusqlite::params![id, json, now],
+        )?;
+    }
+
+    Ok(snapshot)
 }
