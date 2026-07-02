@@ -26,7 +26,7 @@ pub fn local_date_str(epoch_ms: i64) -> String {
 
 /// "YYYY-MM-DD" 字符串 → Local 当日 00:00 的 epoch ms。
 /// exclusive=true 时返回次日 00:00(用于 half-open `[from, to)` 区间)。
-/// ponytail: 真午夜的 Local wall-clock 永不歧义(DST 跳变在 02–03 时区),
+/// 真午夜的 Local wall-clock 永不歧义(DST 跳变在 02–03 时区),
 ///           所以 .single() 在本 codebase 内是 total,.latest() YAGNI。
 pub fn local_date_to_epoch(s: &str, exclusive: bool) -> Result<i64, AppError> {
     let date = NaiveDate::parse_from_str(s, "%Y-%m-%d")

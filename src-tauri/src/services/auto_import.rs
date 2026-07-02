@@ -173,7 +173,7 @@ mod tests {
         let result = scan_and_import_if_empty(&svc);
         // Orchestration invariant: all 3 parsers attempted regardless of disk state.
         assert_eq!(result.entries.len(), 3);
-        // ponytail: counts of imported/skipped depend on real-machine fixture data —
+        // counts of imported/skipped depend on real-machine fixture data —
         // we only assert that the orchestration ran without panicking.
     }
 
@@ -218,7 +218,7 @@ mod tests {
         let codex = result.entries.iter().find(|e| e.agent_type == "codex").unwrap();
         // Opencode.db MAY exist on dev machine (real fixture, XDG home) or not (CI):
         // assert only the invariant "parser attempted" via `available` + populated stats.
-        // ponytail: real fixture parsing MUST NOT error — `sample_errors` is the
+        // real fixture parsing MUST NOT error — `sample_errors` is the
         // escape hatch when the opencode Go CLI ships a schema the parser doesn't
         // recognize.
         assert!(opencode.parse_stats.files_scanned > 0 || !opencode.available);

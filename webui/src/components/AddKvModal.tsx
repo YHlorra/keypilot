@@ -3,6 +3,7 @@ import { useState, useCallback } from "react";
 import { Modal } from "./Modal";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useToast } from "./Icon";
 import type { Visibility } from "@/types/api";
 
@@ -76,14 +77,15 @@ export const AddKvModal = React.memo(function AddKvModal({ open, onClose, onAdd 
         </div>
         <div>
           <label className="text-sm font-medium mb-1.5 block">可见性</label>
-          <select
-            value={visibility}
-            onChange={(e) => setVisibility(e.target.value as Visibility)}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-          >
-            <option value="visible">可见</option>
-            <option value="masked">隐藏</option>
-          </select>
+          <Select value={visibility} onValueChange={(v) => setVisibility(v as Visibility)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="visible">可见</SelectItem>
+              <SelectItem value="masked">隐藏</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
     </Modal>

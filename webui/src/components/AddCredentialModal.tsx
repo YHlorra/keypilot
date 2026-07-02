@@ -3,6 +3,7 @@ import { useState, useCallback } from "react";
 import { Modal } from "./Modal";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { useToast } from "./Icon";
 import { useProviders } from "@/hooks/useProviders";
 import { useCategories } from "@/hooks/useCategories";
@@ -26,12 +27,42 @@ const TEMPLATES: Array<{ id: TemplateId; label: string }> = [
   { id: "dev-tools", label: "开发工具" },
 ];
 
+// 20 LLM presets — curated list of the most-used providers globally.
+// OpenAI-compatible presets reuse the OpenAI adapter (test_connection hits
+// /v1/models which most OpenAI-compat APIs expose). Anthropic-compat variants
+// are separate presets with their own /anthropic base_url. 7 providers without
+// simple-icons coverage (zhipu/groq/siliconflow/together/stepfun/cohere/
+// zhipu-anthropic) fall back to a tinted letter monogram in the card/picker —
+// see Icon.tsx.
 const PRESETS_BY_TEMPLATE: Record<TemplateId, Array<{ id: string; label: string }>> = {
   custom: [],
   llm: [
     { id: "openai", label: "OpenAI" },
-    { id: "deepseek", label: "DeepSeek" },
     { id: "anthropic", label: "Anthropic" },
+    { id: "deepseek", label: "DeepSeek" },
+    { id: "kimi", label: "Moonshot Kimi" },
+    { id: "zhipu", label: "智谱 GLM" },
+    { id: "qwen", label: "阿里通义千问" },
+    { id: "openrouter", label: "OpenRouter" },
+    { id: "groq", label: "Groq" },
+    { id: "mistral", label: "Mistral AI" },
+    { id: "siliconflow", label: "硅基流动" },
+    { id: "together", label: "Together AI" },
+    { id: "volcengine", label: "火山引擎 Ark" },
+    { id: "stepfun", label: "阶跃星辰" },
+    { id: "cohere", label: "Cohere" },
+    { id: "perplexity", label: "Perplexity" },
+    { id: "kimi-anthropic", label: "Moonshot Kimi (Anthropic)" },
+    { id: "zhipu-anthropic", label: "智谱 GLM (Anthropic)" },
+    { id: "deepseek-anthropic", label: "DeepSeek (Anthropic)" },
+    { id: "volcengine-anthropic", label: "火山引擎 (Anthropic)" },
+    // MiniMax — 4 nodes (2 regions × 2 protocols). Naming follows codebase
+    // convention: short id = OpenAI-protocol (kimi/zhipu style), `-anthropic`
+    // suffix = Anthropic-protocol. See database.rs::PRESETS for the URL mapping.
+    { id: "minimax", label: "MiniMax" },
+    { id: "minimax-overseas", label: "MiniMax 海外" },
+    { id: "minimax-anthropic", label: "MiniMax (Anthropic)" },
+    { id: "minimax-overseas-anthropic", label: "MiniMax 海外 (Anthropic)" },
     { id: CUSTOM_PRESET_ID, label: "自定义..." },
   ],
   "dev-tools": [
@@ -40,19 +71,38 @@ const PRESETS_BY_TEMPLATE: Record<TemplateId, Array<{ id: string; label: string 
   ],
 };
 
+// every preset has api_key + base_url. Only github uses
+// access_token because GitHub's auth header is `token <PAT>`, not `Bearer`.
+const apiKeyBaseUrl = (baseUrl: string) => [
+  { key: "api_key", value: "", visibility: "masked" as Visibility },
+  { key: "base_url", value: baseUrl, visibility: "visible" as Visibility },
+];
+
 const PRESET_DEFAULTS: Record<string, Array<{ key: string; value: string; visibility: Visibility }>> = {
-  openai: [
-    { key: "api_key", value: "", visibility: "masked" },
-    { key: "base_url", value: "https://api.openai.com/v1", visibility: "visible" },
-  ],
-  deepseek: [
-    { key: "api_key", value: "", visibility: "masked" },
-    { key: "base_url", value: "https://api.deepseek.com/v1", visibility: "visible" },
-  ],
-  anthropic: [
-    { key: "api_key", value: "", visibility: "masked" },
-    { key: "base_url", value: "https://api.anthropic.com", visibility: "visible" },
-  ],
+  openai: apiKeyBaseUrl("https://api.openai.com/v1"),
+  deepseek: apiKeyBaseUrl("https://api.deepseek.com/v1"),
+  anthropic: apiKeyBaseUrl("https://api.anthropic.com"),
+  kimi: apiKeyBaseUrl("https://api.moonshot.cn/v1"),
+  zhipu: apiKeyBaseUrl("https://open.bigmodel.cn/api/paas/v4"),
+  qwen: apiKeyBaseUrl("https://dashscope.aliyuncs.com/compatible-mode/v1"),
+  openrouter: apiKeyBaseUrl("https://openrouter.ai/api/v1"),
+  groq: apiKeyBaseUrl("https://api.groq.com/openai/v1"),
+  mistral: apiKeyBaseUrl("https://api.mistral.ai/v1"),
+  siliconflow: apiKeyBaseUrl("https://api.siliconflow.cn/v1"),
+  together: apiKeyBaseUrl("https://api.together.xyz/v1"),
+  volcengine: apiKeyBaseUrl("https://ark.cn-beijing.volces.com/api/v3"),
+  stepfun: apiKeyBaseUrl("https://api.stepfun.com/v1"),
+  cohere: apiKeyBaseUrl("https://api.cohere.ai/v1"),
+  perplexity: apiKeyBaseUrl("https://api.perplexity.ai"),
+  "kimi-anthropic": apiKeyBaseUrl("https://api.moonshot.cn/anthropic"),
+  "zhipu-anthropic": apiKeyBaseUrl("https://open.bigmodel.cn/api/anthropic"),
+  "deepseek-anthropic": apiKeyBaseUrl("https://api.deepseek.com/anthropic"),
+  "volcengine-anthropic": apiKeyBaseUrl("https://ark.cn-beijing.volces.com/api/coding"),
+  // MiniMax 4 nodes — short id = OpenAI-protocol, `-anthropic` = Anthropic.
+  minimax: apiKeyBaseUrl("https://api.minimaxi.com/v1"),
+  "minimax-overseas": apiKeyBaseUrl("https://api.minimax.io/v1"),
+  "minimax-anthropic": apiKeyBaseUrl("https://api.minimaxi.com/anthropic"),
+  "minimax-overseas-anthropic": apiKeyBaseUrl("https://api.minimax.io/anthropic"),
   github: [
     { key: "access_token", value: "", visibility: "masked" },
   ],
@@ -223,52 +273,53 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
         {/* Category */}
         <div>
           <label className="text-sm font-medium mb-1.5 block">分类</label>
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(Number(e.target.value))}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-          >
-            {categories?.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
+          <Select value={String(categoryId)} onValueChange={(v) => setCategoryId(Number(v))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {categories?.map((cat) => (
+                <SelectItem key={cat.id} value={String(cat.id)}>
+                  {cat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Level 1: Template */}
         <div>
           <label className="text-sm font-medium mb-1.5 block">类型</label>
-          <select
-            value={template ?? ""}
-            onChange={(e) => handleTemplateChange(e.target.value as TemplateId)}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-          >
-            <option value="" hidden>选择类型...</option>
-            {TEMPLATES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+          <Select value={template ?? ""} onValueChange={(v) => handleTemplateChange(v as TemplateId)}>
+            <SelectTrigger>
+              <SelectValue placeholder="选择类型..." />
+            </SelectTrigger>
+            <SelectContent>
+              {TEMPLATES.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Level 2: Preset (depends on template) */}
         {showPresetPicker && (
           <div>
             <label className="text-sm font-medium mb-1.5 block">服务</label>
-            <select
-              value={preset ?? ""}
-              onChange={(e) => handlePresetChange(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-            >
-              <option value="" hidden>选择服务...</option>
-              {presetOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
+            <Select value={preset ?? ""} onValueChange={handlePresetChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="选择服务..." />
+              </SelectTrigger>
+              <SelectContent>
+                {presetOptions.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             {/* Hint when every built-in preset is already used in this category */}
             {allBuiltinsUsed && (
@@ -295,34 +346,41 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
             <label className="text-sm font-medium mb-1.5 block">字段</label>
             <div className="space-y-2">
               {fields.map((field, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <Input
-                    value={field.key}
-                    onChange={(e) => handleFieldChange(index, e.target.value, field.value, field.visibility)}
-                    placeholder="key"
-                    className="flex-1 font-mono text-xs"
-                  />
+                <div key={index} className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={field.key}
+                      onChange={(e) => handleFieldChange(index, e.target.value, field.value, field.visibility)}
+                      placeholder="key"
+                      className="min-w-0 flex-1 font-mono text-xs"
+                    />
+                    <Select
+                      value={field.visibility}
+                      onValueChange={(v) => handleFieldChange(index, field.key, field.value, v as Visibility)}
+                    >
+                      <SelectTrigger className="h-9 w-auto min-w-[5rem] px-2 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="visible">可见</SelectItem>
+                        <SelectItem value="masked">隐藏</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveField(index)}
+                      className="p-1 text-destructive hover:bg-[color-mix(in_srgb,var(--color-destructive)_20%,transparent)] rounded"
+                    >
+                      <span className="text-xs">×</span>
+                    </button>
+                  </div>
                   <Input
                     value={field.value}
                     onChange={(e) => handleFieldChange(index, field.key, e.target.value, field.visibility)}
                     placeholder="value"
-                    className="flex-1 font-mono text-xs"
+                    title={field.value}
+                    className="w-full h-9 font-mono text-xs"
                   />
-                  <select
-                    value={field.visibility}
-                    onChange={(e) => handleFieldChange(index, field.key, field.value, e.target.value as Visibility)}
-                    className="h-9 rounded-md border border-input bg-transparent px-2 text-xs"
-                  >
-                    <option value="visible">可见</option>
-                    <option value="masked">隐藏</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveField(index)}
-                    className="p-1 text-destructive hover:bg-[color-mix(in_srgb,var(--color-destructive)_20%,transparent)] rounded"
-                  >
-                    <span className="text-xs">×</span>
-                  </button>
                 </div>
               ))}
             </div>

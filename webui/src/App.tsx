@@ -207,7 +207,7 @@ export default function App() {
           </div>
         )}
         {currentPage === "usage" && (
-          // ponytail: removed `md:pl-16` -- see credentials scrollContainer above
+          // removed `md:pl-16` -- see credentials scrollContainer above
           <div className="flex-1 overflow-y-auto pb-[56px] md:pb-0">
             <UsagePage filterProviderName={usageFilterProviderName} />
           </div>

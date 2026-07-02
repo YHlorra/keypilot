@@ -37,7 +37,7 @@ export const TopBar = ({
   };
 
   return (
-    // ponytail: removed `fixed left-0 md:left-16 right-0 z-40` + `style.top:48`
+    // removed `fixed left-0 md:left-16 right-0 z-40` + `style.top:48`
     // so TopBar becomes a flex sibling of Titlebar inside the right column,
     // letting `flex-1` scrollContainer start cleanly at TopBar's bottom edge.
     <div className="shrink-0 flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 border-b border-border bg-card">

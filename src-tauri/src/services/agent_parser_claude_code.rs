@@ -325,7 +325,7 @@ mod tests {
         assert_eq!(r.cache_creation_input_tokens, 10);
         assert_eq!(r.session_id.as_deref(), Some("sess-1"));
         assert_eq!(r.request_id.as_deref(), Some("u1"));
-        // ponytail: just verify timestamp was parsed (>2020 epoch ms), don't pin exact value
+        // just verify timestamp was parsed (>2020 epoch ms), don't pin exact value
         assert!(r.occurred_at > 1_577_836_800_000, "ISO timestamp parsed to epoch ms");
 
         let _ = std::fs::remove_dir_all(&tmp);

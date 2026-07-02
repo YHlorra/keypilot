@@ -81,7 +81,7 @@ export const UsageKpiCards = React.memo(function UsageKpiCards({
   );
 });
 
-// ponytail: 修复 /30 稀释;Q4=B 锁定为 Month-to-Date (MTD) 语义。
+// 修复 /30 稀释;Q4=B 锁定为 Month-to-Date (MTD) 语义。
 const AvgDayCard = React.memo(function AvgDayCard({
   dailySeries,
 }: {
