@@ -51,7 +51,10 @@ interface ProviderIconProps {
 
 export const ProviderIcon = React.memo(function ProviderIcon({ preset, name, className }: ProviderIconProps) {
   const color = preset ? PRESET_COLORS[preset] : "#8e8e8e";
-  const label = preset ? PRESET_LABELS[preset] : name;
+  // Custom preset names typed in AddCredentialModal land as truthy strings not in
+  // PRESET_LABELS (e.g. "openrouter"). Fall back to `name` so we never call .charAt
+  // on undefined — mirrors the guarded pattern in ProviderCard.getFamilyTint.
+  const label = (preset && PRESET_LABELS[preset]) || name;
 
   return (
     <span

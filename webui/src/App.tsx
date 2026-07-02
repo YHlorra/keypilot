@@ -186,8 +186,6 @@ export default function App() {
         )}
 
         {currentPage === "credentials" && (
-          // ponytail: removed `md:pl-16` -- LeftRail is now a flex sibling that
-          // naturally reserves its 64px, no extra indentation needed.
           <div className="flex-1 overflow-y-auto pb-[56px] md:pb-0">
             <main className="flex-1">
               {categoryFilter !== "all" && (

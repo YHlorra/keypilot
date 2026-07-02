@@ -307,7 +307,7 @@ export function UsageTimeSeries({
             y={tick.y}
             textAnchor="end"
             dominantBaseline="middle"
-            fontSize="9px"
+            fontSize="var(--font-size-2xs)"
             fill="var(--color-muted-foreground)"
           >
             {formatTokens(tick.value)}
@@ -371,7 +371,7 @@ export function UsageTimeSeries({
             x={tick.x}
             y={PADDING.top + innerHeight + 20}
             textAnchor="middle"
-            fontSize="9px"
+            fontSize="var(--font-size-2xs)"
             fill="var(--color-muted-foreground)"
           >
             {tick.label}

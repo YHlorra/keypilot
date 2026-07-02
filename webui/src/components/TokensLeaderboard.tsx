@@ -36,19 +36,19 @@ export const TokensLeaderboard = React.memo(function TokensLeaderboard({
       ) : (
         <div className="flex flex-col gap-3">
           {providers.map((row, idx) => (
-            <div key={row.provider} className="grid grid-cols-[12px_1fr_auto] gap-x-[6px] items-center py-[3px] border-b border-border-soft last:border-0">
+              <div key={row.provider} className="grid grid-cols-[12px_1fr_auto] gap-x-[6px] items-center py-[3px] border-b border-border last:border-0">
               {/* Rank */}
-              <span className="text-[9px] text-muted-foreground font-medium text-right">
+              <span className="text-xs font-mono text-foreground font-medium text-right">
                 {idx + 1}
               </span>
 
               {/* Provider + top model */}
               <div className="flex flex-col min-w-0">
-                <span className="text-[11px] font-medium truncate" title={row.provider}>
+                <span className="text-xs font-medium truncate" title={row.provider}>
                   {row.provider}
                 </span>
                 {row.topModel && (
-                  <span className="text-[9px] text-muted-foreground truncate" title={row.topModel}>
+                  <span className="text-xs text-muted-foreground truncate" title={row.topModel}>
                     {row.topModel}
                   </span>
                 )}
@@ -65,7 +65,7 @@ export const TokensLeaderboard = React.memo(function TokensLeaderboard({
                     }}
                   />
                 </div>
-                <span className="text-[11px] font-medium font-mono tabular-nums">
+                <span className="text-xs font-medium font-mono tabular-nums">
                   {formatTokens(row.totalTokens)}
                 </span>
               </div>

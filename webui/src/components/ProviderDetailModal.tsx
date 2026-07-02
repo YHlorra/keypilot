@@ -69,7 +69,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
     mutationFn: () => deleteProvider({ id: providerId! }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["providers"] });
-      showToast("Credential deleted", "success");
+      showToast("凭证已删除", "success");
       setDeleteConfirmOpen(false);
       onClose();
     },
@@ -225,7 +225,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
         onClose={handleClose}
         footer={
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            取消
           </Button>
         }
       >
@@ -269,8 +269,8 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
               <span
                 className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${
                   lastTested
-                    ? "bg-primary/10 text-primary border-primary/20"
-                    : "bg-muted text-muted-foreground border-border"
+                    ? "bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] text-primary border-[color-mix(in_srgb,var(--color-primary)_20%,transparent)]"
+                    : "bg-secondary text-muted-foreground border-border"
                 }`}
               >
                 {statusPillText}
@@ -321,7 +321,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                   <button
                     type="button"
                     onClick={() => setDeleteConfirmOpen(true)}
-                    className="p-1.5 rounded hover:bg-danger/10 text-muted-foreground hover:text-danger transition-colors"
+                    className="p-1.5 rounded hover:bg-[color-mix(in_srgb,var(--color-destructive)_10%,transparent)] text-muted-foreground hover:text-destructive transition-colors"
                     title="删除"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -371,7 +371,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                   )}
                 </div>
                 {/* Inline 2px progress bar */}
-                <div className="w-full h-0.5 bg-surface rounded-full overflow-hidden">
+                <div className="w-full h-0.5 bg-card rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary rounded-full"
                     style={{

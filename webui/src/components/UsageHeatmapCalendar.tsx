@@ -113,7 +113,7 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
             label ? (
               <span
                 key={i}
-                className="absolute text-[10px] leading-4 text-muted-foreground whitespace-nowrap"
+                className="absolute text-xs leading-4 text-muted-foreground whitespace-nowrap"
                 style={{ left: `${(i / TOTAL_COLS) * 100}%` }}
               >
                 {label}
@@ -127,7 +127,7 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
           <React.Fragment key={day}>
             {/* Day label col */}
             <div
-              className="text-[11px] text-muted-foreground text-right pr-2 flex items-center leading-none whitespace-nowrap"
+              className="text-xs text-muted-foreground text-right pr-2 flex items-center leading-tight whitespace-nowrap"
               style={{ minWidth: 36 }}
             >
               {day}

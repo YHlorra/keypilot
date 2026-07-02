@@ -36,7 +36,7 @@ export const ContextMenu = ({ children, providerId, onDelete }: ContextMenuProps
             onClick={() => onDelete(providerId)}
             className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-[6px]",
-              "text-sm text-red-500 cursor-pointer",
+              "text-sm text-destructive cursor-pointer",
               "outline-none hover:bg-[var(--color-surface-sunken)]"
             )}
           >

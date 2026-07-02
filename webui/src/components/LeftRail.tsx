@@ -47,7 +47,7 @@ export const LeftRail = React.memo(function LeftRail({
             )}
           >
             {icon}
-            <span className="text-[10px] font-medium leading-none">{label}</span>
+            <span className="text-xs font-medium leading-tight">{label}</span>
           </button>
         ))}
 
@@ -68,7 +68,7 @@ export const LeftRail = React.memo(function LeftRail({
           )}
         >
           <Settings className="h-5 w-5" strokeWidth={1.75} />
-          <span className="text-[10px] font-medium leading-none">Settings</span>
+          <span className="text-xs font-medium leading-tight">Settings</span>
         </button>
       </nav>
 
@@ -93,7 +93,7 @@ export const LeftRail = React.memo(function LeftRail({
             )}
           >
             {icon}
-            <span className="text-[10px] font-medium leading-none">{label}</span>
+            <span className="text-xs font-medium leading-tight">{label}</span>
           </button>
         ))}
         <button
@@ -106,7 +106,7 @@ export const LeftRail = React.memo(function LeftRail({
           )}
         >
           <Settings className="h-5 w-5" strokeWidth={1.75} />
-          <span className="text-[10px] font-medium leading-none">Settings</span>
+          <span className="text-xs font-medium leading-tight">Settings</span>
         </button>
       </nav>
     </>

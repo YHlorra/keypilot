@@ -114,13 +114,13 @@ export const ProviderGrid = ({
         <div data-testid="empty-state" className="text-center">
           <h2
             data-testid="empty-title"
-            className="font-serif text-headline-md text-[var(--color-neutral)]"
+            className="font-serif text-xl text-[var(--color-neutral)]"
           >
             No credentials yet
           </h2>
           <p
             data-testid="empty-subtitle"
-            className="text-sm text-[var(--color-muted)] body-sm"
+            className="text-sm text-[var(--color-muted)]"
           >
             Add your first credential to get started
           </p>
