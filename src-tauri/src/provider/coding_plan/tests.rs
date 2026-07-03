@@ -46,6 +46,22 @@ fn detect_provider_kimi() {
 }
 
 #[test]
+fn detect_provider_kimi_preset_default() {
+    assert_eq!(
+        detect_provider("https://api.moonshot.cn/v1"),
+        Some(CodingPlanProvider::Kimi)
+    );
+}
+
+#[test]
+fn detect_provider_kimi_anthropic_preset_default() {
+    assert_eq!(
+        detect_provider("https://api.moonshot.cn/anthropic"),
+        Some(CodingPlanProvider::Kimi)
+    );
+}
+
+#[test]
 fn detect_provider_zhipu_cn() {
     assert_eq!(
         detect_provider("https://open.bigmodel.cn/api/paas/v4"),
@@ -66,6 +82,30 @@ fn detect_provider_volcengine() {
     assert_eq!(
         detect_provider("https://ark.cn-beijing.volces.com/api/coding/v3"),
         Some(CodingPlanProvider::Volcengine)
+    );
+}
+
+#[test]
+fn detect_provider_volcengine_preset_default() {
+    assert_eq!(
+        detect_provider("https://ark.cn-beijing.volces.com/api/v3"),
+        Some(CodingPlanProvider::Volcengine)
+    );
+}
+
+#[test]
+fn detect_provider_volcengine_anthropic_preset_default() {
+    assert_eq!(
+        detect_provider("https://ark.cn-beijing.volces.com/api/coding"),
+        Some(CodingPlanProvider::Volcengine)
+    );
+}
+
+#[test]
+fn detect_provider_zhipu_anthropic_preset_default() {
+    assert_eq!(
+        detect_provider("https://open.bigmodel.cn/api/anthropic"),
+        Some(CodingPlanProvider::ZhipuCn)
     );
 }
 

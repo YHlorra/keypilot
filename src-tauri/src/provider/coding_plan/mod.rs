@@ -53,13 +53,14 @@ pub fn detect_provider(base_url: &str) -> Option<CodingPlanProvider> {
         Some(CodingPlanProvider::MiniMaxCn)
     } else if url.contains("api.minimax.io") {
         Some(CodingPlanProvider::MiniMaxEn)
-    } else if url.contains("api.kimi.com/coding") {
+    } else if url.contains("api.kimi.com/coding") || url.contains("api.moonshot.cn") {
         Some(CodingPlanProvider::Kimi)
     } else if url.contains("open.bigmodel.cn") {
         Some(CodingPlanProvider::ZhipuCn)
     } else if url.contains("api.z.ai") {
         Some(CodingPlanProvider::ZhipuEn)
-    } else if url.contains("volces.com/api/coding") {
+    } else if url.contains("volces.com/api/") {
+        // ponytail: covers both /api/v3 and /api/coding preset defaults.
         Some(CodingPlanProvider::Volcengine)
     } else if url.contains("zenmux") {
         Some(CodingPlanProvider::ZenMux)

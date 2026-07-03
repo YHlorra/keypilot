@@ -18,6 +18,23 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
   { value: "30d", label: "30d" },
 ];
 
+// Presets whose default base_url routes to a coding-plan provider (Lane A).
+// Mirrors `AddCredentialModal.PRESET_DEFAULTS`; keep in sync when adding
+// a new coding-plan preset.
+const CODING_PLAN_PRESETS = new Set<string>([
+  "minimax",
+  "minimax-overseas",
+  "minimax-anthropic",
+  "minimax-overseas-anthropic",
+  "kimi",
+  "kimi-anthropic",
+  "zhipu",
+  "zhipu-anthropic",
+  "volcengine",
+  "volcengine-anthropic",
+  "zenmux",
+]);
+
 export interface UsagePageProps {
   filterProviderName?: string | null;
 }
@@ -35,16 +52,15 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
 
   // Coding Plan (Lane C): resolves the numeric provider id for the currently
   // filtered provider, but only when its preset is in the supported family.
-  // V0.1 scope: minimax* presets only. kimi / zhipu / volcengine / zenmux
-  // are recognised by the backend (Lane A) but stay out of the UI until
-  // V0.2 wires per-provider extenders.
+  // V0.1 scope: all 11 coding-plan presets (minimax* / kimi* / zhipu* /
+  // volcengine* / zenmux).
   const { data: providers = [] } = useProviders();
   const codingPlanProviderId = useMemo<number | null>(() => {
     if (!filterProviderName) return null;
     const provider = providers.find((p) => p.name === filterProviderName);
     if (!provider) return null;
     const preset = provider.preset ?? "";
-    if (!preset.startsWith("minimax")) return null;
+    if (!CODING_PLAN_PRESETS.has(preset)) return null;
     return provider.id;
   }, [filterProviderName, providers]);
 
@@ -200,7 +216,7 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
           allTimeLabel={allTimeLabel}
         />
 
-        {/* Lane C: coding plan quota panel (minimax* presets only for V0.1) */}
+        {/* Lane C: coding plan quota panel (11 coding-plan presets for V0.1) */}
         {codingPlanProviderId != null && (
           <section className="flex flex-col gap-2">
             <SectionLabel>Coding Plan</SectionLabel>

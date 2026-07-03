@@ -9,6 +9,7 @@ import { Input } from "./ui/input";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon, useToast, ProviderIcon } from "./Icon";
 import { AddKvModal } from "./AddKvModal";
+import { CodingPlanQuotas } from "./CodingPlanQuotas";
 import { getProvider, updateProvider, deleteProvider } from "@/lib/api";
 import type { GetProviderRequest, UpdateProviderRequest, Visibility, Category } from "@/types/api";
 import { isLlmCategory } from "@/lib/utils";
@@ -387,6 +388,12 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
             ) : (
               <p className="text-sm text-muted-foreground">No quota data</p>
             )}
+          </div>
+
+          {/* Coding Plan section -- percentage + tier model (separate from USD Quota above) */}
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold font-serif">Coding Plan</h3>
+            <CodingPlanQuotas providerId={provider.id} />
           </div>
 
           {/* Credentials section */}
