@@ -1,86 +1,101 @@
-# Rust / Cargo
+
 /src-tauri/target/
 **/*.rs.bk
 Cargo.lock.bak
 
-# Tauri
+
 /src-tauri/gen/
 
-# Node / pnpm
+
 /node_modules/                       # worktree-root junction (Windows: webui/node_modules)
 /webui/node_modules/
 /webui/dist/
 /webui/.vite/
 /webui/*.local
 
-# Playwright transient artifacts (baselines live under tests/__screenshots__/)
+
 /webui/test-results/
 /webui/playwright-report/
 
-# IDE
+
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Logs
+
 *.log
 npm-debug.log*
 pnpm-debug.log*
 
-# Env
+
 .env
 .env.local
 .env.*.local
 
-# 临时
+
 /tmp/
 *.tmp
 *.bak
 
-# Deepwork progress
+
 .slim/deepwork/
 
-# Internal dev state (feature_list, session logs) — not for open-source release
+
 .slim/dev-state/
 
-# Reference repos cloned for local code-reading (not part of our code)
+
 docs/references/
 
-# Agent session state (omc / nezha / etc.)
+
 .omc/
 .nezha/
 
-# Tauri / Vite transient logs (not the *.log glob — these have no extension)
+
 .tauri.err
 .vite.err
 
-# TRAE IDE specs workspace — committed on `docs` branch only, ignored everywhere else
+
 .trae/
 
-# Root-only debug output from ad-hoc cargo/tsc invocations (transient)
+
 *.txt
 
-# Icon generation scratch (final icons live under src-tauri/icons/)
+
 src-tauri/icons/_candidates/
 
-# Tauri dev server transient logs
+
 tauri-dev-live.*
 tauri-dev.*
 
-# WebUI debug/capture scripts
+
 webui/capture*.mjs
 webui/inspect.mjs
 
-# bd internal task tracker
+
 /.bd/
 
-# Temporary layout/redesign scratch files
+
 /usage-layout-fix-plan.md
 /usage-redesign.html
+
+
+# --- Public-release blocklist (added on first public push) ---
+/AGENTS.md
+/CLAUDE.md
+/DESIGN.md
+/PLAN.md
+/init.sh
+/openspec/
+/docs/
+/.github/
+/src-tauri/tests/
+/webui/scripts/
+/webui/tests/
+/webui/vite-preview.err
