@@ -1,5 +1,4 @@
 import {
-  Clock,
   RefreshCw,
   Pencil,
   Copy,
@@ -9,9 +8,41 @@ import {
 } from "lucide-react";
 import { cn, isLlmCategory } from "@/lib/utils";
 import type { Provider, Category } from "@/types/api";
-import { formatRelative } from "@/lib/format";
+import { useCodingPlanQuota } from "@/hooks/useCodingPlanQuota";
+import { useProviderQuota } from "@/hooks/useProviderQuota";
 import { ContextMenu } from "./ContextMenu";
 import { ProviderIcon } from "./Icon";
+
+type Tone = "ok" | "warn" | "crit" | "none";
+
+// ponytail: TONE_BG was specified in the task but has no caller — the donut
+// uses SVG stroke (TONE_STROKE) and the balance uses text color (TONE_TEXT).
+// Strict-mode tsc rejects unused locals, so TONE_BG is intentionally omitted.
+const TONE_TEXT: Record<Tone, string> = {
+  ok: "text-[var(--color-success)]",
+  warn: "text-[var(--color-accent)]",
+  crit: "text-[var(--color-destructive)]",
+  none: "text-[var(--color-muted)]",
+};
+// ponytail: SVG stroke can't use Tailwind utility classes — lookup the raw var.
+const TONE_STROKE: Record<Tone, string> = {
+  ok: "var(--color-success)",
+  warn: "var(--color-accent)",
+  crit: "var(--color-destructive)",
+  none: "var(--color-muted)",
+};
+
+// ponytail: threshold >50 / >=20 mirrors CodingPlanQuotas's tone grading.
+function quotaTone(remaining: number | null): Tone {
+  if (remaining === null) return "none";
+  if (remaining > 50) return "ok";
+  if (remaining >= 20) return "warn";
+  return "crit";
+}
+const quotaTextTone = quotaTone;
+
+// ponytail: r=6, stroke=2.2 → circumference ≈ 37.70. Matches preview.
+const DONUT_CIRCUMFERENCE = 37.7;
 
 interface ProviderCardProps {
   provider: Provider;
@@ -44,14 +75,31 @@ export const ProviderCard = ({
   const baseUrlField = provider.fields.find((f) => f.key === "base_url");
   const displayUrl = baseUrlField?.value || "https://example.com";
 
-  // Quota display: use remaining or used field
-  const quotaField = provider.fields.find(
-    (f) => f.key === "quota_remaining" || f.key === "quota_used"
-  );
-  const quotaNum = quotaField ? Number(quotaField.value) : null;
-  const quotaUnit = "USD";
+  // Coding-plan primary tier % — preferred source for the donut.
+  const { data: codingPlan } = useCodingPlanQuota(provider.id);
+  const pctFromTier = codingPlan?.success
+    ? codingPlan.tiers[0]?.remaining_percent ?? null
+    : null;
 
-  const timeAgo = formatRelative(provider.updated_at * 1000, "suffix");
+  // QuotaSnapshot remaining/total % — fallback for the donut, and the only
+  // source for the balance text. TanStack dedupes both hooks by providerId.
+  const { data: snapshot } = useProviderQuota(provider.id);
+  const pctFromSnapshot =
+    snapshot?.remaining != null && snapshot?.total != null && snapshot.total > 0
+      ? (snapshot.remaining / snapshot.total) * 100
+      : null;
+
+  const pct = pctFromTier ?? pctFromSnapshot;
+  const donutOffset =
+    pct === null ? 0 : DONUT_CIRCUMFERENCE * (1 - Math.max(0, Math.min(100, pct)) / 100);
+  const tone = quotaTone(pct);
+
+  // Balance lives in the right cluster; only renders when snapshot has a remaining value.
+  const balance = snapshot?.remaining != null ? snapshot : null;
+  const balanceTone: Tone = pct !== null ? quotaTextTone(pct) : "ok";
+  // ponytail: `?? 0` is correct on edge cases — tsc doesn't narrow the
+  // property across the ternary even though we just checked != null.
+  const balanceText = balance ? (balance.remaining ?? 0).toFixed(2) : null;
 
   const handleRefresh = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -130,9 +178,42 @@ export const ProviderCard = ({
         <div className="flex-1 min-w-0">
           <div
             data-testid="provider-name"
-            className="text-sm font-semibold text-[var(--color-neutral)] truncate"
+            className="flex items-center gap-2 min-w-0"
           >
-            {provider.name}
+            {pct !== null && (
+              <svg
+                data-testid="quota-donut"
+                viewBox="0 0 16 16"
+                width="16"
+                height="16"
+                className="shrink-0"
+                aria-label={`${Math.round(pct)}% remaining`}
+              >
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="6"
+                  fill="none"
+                  stroke="var(--color-surface-elevated)"
+                  strokeWidth="2.2"
+                />
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="6"
+                  fill="none"
+                  stroke={TONE_STROKE[tone]}
+                  strokeWidth="2.2"
+                  strokeDasharray={DONUT_CIRCUMFERENCE}
+                  strokeDashoffset={donutOffset}
+                  strokeLinecap="round"
+                  style={{ transform: "rotate(-90deg)", transformOrigin: "50% 50%" }}
+                />
+              </svg>
+            )}
+            <span className="text-sm font-semibold text-[var(--color-neutral)] truncate">
+              {provider.name}
+            </span>
           </div>
           <button
             data-testid="provider-url"
@@ -145,13 +226,21 @@ export const ProviderCard = ({
 
         {/* Right meta cluster */}
         <div className="shrink-0 flex items-center gap-3">
-          {/* Clock + time */}
-          <div data-testid="clock-meta" className="flex items-center gap-1 text-[var(--color-muted)]">
-            <Clock className="h-4 w-4" />
-            <span data-testid="time-text" className="text-xs">
-              {timeAgo}
-            </span>
-          </div>
+          {/* Balance (only when QuotaSnapshot.remaining is set) */}
+          {balance && (
+            <div
+              data-testid="quota-balance"
+              data-tone={balanceTone}
+              className={cn(
+                "shrink-0 text-xs font-mono tabular-nums whitespace-nowrap",
+                TONE_TEXT[balanceTone]
+              )}
+            >
+              <span className="text-[var(--color-muted)] mr-1">剩余</span>
+              {balanceText}
+              <span className="text-[var(--color-muted)] ml-0.5">{balance.unit}</span>
+            </div>
+          )}
 
           {/* Refresh button */}
           <button
@@ -162,18 +251,6 @@ export const ProviderCard = ({
           >
             <RefreshCw className="h-4 w-4" />
           </button>
-
-          {/* Quota */}
-          {quotaNum !== null && (
-            <div data-testid="quota" className="flex items-baseline gap-0.5">
-              <span data-testid="quota-num" className="text-sm font-semibold text-[var(--color-success)]">
-                {quotaNum}
-              </span>
-              <span data-testid="quota-unit" className="text-xs text-[var(--color-muted)]">
-                {quotaUnit}
-              </span>
-            </div>
-          )}
 
           {/* Inline action buttons */}
           {onEdit && (
