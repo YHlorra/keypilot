@@ -47,6 +47,9 @@ pnpm-debug.log*
 # Deepwork progress
 .slim/deepwork/
 
+# Internal dev state (feature_list, session logs) — not for open-source release
+.slim/dev-state/
+
 # Reference repos cloned for local code-reading (not part of our code)
 docs/references/
 
