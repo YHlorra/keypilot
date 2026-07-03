@@ -91,7 +91,7 @@ pub async fn delete_category_by_state(state: &AppState, req: DeleteCategoryReque
     tauri::async_runtime::spawn_blocking(move || {
         let guard = db.lock().unwrap();
 
-        // Check if category is default
+        
         let is_default: i64 = guard.conn.query_row(
             "SELECT is_default FROM categories WHERE id = ?1",
             [req.id],
@@ -102,13 +102,13 @@ pub async fn delete_category_by_state(state: &AppState, req: DeleteCategoryReque
             return Err(AppError::CategoryIsDefault(req.id));
         }
 
-        // Migrate providers to target category
+        
         guard.conn.execute(
             "UPDATE providers SET category_id = ?1 WHERE category_id = ?2",
             rusqlite::params![req.migrate_to, req.id],
         )?;
 
-        // Delete category
+        
         guard.conn.execute("DELETE FROM categories WHERE id = ?1", [req.id])?;
 
         Ok::<_, AppError>(())

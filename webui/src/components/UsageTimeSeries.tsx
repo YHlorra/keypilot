@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatTokens } from "@/lib/format";
 
-// DailySeriesPoint -- extended with optional breakdown fields for stacked mode
+
 export interface DailySeriesPoint {
-  date: string; // "YYYY-MM-DD"
+  date: string; 
   total_tokens: number;
   total_cost_usd: number;
   request_count: number;
@@ -15,20 +15,20 @@ export interface DailySeriesPoint {
 
 export interface UsageTimeSeriesProps {
   dailySeries: DailySeriesPoint[];
-  stacked?: boolean; // default false
+  stacked?: boolean; 
   range: "7d" | "30d" | "90d" | "all";
   isLoading?: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Layout constants (px — layout, not typography)
-// ---------------------------------------------------------------------------
+
+
+
 const PADDING = { top: 16, right: 16, bottom: 28, left: 44 };
 const HEIGHT = 200;
 
-// ---------------------------------------------------------------------------
-// Date formatter
-// ---------------------------------------------------------------------------
+
+
+
 function formatDate(dateStr: string, range: UsageTimeSeriesProps["range"]): string {
   const [, month, day] = dateStr.split("-");
   if (range === "7d" || range === "30d") {
@@ -37,9 +37,9 @@ function formatDate(dateStr: string, range: UsageTimeSeriesProps["range"]): stri
   return `${month}/${day}`;
 }
 
-// ---------------------------------------------------------------------------
-// "Nice" tick algorithm: round rawStep to 1/2/5 × 10^n
-// ---------------------------------------------------------------------------
+
+
+
 function niceStep(rawStep: number): number {
   if (rawStep <= 0) return 1;
   const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
@@ -52,9 +52,9 @@ function niceStep(rawStep: number): number {
   return nice * magnitude;
 }
 
-// ---------------------------------------------------------------------------
-// Skeleton loading placeholder
-// ---------------------------------------------------------------------------
+
+
+
 function SkeletonChart({ height }: { height: number }) {
   return (
     <svg width="100%" height={height} className="text-muted">
@@ -74,9 +74,9 @@ function SkeletonChart({ height }: { height: number }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Empty state
-// ---------------------------------------------------------------------------
+
+
+
 function EmptyState({ height }: { height: number }) {
   return (
     <div
@@ -88,18 +88,18 @@ function EmptyState({ height }: { height: number }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
+
+
+
 export function UsageTimeSeries({
   dailySeries,
   stacked = false,
   range,
   isLoading = false,
 }: UsageTimeSeriesProps) {
-  // ResizeObserver tracks container width in pixels
+  
   const containerRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(800); // SSR fallback
+  const [width, setWidth] = useState(800); 
 
   useEffect(() => {
     const ro = new ResizeObserver((entries) => {
@@ -116,13 +116,13 @@ export function UsageTimeSeries({
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
-  // Derived dimensions
+  
   const innerWidth = width - PADDING.left - PADDING.right;
   const innerHeight = HEIGHT - PADDING.top - PADDING.bottom;
 
-  // ---------------------------------------------------------------------------
-  // Compute scales and paths
-  // ---------------------------------------------------------------------------
+  
+  
+  
   const { xScale, yScale, maxValue, linePath, areaPath, stackedLayers } = useMemo(() => {
     if (dailySeries.length === 0) {
       return {
@@ -146,14 +146,14 @@ export function UsageTimeSeries({
       (d) => PADDING.top + innerHeight - ((d.total_tokens - minVal) / rangeVal) * innerHeight
     );
 
-    // Build line path (straight polyline — no Catmull-Rom)
+    
     const linePoints = xs.map((x, i) => `${x},${ys[i]}`).join(" L ");
     const line = `M ${linePoints}`;
 
-    // Build area path (close to bottom)
+    
     const area = `${line} L ${xs[xs.length - 1]},${PADDING.top + innerHeight} L ${xs[0]},${PADDING.top + innerHeight} Z`;
 
-    // Stacked layers
+    
     const layers: { path: string; color: string }[] = [];
     if (stacked) {
       const tokenTypes: Array<{ key: keyof DailySeriesPoint; color: string }> = [
@@ -194,15 +194,15 @@ export function UsageTimeSeries({
     };
   }, [dailySeries, stacked, innerWidth, innerHeight]);
 
-  // ---------------------------------------------------------------------------
-  // Y-axis ticks using "nice" step algorithm
-  // ---------------------------------------------------------------------------
+  
+  
+  
   const yTicks = useMemo(() => {
     if (maxValue === 0) return [];
     const rawStep = maxValue / 4;
     const step = niceStep(rawStep);
     const ticks: { value: number; y: number }[] = [];
-    // Generate ticks from 0 up to maxValue
+    
     for (let value = 0; value <= maxValue + step / 2; value += step) {
       const y = PADDING.top + innerHeight - (value / maxValue) * innerHeight;
       ticks.push({ value, y });
@@ -210,9 +210,9 @@ export function UsageTimeSeries({
     return ticks;
   }, [maxValue, innerHeight]);
 
-  // ---------------------------------------------------------------------------
-  // X-axis tick labels — stride = Math.ceil(n / 8)
-  // ---------------------------------------------------------------------------
+  
+  
+  
   const xTicks = useMemo(() => {
     if (dailySeries.length === 0) return [];
     const stride = Math.ceil(dailySeries.length / 8);
@@ -225,9 +225,9 @@ export function UsageTimeSeries({
       }));
   }, [dailySeries, range, xScale]);
 
-  // ---------------------------------------------------------------------------
-  // Edge cases
-  // ---------------------------------------------------------------------------
+  
+  
+  
   if (isLoading) {
     return (
       <div ref={containerRef} className="w-full" style={{ height: HEIGHT }}>
@@ -244,7 +244,7 @@ export function UsageTimeSeries({
     );
   }
 
-  // All-zero series
+  
   if (maxValue === 0) {
     return (
       <div ref={containerRef} className="w-full" style={{ height: HEIGHT }}>
@@ -253,9 +253,9 @@ export function UsageTimeSeries({
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Interaction handlers
-  // ---------------------------------------------------------------------------
+  
+  
+  
   const handleMouseEnter = (index: number, _event: React.MouseEvent<SVGCircleElement>) => {
     const circleX = xScale[index];
     const circleY = yScale[index];
@@ -269,23 +269,23 @@ export function UsageTimeSeries({
 
   const hoveredPoint = hoveredIndex !== null ? dailySeries[hoveredIndex] : null;
 
-  // Tooltip dimensions (approximate)
+  
   const tooltipWidth = 120;
   const tooltipHeight = stacked && hoveredPoint?.input_tokens != null ? 88 : 64;
-  // Clamp tooltip to container bounds
+  
   const tooltipX = Math.min(tooltipPos.x + 12, width - tooltipWidth - 8);
   const tooltipY = Math.max(tooltipPos.y - tooltipHeight / 2, PADDING.top);
 
-  // ---------------------------------------------------------------------------
-  // 1-point series: skip line, render single dot + label
-  // ---------------------------------------------------------------------------
+  
+  
+  
   const isSinglePoint = dailySeries.length === 1;
 
   return (
     <div ref={containerRef} className="w-full relative" style={{ height: HEIGHT }}>
-      {/* Pixel-coordinate SVG — no viewBox, no preserveAspectRatio */}
+      {}
       <svg width={width} height={HEIGHT} className="overflow-visible">
-        {/* Y grid lines */}
+        {}
         {yTicks.map((tick, i) => (
           <line
             key={i}
@@ -299,7 +299,7 @@ export function UsageTimeSeries({
           />
         ))}
 
-        {/* Y-axis labels */}
+        {}
         {yTicks.map((tick, i) => (
           <text
             key={i}
@@ -314,7 +314,7 @@ export function UsageTimeSeries({
           </text>
         ))}
 
-        {/* Stacked layers or single area */}
+        {}
         {stacked ? (
           stackedLayers.map((layer, i) => (
             <path
@@ -326,7 +326,7 @@ export function UsageTimeSeries({
           ))
         ) : (
           <>
-            {/* Area fill */}
+            {}
             {!isSinglePoint && (
               <path
                 d={areaPath}
@@ -334,7 +334,7 @@ export function UsageTimeSeries({
                 opacity={0.12}
               />
             )}
-            {/* Line — skip for single point */}
+            {}
             {!isSinglePoint && (
               <path
                 d={linePath}
@@ -348,7 +348,7 @@ export function UsageTimeSeries({
           </>
         )}
 
-        {/* Data points */}
+        {}
         {xScale.map((x, i) => (
           <circle
             key={i}
@@ -364,7 +364,7 @@ export function UsageTimeSeries({
           />
         ))}
 
-        {/* X-axis labels — rendered after chart paths so they paint on top */}
+        {}
         {xTicks.map((tick, i) => (
           <text
             key={i}
@@ -378,10 +378,10 @@ export function UsageTimeSeries({
           </text>
         ))}
 
-        {/* Tooltip */}
+        {}
         {hoveredPoint && (
           <g>
-            {/* Tooltip background */}
+            {}
             <rect
               x={tooltipX}
               y={tooltipY}

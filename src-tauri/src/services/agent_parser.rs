@@ -1,9 +1,9 @@
-//! Agent parser abstraction — one parser per agent source.
-//!
-//! Adding a new agent = (1) implement `AgentParser` for it, (2) add ONE line
-//! to `default_parsers(pricing)`.  Frontend, heatmap, and display components do NOT
-//! change — they consume the canonical `UsageRecordInput` shape regardless of
-//! source.
+
+
+
+
+
+
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -14,17 +14,17 @@ use crate::error::AppError;
 use crate::services::pricing::PricingService;
 use crate::types::UsageRecordInput;
 
-/// Scanner-level observability counters.  Surfaced via `last_auto_import`
-/// meta JSON so the user can see WHY an import imported 0 rows
-/// (instead of getting a silent `{imported:0, errors:0}` shrug).
+
+
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ParseStats {
     pub files_scanned: u32,
     pub lines_scanned: u32,
     pub lines_matched: u32,
     pub lines_parse_errored: u32,
-    /// First 3 error messages, format `"{file}:{line_no}: {reason}"`.
-    /// Bounded so a 385-file scan cannot produce a megabyte JSON blob.
+    
+    
     pub sample_errors: Vec<String>,
 }
 
@@ -41,44 +41,44 @@ impl ParseStats {
     }
 }
 
-/// Combined output of one `parse()` call: the records to insert PLUS the
-/// scan counters that explain how those records were found (or not).
+
+
 #[derive(Debug, Clone)]
 pub struct ParseOutcome {
     pub records: Vec<UsageRecordInput>,
     pub stats: ParseStats,
 }
 
-/// One parser per agent source (opencode.db, claude-code jsonl, codex, etc.).
-/// Each parser knows how to read its own data format and emit canonical
-/// `UsageRecordInput` rows which are fed through `TokenUsageService::record_usage`,
-/// so existing dedup + daily rollup logic applies automatically.
+
+
+
+
 pub trait AgentParser: Send + Sync {
-    /// Stable identifier stored in `token_usage_records.agent_type`.
+    
     fn agent_type(&self) -> &'static str;
 
-    /// Human-readable name for Settings UI and logs.
+    
     fn display_name(&self) -> &'static str;
 
-    /// Default path where this agent stores its data on disk (Windows).
-    /// Used both for `is_available()` checks and for Settings display.
+    
+    
     fn default_path(&self) -> PathBuf;
 
-    /// True when `default_path()` exists and looks like a real agent data store.
-    /// Cheap check only — do NOT open or parse here.
+    
+    
     fn is_available(&self) -> bool;
 
-    /// Read source data and return canonical `UsageRecordInput` rows + scan
-    /// stats.  The caller feeds each row through `TokenUsageService::record_usage`.
+    
+    
     fn parse(&self) -> Result<ParseOutcome, AppError>;
 }
 
-/// Factory — one parser instance per supported agent.
-///
-/// `pricing` is injected so `ClaudeCodeParser` can resolve the canonical
-/// provider name for each model via `pricing.json` before falling back to
-/// prefix matching.  `OpencodeParser` does not need it — it reads the
-/// provider column straight from `opencode.db`.
+
+
+
+
+
+
 pub fn default_parsers(pricing: Arc<PricingService>) -> Vec<Box<dyn AgentParser>> {
     vec![
         Box::new(crate::services::agent_parser_opencode::OpencodeParser::new()),

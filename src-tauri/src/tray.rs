@@ -5,8 +5,8 @@ use tauri::{
     AppHandle, Emitter, Manager, Runtime,
 };
 
-/// Initialize system tray with menu items.
-/// Called from lib.rs setup() after app state is initialized.
+
+
 pub fn init_tray<R: Runtime>(app: &AppHandle<R>) -> Result<TrayIcon<R>, tauri::Error> {
     let menu = build_tray_menu(app)?;
 
@@ -26,7 +26,7 @@ pub fn init_tray<R: Runtime>(app: &AppHandle<R>) -> Result<TrayIcon<R>, tauri::E
                 ..
             } = event
             {
-                // Focus main window on left click
+                
                 if let Some(window) = tray.app_handle().get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();

@@ -16,8 +16,8 @@ interface AddCredentialModalProps {
   defaultCategoryId?: number;
 }
 
-// Two-level cascade: template → preset list
-// @see openspec/changes/v0.1-general-credentials/spec.md REQ-PROV-007
+
+
 type TemplateId = "custom" | "llm" | "dev-tools";
 const CUSTOM_PRESET_ID = "__custom__";
 
@@ -27,13 +27,13 @@ const TEMPLATES: Array<{ id: TemplateId; label: string }> = [
   { id: "dev-tools", label: "开发工具" },
 ];
 
-// 20 LLM presets — curated list of the most-used providers globally.
-// OpenAI-compatible presets reuse the OpenAI adapter (test_connection hits
-// /v1/models which most OpenAI-compat APIs expose). Anthropic-compat variants
-// are separate presets with their own /anthropic base_url. 7 providers without
-// simple-icons coverage (zhipu/groq/siliconflow/together/stepfun/cohere/
-// zhipu-anthropic) fall back to a tinted letter monogram in the card/picker —
-// see Icon.tsx.
+
+
+
+
+
+
+
 const PRESETS_BY_TEMPLATE: Record<TemplateId, Array<{ id: string; label: string }>> = {
   custom: [],
   llm: [
@@ -56,9 +56,9 @@ const PRESETS_BY_TEMPLATE: Record<TemplateId, Array<{ id: string; label: string 
     { id: "zhipu-anthropic", label: "智谱 GLM (Anthropic)" },
     { id: "deepseek-anthropic", label: "DeepSeek (Anthropic)" },
     { id: "volcengine-anthropic", label: "火山引擎 (Anthropic)" },
-    // MiniMax — 4 nodes (2 regions × 2 protocols). Naming follows codebase
-    // convention: short id = OpenAI-protocol (kimi/zhipu style), `-anthropic`
-    // suffix = Anthropic-protocol. See database.rs::PRESETS for the URL mapping.
+    
+    
+    
     { id: "minimax", label: "MiniMax" },
     { id: "minimax-overseas", label: "MiniMax 海外" },
     { id: "minimax-anthropic", label: "MiniMax (Anthropic)" },
@@ -71,8 +71,8 @@ const PRESETS_BY_TEMPLATE: Record<TemplateId, Array<{ id: string; label: string 
   ],
 };
 
-// every preset has api_key + base_url. Only github uses
-// access_token because GitHub's auth header is `token <PAT>`, not `Bearer`.
+
+
 const apiKeyBaseUrl = (baseUrl: string) => [
   { key: "api_key", value: "", visibility: "masked" as Visibility },
   { key: "base_url", value: baseUrl, visibility: "visible" as Visibility },
@@ -98,7 +98,7 @@ const PRESET_DEFAULTS: Record<string, Array<{ key: string; value: string; visibi
   "zhipu-anthropic": apiKeyBaseUrl("https://open.bigmodel.cn/api/anthropic"),
   "deepseek-anthropic": apiKeyBaseUrl("https://api.deepseek.com/anthropic"),
   "volcengine-anthropic": apiKeyBaseUrl("https://ark.cn-beijing.volces.com/api/coding"),
-  // MiniMax 4 nodes — short id = OpenAI-protocol, `-anthropic` = Anthropic.
+  
   minimax: apiKeyBaseUrl("https://api.minimaxi.com/v1"),
   "minimax-overseas": apiKeyBaseUrl("https://api.minimax.io/v1"),
   "minimax-anthropic": apiKeyBaseUrl("https://api.minimaxi.com/anthropic"),
@@ -125,15 +125,15 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
   const { data: categories } = useCategories();
   const { showToast } = useToast();
 
-  // Presets already used in the currently selected category — exclude from picker.
-  // Multiple custom-named presets can coexist, so CUSTOM_PRESET_ID is always available.
+  
+  
   const usedPresetsInCategory = new Set(
     providers
       .filter((p) => p.category_id === categoryId && p.preset != null)
       .map((p) => p.preset as string)
   );
 
-  // Level-1 → Level-2 cascade: changing template resets preset + fields.
+  
   const handleTemplateChange = useCallback((newTemplate: TemplateId) => {
     setTemplate(newTemplate);
     setPreset(null);
@@ -144,7 +144,7 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
   const handlePresetChange = useCallback((newPreset: string) => {
     setPreset(newPreset || null);
     if (newPreset === CUSTOM_PRESET_ID) {
-      // User wants a custom preset — keep blank fields, require name input.
+      
       setCustomPresetName("");
       setFields([{ key: "", value: "", visibility: "visible" }]);
     } else if (newPreset && PRESET_DEFAULTS[newPreset]) {
@@ -181,13 +181,13 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
       showToast("请选择类型", "error");
       return;
     }
-    // For non-custom templates, preset is required.
+    
     if (template !== "custom" && !preset) {
       showToast("请选择具体服务", "error");
       return;
     }
-    // When user picks "自定义..." in the service picker, they must type a service name.
-    // The typed name is used as the `preset` value so the Rust side will fall back to None adapter.
+    
+    
     let effectivePreset: string | null = preset;
     if (preset === CUSTOM_PRESET_ID) {
       if (!customPresetName.trim()) {
@@ -232,8 +232,8 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
     onClose();
   }, [onClose]);
 
-  // Filter out presets that already exist in the current category.
-  // Custom preset is always allowed (user may have multiple custom-named providers).
+  
+  
   const allPresetOptions = template ? PRESETS_BY_TEMPLATE[template] : [];
   const presetOptions = allPresetOptions.filter(
     (p) => p.id === CUSTOM_PRESET_ID || !usedPresetsInCategory.has(p.id)
@@ -260,7 +260,7 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
       }
     >
       <div className="space-y-4">
-        {/* Name */}
+        {}
         <div>
           <label className="text-sm font-medium mb-1.5 block">名称</label>
           <Input
@@ -270,7 +270,7 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
           />
         </div>
 
-        {/* Category */}
+        {}
         <div>
           <label className="text-sm font-medium mb-1.5 block">分类</label>
           <Select value={String(categoryId)} onValueChange={(v) => setCategoryId(Number(v))}>
@@ -287,7 +287,7 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
           </Select>
         </div>
 
-        {/* Level 1: Template */}
+        {}
         <div>
           <label className="text-sm font-medium mb-1.5 block">类型</label>
           <Select value={template ?? ""} onValueChange={(v) => handleTemplateChange(v as TemplateId)}>
@@ -304,7 +304,7 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
           </Select>
         </div>
 
-        {/* Level 2: Preset (depends on template) */}
+        {}
         {showPresetPicker && (
           <div>
             <label className="text-sm font-medium mb-1.5 block">服务</label>
@@ -321,14 +321,14 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
               </SelectContent>
             </Select>
 
-            {/* Hint when every built-in preset is already used in this category */}
+            {}
             {allBuiltinsUsed && (
               <p className="mt-1 text-xs text-muted-foreground">
                 该分类下已添加所有预设服务。可使用"自定义..."添加其他服务。
               </p>
             )}
 
-            {/* Custom preset name input — only shown when user picks "自定义..." */}
+            {}
             {preset === CUSTOM_PRESET_ID && (
               <Input
                 value={customPresetName}
@@ -340,7 +340,7 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
           </div>
         )}
 
-        {/* Fields */}
+        {}
         {fields.length > 0 && (
           <div>
             <label className="text-sm font-medium mb-1.5 block">字段</label>

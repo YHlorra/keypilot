@@ -11,8 +11,8 @@ interface ProgressBarProps {
   active: boolean;
 }
 
-// Inactive tiers show as a flat grey bar; active tiers fill with primary.
-// Width is clamped client-side so a bad upstream value can't break the grid.
+
+
 const ProgressBar = React.memo(function ProgressBar({ percent, active }: ProgressBarProps) {
   const clamped = Math.max(0, Math.min(100, percent));
   return (
@@ -27,7 +27,7 @@ const ProgressBar = React.memo(function ProgressBar({ percent, active }: Progres
 
 function formatReset(ts: number): string {
   const d = new Date(ts);
-  // Compact en-US format; locale-stable on the wire, presentation only.
+  
   return d.toLocaleString();
 }
 
@@ -76,7 +76,7 @@ export const CodingPlanQuotas = React.memo(function CodingPlanQuotas({
   }
 
   if (!data.success) {
-    // credential_status is lowercase per Rust serde ("invalid"/"expired"/"unknown").
+    
     if (data.credential_status === "invalid" || data.credential_status === "expired") {
       const label = data.credential_status === "expired" ? "expired" : "invalid";
       return (

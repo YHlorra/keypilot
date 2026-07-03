@@ -8,9 +8,9 @@ interface KpiCardProps {
   value: number;
   unit?: string;
   subLabel?: string;
-  /** Pass true to slightly emphasize the middle "primary" card */
+  
   emphasized?: boolean;
-  /** Override the formatted display string for the value (e.g. formatTokens output) */
+  
   formattedValue?: string;
 }
 
@@ -81,7 +81,7 @@ export const UsageKpiCards = React.memo(function UsageKpiCards({
   );
 });
 
-// 修复 /30 稀释;Q4=B 锁定为 Month-to-Date (MTD) 语义。
+
 const AvgDayCard = React.memo(function AvgDayCard({
   dailySeries,
 }: {
@@ -110,7 +110,7 @@ const AvgDayCard = React.memo(function AvgDayCard({
   );
 });
 
-// Standalone stat card for sidebar
+
 interface StatCardProps {
   label: string;
   value: string | number;

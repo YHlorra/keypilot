@@ -22,9 +22,9 @@ export const LeftRail = React.memo(function LeftRail({
 }: LeftRailProps) {
   return (
     <>
-      {/* Desktop: vertical rail -- flex sibling, lets Titlebar/TopBar align
-          cleanly inside the right column without fixed-position magic offsets.
-          Mobile rail (below) stays fixed because it must overlay the bottom. */}
+      {
+
+}
       <nav
         className="hidden md:flex shrink-0 flex-col items-center gap-1 py-3 border-r border-border bg-card"
         style={{ width: 64 }}
@@ -51,10 +51,10 @@ export const LeftRail = React.memo(function LeftRail({
           </button>
         ))}
 
-        {/* Spacer */}
+        {}
         <div className="flex-1" />
 
-        {/* Settings at bottom */}
+        {}
         <button
           type="button"
           onClick={onSettingsClick}
@@ -72,7 +72,7 @@ export const LeftRail = React.memo(function LeftRail({
         </button>
       </nav>
 
-      {/* Mobile: bottom tab bar */}
+      {}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-border bg-card"
         style={{ height: 56 }}

@@ -8,20 +8,20 @@ interface TopRightActionsProps {
   onAddClick: () => void;
 }
 
-/**
- * Top-right chrome cluster:
- *   [ pill: settings | theme ]   ( + )
- *   icon-only secondary actions live in a soft surface pill,
- *   the primary action (add credential) is a separate circular CTA
- *   for clear visual hierarchy.
- */
+
+
+
+
+
+
+
 export const TopRightActions = React.memo(function TopRightActions({
   onSettingsClick,
   onAddClick,
 }: TopRightActionsProps) {
   return (
     <div className="flex items-center gap-2.5" data-testid="top-right-actions">
-      {/* Secondary actions pill */}
+      {}
       <div
         className="inline-flex items-center gap-0.5 p-1 rounded-pill"
         style={{ backgroundColor: "var(--color-surface-elevated)" }}
@@ -36,7 +36,7 @@ export const TopRightActions = React.memo(function TopRightActions({
         <ThemeToggle bare />
       </div>
 
-      {/* Primary circular CTA */}
+      {}
       <button
         type="button"
         onClick={onAddClick}

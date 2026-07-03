@@ -1,27 +1,27 @@
-// webui/src/types/api.ts (Phase 1.5 -- 12 IPC contract locked, Phase 1.5 oracle fixes applied)
-// @see openspec/changes/v0.1-general-credentials/spec.md REQ-VIS-001/002, REQ-PROV-008, REQ-THEME-001, REQ-CAT-001
-// @see src-tauri/src/types.rs (Rust mirror -- must stay field-by-field aligned)
 
-// === Enums (V0.1 二态 / 三态) ===
-export type Visibility = 'visible' | 'masked';  // REQ-VIS-002
-export type Theme = 'dark' | 'light' | 'auto';  // REQ-THEME-001
 
-// === Domain types ===
+
+
+
+export type Visibility = 'visible' | 'masked';  
+export type Theme = 'dark' | 'light' | 'auto';  
+
+
 export interface ProviderField {
   id: number;
   provider_id: number;
   key: string;
-  value: string;                       // REQ-VIS-002: V0.1 plaintext
+  value: string;                       
   visibility: Visibility;
   sort_index: number;
-  created_at: number;                  // unix epoch seconds
+  created_at: number;                  
   updated_at: number;
 }
 
 export interface Provider {
   id: number;
   name: string;
-  preset: string | null;               // null = Custom
+  preset: string | null;               
   is_preset: boolean;
   category_id: number;
   pinned: boolean;
@@ -31,7 +31,7 @@ export interface Provider {
   sort_index: number;
   created_at: number;
   updated_at: number;
-  fields: ProviderField[];             // list responses include fields inline
+  fields: ProviderField[];             
 }
 
 export interface Category {
@@ -43,12 +43,12 @@ export interface Category {
   updated_at: number;
 }
 
-// QuotaSnapshot -- per-preset shape (REQ-QUOTA-001~006 + REQ-QUOTA-DISPLAY-001):
-// - 3 LLM: { total, used, remaining, unit, level?, reset_at? }
-// - GitHub: { total, used, remaining, unit='req', level?, reset_at? }
-// - PostgreSQL: { total=null, used, unit='GB', level? }  (no remaining, no reset_at)
-// - Anthropic: AppError::ProviderQuotaUnsupported (no QuotaSnapshot returned)
-// `fetched_at` is NOT in the wire shape -- frontend uses TanStack Query staleTime.
+
+
+
+
+
+
 export interface QuotaSnapshot {
   total: number | null;
   used: number;
@@ -58,7 +58,7 @@ export interface QuotaSnapshot {
   reset_at?: number;
 }
 
-// === AppError (mirrors src-tauri/src/error.rs -- 15 codes) ===
+
 export type AppErrorCode =
   | 'DATABASE'
   | 'IO'
@@ -78,38 +78,38 @@ export type AppErrorCode =
   | 'ACTION_NOT_FOUND';
 
 export interface AppError {
-  code: AppErrorCode;                  // literal union for exhaustiveness checks
+  code: AppErrorCode;                  
   message: string;
 }
 
-// === 12 IPC command request/response types ===
-// REQ-PROV-001/008 + REQ-CAT-001/002 + REQ-THEME-001 + REQ-QUOTA-001~006 + REQ-PROV-009
-// All Rust commands use single-struct arg pattern (REQ-008, design.md §7).
-// JS calls: invoke<Res>('cmd_name', req)  where req is the Request struct.
 
-// list_providers
+
+
+
+
+
 export type ListProvidersResponse = Provider[];
 
-// get_provider
+
 export interface GetProviderRequest { id: number; }
 export type GetProviderResponse = Provider;
 
-// add_provider
+
 export interface AddProviderRequest {
   name: string;
-  preset: string | null;               // null = Custom
+  preset: string | null;               
   category_id: number;
   pinned?: boolean;
   notes?: string;
   icon?: string;
   icon_color?: string;
-  // fields initial set on create (omit id/timestamps/server-managed fields)
+  
   fields?: Array<Omit<ProviderField, 'id' | 'provider_id' | 'created_at' | 'updated_at'>>;
 }
 export type AddProviderResponse = Provider;
 
-// update_provider (single-struct pattern matching design.md §7)
-// JS: invoke('update_provider', { id, name?, category_id?, pinned?, notes?, icon?, icon_color?, fields? })
+
+
 export interface UpdateProviderRequest {
   id: number;
   name?: string;
@@ -118,59 +118,59 @@ export interface UpdateProviderRequest {
   notes?: string | null;
   icon?: string | null;
   icon_color?: string | null;
-  // fields REPLACE-ALL semantics: server deletes fields not in this list, server sets id/timestamps.
+  
   fields?: Array<Omit<ProviderField, 'id' | 'provider_id' | 'created_at' | 'updated_at'>>;
 }
 export type UpdateProviderResponse = Provider;
 
-// delete_provider
+
 export interface DeleteProviderRequest { id: number; }
 export type DeleteProviderResponse = void;
 
-// list_categories
+
 export type ListCategoriesResponse = Category[];
 
-// add_category
+
 export interface AddCategoryRequest { name: string; }
 export type AddCategoryResponse = Category;
 
-// delete_category
+
 export interface DeleteCategoryRequest { id: number; migrate_to: number; }
 export type DeleteCategoryResponse = void;
 
-// fetch_quota
+
 export interface FetchQuotaRequest { id: number; }
 export type FetchQuotaResponse = QuotaSnapshot;
 
-// get_theme
+
 export type GetThemeResponse = Theme;
 
-// set_theme
+
 export interface SetThemeRequest { theme: Theme; }
 export type SetThemeResponse = void;
 
-// set_manual_quota (Phase 3 -- stores in quota_cache without touching provider notes)
+
 export interface SetManualQuotaRequest { id: number; snapshot: QuotaSnapshot; }
 export type SetManualQuotaResponse = void;
 
-// === Token Usage types (REQ-TOKEN-001.2/001.3/002) ===
-//
-// CONTRACT: field names are SNAKE_CASE to match Rust serde default output.
-// If you add `#[serde(rename_all = "camelCase")]` on any Rust struct in
-// `src-tauri/src/commands/token_usage.rs`, these field names must change
-// in lockstep or all IPC calls will return undefined fields at runtime.
-// See src-tauri/src/commands/token_usage.rs UsageFilterIpc + UsageSummaryResponse.
 
-// TokenBreakdown -- REQ-TOKEN-001.2 usage_details
+
+
+
+
+
+
+
+
 export interface TokenBreakdown {
   input?: number;
   output?: number;
-  cache_read?: number;       // cache_read_input_tokens
-  cache_creation?: number;  // cache_creation_input_tokens
-  reasoning?: number;       // reasoning_tokens
+  cache_read?: number;       
+  cache_creation?: number;  
+  reasoning?: number;       
 }
 
-// CostBreakdown -- REQ-TOKEN-001.3 cost_details
+
 export interface CostBreakdown {
   input?: number;
   output?: number;
@@ -178,7 +178,7 @@ export interface CostBreakdown {
   total?: number;
 }
 
-// UsageRecordInput -- what the frontend sends to record_usage
+
 export interface UsageRecordInput {
   occurred_at: string;
   finished_at?: string;
@@ -200,18 +200,18 @@ export interface UsageRecordInput {
   tags?: string[];
 }
 
-// UsageRecord -- returned by record_usage, list_usage_records
+
 export interface UsageRecord extends UsageRecordInput {
   id: string;
 }
 
-// === Real-time tick (Bug #3 fix 2026-06-29) ===
-//
-// Mirrors `services::incremental_import::TokenUsageTickPayload`.  Emitted by
-// the Rust file watcher after each successful incremental JSONL append so
-// the frontend can refresh KPI cards / heatmap / popover (Task 2) without
-// polling.  Field names are snake_case per the convention documented at
-// the top of this file (api.ts:187-191).
+
+
+
+
+
+
+
 
 export interface TokenUsageTickPayload {
   agent_type: string;
@@ -222,7 +222,7 @@ export interface TokenUsageTickPayload {
   total_today_cost_usd: number;
 }
 
-// UsageFilter -- shared by list_usage_records and get_usage_summary
+
 export interface UsageFilter {
   start_date?: string;
   end_date?: string;
@@ -232,7 +232,7 @@ export interface UsageFilter {
   status?: string;
 }
 
-// AgentPair -- part of UsageSummary
+
 export interface AgentPair {
   agent_type: string;
   model: string;
@@ -249,7 +249,7 @@ export interface AgentPair {
   };
 }
 
-// DailySeriesPoint -- part of UsageSummary
+
 export interface DailySeriesPoint {
   date: string;
   total_tokens: number;
@@ -257,7 +257,7 @@ export interface DailySeriesPoint {
   request_count: number;
 }
 
-// UsageSummary -- returned by get_usage_summary (REQ-TOKEN-002.1)
+
 export interface UsageSummary {
   total_tokens: number;
   total_cost_usd: number;
@@ -266,17 +266,17 @@ export interface UsageSummary {
   daily_series: DailySeriesPoint[];
 }
 
-// ImportResult -- returned by import_usage
+
 export interface ImportResult {
   imported: number;
   skipped: number;
   errors: string[];
 }
 
-// ImportFormat -- union literal
+
 export type ImportFormat = 'jsonl' | 'csv';
 
-// PricingEntry -- returned by get_pricing
+
 export interface PricingEntry {
   model: string;
   input_cost_per_token: number;
@@ -286,10 +286,10 @@ export interface PricingEntry {
   supports_reasoning?: boolean;
 }
 
-// PaginatedResponse<T> -- standard pagination shape.
-// Bug #2 fix 2026-06-29: field names are snake_case to match Rust
-// `PaginatedResponseIpc` (no `#[serde(rename_all = "camelCase")]` on the
-// Rust side, so the wire format uses `per_page`).  Renamed from `perPage`.
+
+
+
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
@@ -297,10 +297,10 @@ export interface PaginatedResponse<T> {
   per_page: number;
 }
 
-// === Auto-import (Stage F+) ===
-// Mirrors src-tauri/src/services/auto_import.rs.  Returned by
-// `get_last_auto_import` Tauri command as raw JSON string; frontend parses
-// before showing a toast on App.tsx mount.
+
+
+
+
 export interface ParseStats {
   files_scanned: number;
   lines_scanned: number;
@@ -329,8 +329,8 @@ export interface AutoImportSummary {
   finished_at: number;
 }
 
-// === PeriodsSummary (token-monitor-alignment Part A #1) ===
-// Mirrors src-tauri/src/types.rs PeriodsSummary / PeriodsTriplet / PeriodWindowsPair / PeriodWindow
+
+
 
 export interface PeriodWindow {
   key: string;
@@ -355,30 +355,30 @@ export interface PeriodsSummary {
   limits?: unknown | null;
 }
 
-// === Coding Plan Quota (Lane C) ===
-//
-// Mirrors src-tauri/src/types/subscription.rs SubscriptionQuota / QuotaTier /
-// QuotaTierKind / CredentialStatus / TierStatus. Field names are SNAKE_CASE
-// to match the Rust serde default output (see notes at the top of this file
-// and the convention established by the token-usage types above).
-//
-// `SubscriptionQuota` is the wire shape returned by the
-// `fetch_coding_plan_quota` IPC handler. Distinguishing features:
-// - `success: false` always carries an `error` string; UI surfaces it
-//   in the card footer.
-// - `credential_status: "invalid"` ⇒ API key rejected (HTTP 401/403);
-//   "expired" ⇒ upstream reported expiry; "unknown" ⇒ transport / parse
-//   error; "valid" ⇒ upstream accepted.
-// - `tiers` is empty on failure; on success it carries 1-3
-//   QuotaTier entries (5-hour / weekly / monthly, in that order).
-// - `queried_at_ms` is the local Unix epoch milliseconds when the
-//   fetch completed — used by the frontend for cache math / "X min
-//   ago" labels.
-//
-// QuotaTier.used and .limit are absolute values (USD / token / request
-// count depending on provider). Volcengine AFP reports absolute
-// `Used/Quota`; ZenMux reports absolute USD; most percentage-only
-// providers (Kimi / GLM / MiniMax) leave both fields null.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export type CredentialStatus = "valid" | "invalid" | "expired" | "unknown";
 export type TierStatus = "active" | "inactive" | "unknown";

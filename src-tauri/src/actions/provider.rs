@@ -1,5 +1,5 @@
-// src-tauri/src/actions/provider.rs
-// Provider domain actions — list, get, add, update, delete, test_connection.
+
+
 
 use super::ActionDef;
 use serde_json::json;

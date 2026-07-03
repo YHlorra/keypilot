@@ -208,12 +208,12 @@ pub async fn update_provider_by_state(state: &AppState, req: UpdateProviderReque
     let provider = tauri::async_runtime::spawn_blocking(move || {
         let mut guard = db.lock().unwrap();
 
-        // Wrap all writes in a transaction so a failure between the fields
-        // DELETE and the new INSERTs rolls back instead of leaving the
-        // provider with zero fields. Read-back happens after commit.
+        
+        
+        
         let tx = guard.conn.transaction()?;
 
-        // Check provider exists
+        
         let exists: bool = tx.query_row(
             "SELECT 1 FROM providers WHERE id = ?1",
             [req.id],
@@ -223,7 +223,7 @@ pub async fn update_provider_by_state(state: &AppState, req: UpdateProviderReque
             return Err(AppError::ProviderNotFound(req.id));
         }
 
-        // Build dynamic UPDATE
+        
         let mut updates = Vec::new();
         let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
@@ -264,15 +264,15 @@ pub async fn update_provider_by_state(state: &AppState, req: UpdateProviderReque
             tx.execute(&sql, rusqlite::params_from_iter(params.iter()))?;
         }
 
-        // Replace all fields if provided
+        
         if let Some(fields) = &req.fields {
-            // Delete existing fields
+            
             tx.execute(
                 "DELETE FROM provider_fields WHERE provider_id = ?1",
                 [req.id],
             )?;
 
-            // Insert new fields
+            
             for field in fields {
                 tx.execute(
                     "INSERT INTO provider_fields (provider_id, key, value, visibility, sort_index,
@@ -292,7 +292,7 @@ pub async fn update_provider_by_state(state: &AppState, req: UpdateProviderReque
 
         tx.commit()?;
 
-        // Read-back outside the transaction (SELECTs only).
+        
         let mut stmt = guard.conn.prepare(
             "SELECT id, name, preset, is_preset, category_id, pinned, notes, icon, icon_color,
                     sort_index, created_at, updated_at FROM providers WHERE id = ?1"
@@ -313,14 +313,14 @@ pub async fn delete_provider_by_state(state: &AppState, id: i64) -> Result<(), A
     let db = state.db.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let guard = db.lock().unwrap();
-        // provider_fields deleted via CASCADE
+        
         guard.conn.execute("DELETE FROM providers WHERE id = ?1", [id])?;
         Ok::<_, AppError>(())
     }).await.map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
     Ok(())
 }
 
-/// Result of copy_credential — the resolved credential value + the field key it came from.
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CopyCredentialResult {
     pub value: String,
@@ -333,7 +333,7 @@ pub async fn copy_credential_by_state(
     field_key: Option<String>,
 ) -> Result<CopyCredentialResult, AppError> {
     let provider = get_provider_by_state(state, id).await?;
-    // Try explicit field_key first, then api_key, then first field
+    
     let resolved = if let Some(k) = field_key {
         provider.fields.iter().find(|f| f.key == k)
     } else {

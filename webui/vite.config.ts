@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Tauri dev server proxy: Vite serves on 1420 (Tauri default), CORS off
+
 export default defineConfig({
   plugins: [react()],
   resolve: {

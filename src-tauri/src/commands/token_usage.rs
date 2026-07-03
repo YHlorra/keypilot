@@ -1,9 +1,9 @@
-//! Token Usage IPC handlers (Stage C)
-//!
-//! Bridges the frontend API contract (webui/src/types/api.ts) to the pure
-//! Rust business layer (`services::TokenUsageService` + `services::PricingService`).
-//! All handlers are `#[tauri::command]` async and run on Tauri's async runtime.
-//! SQLite ops are wrapped in `spawn_blocking` to avoid blocking the event loop.
+
+
+
+
+
+
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -26,7 +26,7 @@ use crate::types::{
     LimitsSummary as RustLimitsSummary,
 };
 
-// ---------- IPC DTOs (mirror webui/src/types/api.ts) ----------
+
 
 #[derive(Debug, Deserialize)]
 pub struct RecordUsageRequest {
@@ -174,18 +174,18 @@ pub struct PricingEntryResponse {
     pub supports_reasoning: bool,
 }
 
-// ---------- PeriodsSummary IPC DTO (Bug #1 fix 2026-06-29) ----------
-//
-// `get_usage_periods_summary` MUST NOT return `crate::types::PeriodsSummary`
-// directly: that internal struct uses `total_cost` (not `total_cost_usd`) and
-// the embedded `UsageSummaryAgentPair` has no `token_breakdown` field.  Both
-// would surface as `undefined` on the frontend, breaking KPI cards, daily
-// series, agent-pair pie chart, and detail panel cost display.
-//
-// This DTO reuses the existing `UsageSummaryResponse` (which already maps the
-// fields correctly) for the nested today/month/all_time summary.  Field names
-// are snake_case to match the contract documented in
-// `webui/src/types/api.ts:187-191`.
+
+
+
+
+
+
+
+
+
+
+
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PeriodWindowResponseIpc {
@@ -216,8 +216,8 @@ pub struct PeriodWindowsPairResponseIpc {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RecomputeCostsRequest {
-    pub from_date: String, // ISO date "YYYY-MM-DD"
-    pub to_date: String,   // ISO date "YYYY-MM-DD" (inclusive; +1 day when converting to epoch)
+    pub from_date: String, 
+    pub to_date: String,   
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -226,7 +226,7 @@ pub struct RecomputeCostsResponse {
     pub dates_refreshed: u32,
 }
 
-// ---------- Conversion helpers ----------
+
 
 fn iso_to_epoch(iso: &str) -> Result<i64, AppError> {
     chrono::DateTime::parse_from_rfc3339(iso)
@@ -258,9 +258,9 @@ fn parse_cost_details(json: &Option<String>) -> Option<CostBreakdownIpc> {
 }
 
 fn ipc_to_rust_filter(ipc: UsageFilterIpc) -> Result<RustUsageFilter, AppError> {
-    // intentional: UsageFilterIpc.start_date/end_date arrive as RFC3339 from JS
-    // (see openspec/changes/fix-date-local-timezone/tasks.md T1.3 DO-NOT-TOUCH).
-    // Do NOT swap to timeutil::local_date_to_epoch — JS sends full timestamps.
+    
+    
+    
     let date_from = match ipc.start_date {
         Some(ref s) => Some(iso_to_epoch(s)?),
         None => None,
@@ -363,7 +363,7 @@ fn rust_pricing_to_ipc(entries: Vec<&RustPricingEntry>) -> Vec<PricingEntryRespo
     }).collect()
 }
 
-// ---------- PeriodsSummary conversion (Bug #1 fix 2026-06-29) ----------
+
 
 fn rust_period_window_to_ipc(w: &RustPeriodWindow) -> PeriodWindowResponseIpc {
     PeriodWindowResponseIpc {
@@ -389,9 +389,9 @@ fn rust_agent_pair_to_ipc(pair: UsageSummaryAgentPair) -> AgentPairResponse {
         total_tokens: pair.total_tokens,
         total_cost_usd: pair.total_cost,
         request_count: pair.request_count,
-        // agent-level pair has no per-agent cost breakdown in the daily rollup
-        // table; emit empty breakdown so `token_breakdown.input ?? 0` etc.
-        // still type-checks on the frontend.
+        
+        
+        
         token_breakdown: TokenBreakdownIpc {
             input: Some(pair.input_tokens),
             output: Some(pair.output_tokens),
@@ -432,9 +432,9 @@ fn rust_periods_to_ipc(p: RustPeriodsSummary) -> PeriodsSummaryResponse {
     }
 }
 
-// ---------- Handlers ----------
 
-/// Record a single usage row (manual entry or proxy forward).
+
+
 #[tauri::command]
 pub async fn record_usage(
     state: State<'_, AppState>,
@@ -476,7 +476,7 @@ pub async fn record_usage_by_state(
     Ok(rust_record_to_ipc(&record))
 }
 
-/// List usage records with pagination and filters.
+
 #[tauri::command]
 pub async fn list_usage_records(
     state: State<'_, AppState>,
@@ -530,7 +530,7 @@ pub async fn list_usage_records_by_state(
     })
 }
 
-/// Get usage summary (agent pairs + daily series).
+
 #[tauri::command]
 pub async fn get_usage_summary(
     state: State<'_, AppState>,
@@ -551,7 +551,7 @@ pub async fn get_usage_summary_by_state(
     Ok(rust_summary_to_ipc(summary))
 }
 
-/// Batch import usage from JSONL or CSV content.
+
 #[tauri::command]
 pub async fn import_usage(
     state: State<'_, AppState>,
@@ -581,7 +581,7 @@ pub async fn import_usage_by_state(
     Ok(rust_import_result_to_ipc(result))
 }
 
-/// Return the full pricing table (Top 50 models) in frontend format.
+
 #[tauri::command]
 pub async fn get_pricing(
     state: State<'_, AppState>,
@@ -594,7 +594,7 @@ pub async fn get_pricing_by_state(state: &AppState) -> Result<Vec<PricingEntryRe
     Ok(rust_pricing_to_ipc(entries))
 }
 
-// ---------- opencode.db import ----------
+
 
 #[derive(Debug, Deserialize)]
 pub struct ImportOpencodeDbRequest {
@@ -622,12 +622,12 @@ pub async fn import_opencode_db_by_state(
     Ok(rust_import_result_to_ipc(result))
 }
 
-/// Return the last auto-import summary JSON (stored in `meta.last_auto_import`).
-///
-/// Frontend queries this on `App.tsx` mount to decide whether to surface a
-/// toast.  This replaces the prior `auto_import_completed` Tauri event which
-/// had an emit-before-window race (event fired in `.setup()` before the
-/// webview existed; listener dead on arrival).
+
+
+
+
+
+
 #[tauri::command]
 pub async fn get_last_auto_import(
     state: State<'_, AppState>,
@@ -646,7 +646,7 @@ pub async fn get_last_auto_import_by_state(
             })?;
             match guard.get_meta("last_auto_import") {
                 Ok(v) => Ok(Some(v)),
-                Err(AppError::Database(_)) => Ok(None), // key not found
+                Err(AppError::Database(_)) => Ok(None), 
                 Err(e) => Err(e),
             }
         }
@@ -656,10 +656,10 @@ pub async fn get_last_auto_import_by_state(
     Ok(result)
 }
 
-/// Recompute cost snapshots for usage records whose `occurred_at` falls within
-/// `[from_date 00:00, to_date+1day 00:00)` (UTC).  Both endpoints are
-/// inclusive calendar days; `to_date` is advanced by one day internally to
-/// form the half-open upper bound required by `TokenUsageService::recompute_costs`.
+
+
+
+
 #[tauri::command]
 pub async fn recompute_costs(
     state: State<'_, AppState>,
@@ -688,23 +688,23 @@ pub async fn recompute_costs_by_state(
     })
 }
 
-/// ---------- force_rescan_all (Bug #3 escape hatch 2026-06-29) ----------
+
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ForceRescanResponse {
-    /// Number of cursor rows deleted by this rescan (the watcher will
-    /// rebuild cursors from scratch on the next scan).
+    
+    
     pub cursors_reset: u32,
-    /// Total token_usage_records present after the manual scan finishes.
-    /// Currently informational only — the actual scan runs in the
-    /// background via the IncrementalImporter; this returns immediately.
+    
+    
+    
     pub total_records: u32,
 }
 
-/// Reset all per-file cursors and kick a fresh full scan.  The next time
-/// the watcher's debounced events fire (or the 30s fallback poll runs),
-/// each known JSONL file will be re-parsed from byte 0.  FNV-1a dedup
-/// makes this safe — already-ingested rows are silently skipped.
+
+
+
+
 #[tauri::command]
 pub async fn force_rescan_all(
     state: State<'_, AppState>,
@@ -736,12 +736,12 @@ pub async fn force_rescan_all_by_state(
     })
 }
 
-// `get_usage_periods_summary` IPC — 三周期 PeriodsSummary 一次性返回。
-///
-/// 对齐 token-monitor usage.js 主数据契约,前端发 1 次请求拿全
-/// today/month/allTime + client_models + limits。
-///
-/// 接收 `UsageFilterIpc`(与 `get_usage_summary` 一致),内部转 `RustUsageFilter`。
+
+
+
+
+
+
 #[tauri::command]
 pub async fn get_usage_periods_summary(
     state: State<'_, AppState>,

@@ -46,7 +46,7 @@ function filterProviders(
 }
 
 export default function App() {
-  // M6 state shape
+  
   const [density, setDensity] = useState<"1" | "2">(
     () => (localStorage.getItem("keypilot.density") as "1" | "2") ?? "1"
   );
@@ -60,10 +60,10 @@ export default function App() {
 
   const queryClient = useQueryClient();
 
-  // M-12 CRITICAL: theme effect runs BEFORE density effect to avoid flash
-  useTheme(); // writes data-theme attribute to <html>
+  
+  useTheme(); 
 
-  // Density effect -- runs AFTER theme effect (order matters!)
+  
   useEffect(() => {
     document.documentElement.setAttribute("data-density", density);
     localStorage.setItem("keypilot.density", density);
@@ -71,15 +71,15 @@ export default function App() {
 
   const { showToast } = useToast();
 
-  // One-shot cold-start feedback for auto-import. Silent on success-with-zero;
-  // toast iff imported > 0 or parse errors > 0.  Replaces the prior
-  // `auto_import_completed` Tauri event which had an emit-before-window race.
+  
+  
+  
   const { data: autoImport } = useLastAutoImport();
 
-  // Real-time file-watcher tick listener (Bug #3 fix 2026-06-29).
-  // Side-effect-only hook — no value returned.  Invalidates the usage
-  // queries when the Rust watcher detects a new JSONL append so KPI cards
-  // and heatmap refresh in <100ms.
+  
+  
+  
+  
   useUsageTick();
   useEffect(() => {
     if (!autoImport) return;
@@ -94,10 +94,10 @@ export default function App() {
         .slice(0, 1)[0];
       showToast(`导入失败：${firstErr ?? "未知错误"}`, "error");
     }
-    // total_imported == 0 && total_errors == 0 → silent (no useful signal)
+    
   }, [autoImport, showToast]);
 
-  // Handlers
+  
   const handleTest = async (id: number) => {
     try {
       const result = await testAndRefresh({ id });
@@ -148,21 +148,21 @@ export default function App() {
     setCurrentPage("usage");
   };
 
-  // Filtered provider list for ProviderGrid
+  
   const { data: allProviders = [] } = useProviders();
   const { data: categories = [] } = useCategories();
   const filteredProviders = filterProviders(allProviders, search, categoryFilter);
 
   return (
     <div className="flex h-screen bg-background text-foreground">
-      {/* Left rail - persistent on desktop, bottom bar on mobile */}
+      {}
       <LeftRail
         currentPage={currentPage}
         onPageChange={setCurrentPage}
         onSettingsClick={() => setSettingsOpen(true)}
       />
 
-      {/* Right content column */}
+      {}
       <div className="flex-1 flex flex-col min-w-0">
         <Titlebar
           rightActions={
@@ -207,7 +207,7 @@ export default function App() {
           </div>
         )}
         {currentPage === "usage" && (
-          // removed `md:pl-16` -- see credentials scrollContainer above
+          
           <div className="flex-1 overflow-y-auto pb-[56px] md:pb-0">
             <UsagePage filterProviderName={usageFilterProviderName} />
           </div>

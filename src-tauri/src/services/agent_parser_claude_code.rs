@@ -1,8 +1,8 @@
-//! Parser for Claude Code's `~/.claude/projects/**/*.jsonl` files.
-//!
-//! Parses each `.jsonl` file into `UsageRecordInput` rows.  The caller
-//! (`auto_import`) feeds them through `TokenUsageService::record_usage`
-//! so FNV-1a dedup applies automatically.
+
+
+
+
+
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -83,7 +83,7 @@ impl AgentParser for ClaudeCodeParser {
     }
 }
 
-// ---------- JSONL parsing helpers ----------
+
 
 impl ClaudeCodeParser {
     fn walk_jsonl_dir(
@@ -149,7 +149,7 @@ impl ClaudeCodeParser {
                 }
             };
 
-            // Branch on outer type — only "assistant" carries usage.
+            
             match v.get("type").and_then(|t| t.as_str()) {
                 Some("assistant") => {
                     match self.parse_assistant(&v, stats, &file_name, line_no) {
@@ -157,7 +157,7 @@ impl ClaudeCodeParser {
                             stats.lines_matched += 1;
                             out.push(rec);
                         }
-                        None => {} // error already recorded inside parse_assistant
+                        None => {} 
                     }
                 }
                 _ => {}
@@ -244,15 +244,15 @@ impl ClaudeCodeParser {
         })
     }
 
-    /// Heuristic provider name from model identifier.  Claude Code's
-    /// `message.model` does not carry a top-level `provider` field.
-    /// First consult `pricing.json` via `PricingService` — if the model is
-    /// listed there, return its `provider` verbatim (e.g. `gpt-4o` →
-    /// `"OpenAI"`).  Otherwise fall back to prefix matching on the model
-    /// name (`claude-*` → `anthropic`, `gpt-*` / `oN-*` → `openai`,
-    /// `MiniMax-*` → `minimax-cn-coding-plan`, `vendor/model` → `vendor`).
-    /// Returns `"unknown"` when nothing matches (will price as $0 until
-    /// PricingService grows an entry).
+    
+    
+    
+    
+    
+    
+    
+    
+    
     fn derive_provider(&self, model: &str) -> String {
         if let Some(provider) = self.pricing.lookup_provider_by_model(model) {
             return provider;
@@ -277,15 +277,15 @@ impl ClaudeCodeParser {
     }
 }
 
-// ---------- Tests ----------
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Synthetic fixture — covers one valid `assistant` line, structural
-    /// lines that should be ignored, and a malformed line that should
-    /// increment `lines_parse_errored` (NOT silently dropped).
+    
+    
+    
     const SAMPLE: &str = r#"
 {"type":"worktree-state","worktreeSession":{"repo":"synth"},"sessionId":"sess-1"}
 {"type":"user","message":{"role":"user","content":"hello"},"sessionId":"sess-1","timestamp":"2026-06-24T02:58:48.331Z"}
@@ -325,7 +325,7 @@ mod tests {
         assert_eq!(r.cache_creation_input_tokens, 10);
         assert_eq!(r.session_id.as_deref(), Some("sess-1"));
         assert_eq!(r.request_id.as_deref(), Some("u1"));
-        // just verify timestamp was parsed (>2020 epoch ms), don't pin exact value
+        
         assert!(r.occurred_at > 1_577_836_800_000, "ISO timestamp parsed to epoch ms");
 
         let _ = std::fs::remove_dir_all(&tmp);
@@ -343,26 +343,26 @@ mod tests {
         assert_eq!(outcome.stats.files_scanned, 0);
     }
 
-    /// Task 4 SubTask 4.6 — verify `derive_provider` consults
-    /// `pricing.json` first, then falls back to prefix matching.
-    /// Uses the real (static-Lazy-backed) `PricingService`, so the test
-    /// reflects the exact same lookup path production code uses.
+    
+    
+    
+    
     #[test]
     fn derive_provider_uses_pricing_lookup() {
         let parser = ClaudeCodeParser::with_path(PathBuf::from("/nonexistent"), test_pricing());
 
-        // 1. pricing.json hit — `gpt-4o` is listed with provider "OpenAI".
-        //    Prefix matcher would have returned "openai"; pricing lookup
-        //    overrides with the canonical "OpenAI".
+        
+        
+        
         assert_eq!(parser.derive_provider("gpt-4o"), "OpenAI");
 
-        // 2. pricing.json miss + prefix match — `claude-future-99-test`
-        //    is not in pricing.json, so the `claude-` prefix rule fires
-        //    and returns "anthropic".
+        
+        
+        
         assert_eq!(parser.derive_provider("claude-future-99-test"), "anthropic");
 
-        // 3. completely unknown — no pricing entry, no recognised prefix,
-        //    no `vendor/model` slash → "unknown".
+        
+        
         assert_eq!(parser.derive_provider("totally-new-vendor-xyz"), "unknown");
     }
 }

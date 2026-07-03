@@ -7,7 +7,7 @@ export interface ProviderRow {
   requestCount: number;
   topModel: string;
   topModelTokens: number;
-  share: number; // 0-1, this provider's tokens / total tokens in leaderboard
+  share: number; 
 }
 
 interface TokensLeaderboardProps {
@@ -37,12 +37,12 @@ export const TokensLeaderboard = React.memo(function TokensLeaderboard({
         <div className="flex flex-col gap-3">
           {providers.map((row, idx) => (
               <div key={row.provider} className="grid grid-cols-[12px_1fr_auto] gap-x-[6px] items-center py-[3px] border-b border-border last:border-0">
-              {/* Rank */}
+              {}
               <span className="text-xs font-mono text-foreground font-medium text-right">
                 {idx + 1}
               </span>
 
-              {/* Provider + top model */}
+              {}
               <div className="flex flex-col min-w-0">
                 <span className="text-xs font-medium truncate" title={row.provider}>
                   {row.provider}
@@ -54,7 +54,7 @@ export const TokensLeaderboard = React.memo(function TokensLeaderboard({
                 )}
               </div>
 
-              {/* Tokens + bar */}
+              {}
               <div className="flex items-center gap-[6px] shrink-0">
                 <div className="w-[36px] h-[3px] bg-border rounded overflow-hidden">
                   <div

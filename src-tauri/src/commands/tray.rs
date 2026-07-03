@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::store::AppState;
 
-/// Pin a provider to the tray pinned list.
+
 #[tauri::command]
 pub async fn pin_provider(
     state: tauri::State<'_, AppState>,
@@ -23,7 +23,7 @@ pub async fn pin_provider(
     Ok(())
 }
 
-/// Unpin a provider from the tray pinned list.
+
 #[tauri::command]
 pub async fn unpin_provider(
     state: tauri::State<'_, AppState>,
@@ -45,7 +45,7 @@ pub async fn unpin_provider(
     Ok(())
 }
 
-/// Quit the application.
+
 #[tauri::command]
 pub fn quit_app() {
     std::process::exit(0);

@@ -1,7 +1,7 @@
-//! Unit tests for the coding-plan quota framework.
-//!
-//! Network-level fetch() is intentionally not exercised here — the
-//! integration test belongs to Lane B with a wiremock / mock server.
+
+
+
+
 
 use super::*;
 use crate::provider::coding_plan::minimax::parse_minimax_tiers;
@@ -10,7 +10,7 @@ use crate::provider::coding_plan::subscription::{
 };
 use crate::types::subscription::{CredentialStatus, QuotaTierKind, TierStatus};
 
-// ── detect_provider ─────────────────────────────────────────
+
 
 #[test]
 fn detect_provider_minimax_cn() {
@@ -30,7 +30,7 @@ fn detect_provider_minimax_en() {
 
 #[test]
 fn detect_provider_minimax_case_insensitive() {
-    // base_url might be uppercased by user / env. detect_provider must lowercase.
+    
     assert_eq!(
         detect_provider("HTTPS://API.MINIMAXI.COM/V1"),
         Some(CodingPlanProvider::MiniMaxCn)
@@ -126,10 +126,10 @@ fn detect_provider_unknown() {
 
 #[test]
 fn detect_provider_order_minimax_cn_beats_io_substring() {
-    // Regression guard: `api.minimax.io` contains the substring `minimax`,
-    // but the dispatch order must keep CN and EN distinct. Adding a future
-    // generic `minimax` match above would silently break this — the test
-    // catches it.
+    
+    
+    
+    
     assert_eq!(
         detect_provider("https://api.minimaxi.com/v1"),
         Some(CodingPlanProvider::MiniMaxCn),
@@ -142,7 +142,7 @@ fn detect_provider_order_minimax_cn_beats_io_substring() {
     );
 }
 
-// ── helpers::parse_f64 ──────────────────────────────────────
+
 
 #[test]
 fn parse_f64_accepts_number_and_string() {
@@ -164,23 +164,23 @@ fn parse_f64_handles_integer() {
 
 #[test]
 fn parse_f64_empty_string_returns_none() {
-    // ponytail: empty-string → parse::<f64>() fails → None.
-    // No explicit branch needed; relying on Option::None propagation.
+    
+    
     assert_eq!(parse_f64(&serde_json::json!("")), None);
 }
 
-// ── helpers::extract_reset_ms ────────────────────────────────
+
 
 #[test]
 fn extract_reset_ms_handles_ms() {
-    // 1.782e12 is past 2001 in ms — clearly ms not seconds.
+    
     let v = serde_json::json!(1_782_993_600_000_i64);
     assert_eq!(extract_reset_ms(&v), Some(1_782_993_600_000));
 }
 
 #[test]
 fn extract_reset_ms_handles_seconds() {
-    // 1.782e9 is ~year 2026 in seconds — should multiply by 1000.
+    
     let v = serde_json::json!(1_782_993_600_i64);
     assert_eq!(extract_reset_ms(&v), Some(1_782_993_600_000));
 }
@@ -189,14 +189,14 @@ fn extract_reset_ms_handles_seconds() {
 fn extract_reset_ms_handles_iso8601_string() {
     let v = serde_json::json!("2026-07-01T00:00:00Z");
     let out = extract_reset_ms(&v).expect("ISO 8601 must parse");
-    // 2026-07-01T00:00:00Z = 1782864000 seconds = 1782864000000 ms
-    // (epoch calc: 2026-01-01 = 1767225600s + 181 days × 86400s).
+    
+    
     assert_eq!(out, 1_782_864_000_000);
 }
 
 #[test]
 fn extract_reset_ms_handles_negative() {
-    // Volcengine session-no-active-window sentinel; matches cc-switch behavior.
+    
     assert_eq!(extract_reset_ms(&serde_json::json!(-1_i64)), None);
     assert_eq!(extract_reset_ms(&serde_json::json!(0_i64)), None);
 }
@@ -212,7 +212,7 @@ fn extract_reset_ms_handles_null_and_bool() {
     assert_eq!(extract_reset_ms(&serde_json::json!(true)), None);
 }
 
-// ── helpers::make_tier ──────────────────────────────────────
+
 
 #[test]
 fn make_tier_clamps_remaining_percent() {
@@ -266,7 +266,7 @@ fn make_tier_used_equals_hundred_minus_remaining() {
     assert_eq!(tier.used_percent, Some(15.0));
 }
 
-// ── helpers::make_error / make_success ──────────────────────
+
 
 #[test]
 fn make_error_default_status_is_valid() {
@@ -276,7 +276,7 @@ fn make_error_default_status_is_valid() {
     assert_eq!(err.credential_status, CredentialStatus::Valid);
     assert_eq!(err.provider_id, "test");
     assert!(err.tiers.is_empty());
-    // queried_at_ms must be > 0 (any reasonable epoch).
+    
     assert!(err.queried_at_ms > 0);
 }
 
@@ -295,11 +295,11 @@ fn make_success_default_status_is_valid() {
     assert_eq!(ok.provider_id, "minimax");
 }
 
-// ── minimax::parse_minimax_tiers ────────────────────────────
+
 
 #[test]
 fn minimax_parses_real_response_with_active_weekly() {
-    // Real response shape with active weekly (status == 1) → 2 tiers.
+    
     let body = serde_json::json!({
         "model_remains": [{
             "model_name": "general",
@@ -323,7 +323,7 @@ fn minimax_parses_real_response_with_active_weekly() {
     let tiers = parse_minimax_tiers(&body);
     assert_eq!(tiers.len(), 2);
 
-    // 5-hour tier
+    
     assert_eq!(tiers[0].kind, QuotaTierKind::FiveHour);
     assert_eq!(tiers[0].label, "General 5h");
     assert_eq!(tiers[0].remaining_percent, Some(85.0));
@@ -331,7 +331,7 @@ fn minimax_parses_real_response_with_active_weekly() {
     assert_eq!(tiers[0].resets_at_ms, Some(1_783_008_000_000));
     assert_eq!(tiers[0].status, TierStatus::Active);
 
-    // Weekly tier (status == 1 ⇒ Active)
+    
     assert_eq!(tiers[1].kind, QuotaTierKind::Weekly);
     assert_eq!(tiers[1].label, "General Weekly");
     assert_eq!(tiers[1].remaining_percent, Some(75.0));
@@ -341,8 +341,8 @@ fn minimax_parses_real_response_with_active_weekly() {
 
 #[test]
 fn minimax_skips_weekly_when_status_is_3() {
-    // Real response with weekly status == 3 (no weekly cap on this plan).
-    // Should emit ONLY the 5-hour tier, ignoring the misleading 100%.
+    
+    
     let body = serde_json::json!({
         "model_remains": [{
             "model_name": "general",
@@ -360,7 +360,7 @@ fn minimax_skips_weekly_when_status_is_3() {
 
 #[test]
 fn minimax_skips_non_general_model_entries() {
-    // Non-general model entries (e.g. `video`) must be filtered out.
+    
     let body = serde_json::json!({
         "model_remains": [
             {
@@ -393,7 +393,7 @@ fn minimax_handles_missing_model_remains() {
 
 #[test]
 fn minimax_handles_missing_general_entry() {
-    // Only `video` entries; no `general` ⇒ empty result.
+    
     let body = serde_json::json!({
         "model_remains": [{
             "model_name": "video",
@@ -406,7 +406,7 @@ fn minimax_handles_missing_general_entry() {
 
 #[test]
 fn minimax_string_percent_fallback() {
-    // Defensive: some MiniMax proxies serialize percentage as string.
+    
     let body = serde_json::json!({
         "model_remains": [{
             "model_name": "general",
@@ -425,8 +425,8 @@ fn minimax_string_percent_fallback() {
 
 #[test]
 fn minimax_inactive_5h_status_maps_to_inactive() {
-    // 5-hour status == 2 (or anything else) ⇒ Inactive, but still emitted
-    // so the UI can explain why the gauge is empty / hidden.
+    
+    
     let body = serde_json::json!({
         "model_remains": [{
             "model_name": "general",
@@ -443,7 +443,7 @@ fn minimax_inactive_5h_status_maps_to_inactive() {
     assert_eq!(tiers[1].status, TierStatus::Active);
 }
 
-// ── fetch_coding_plan_quota (dispatcher) ────────────────────
+
 
 #[tokio::test]
 async fn dispatcher_rejects_empty_api_key() {
@@ -464,13 +464,13 @@ async fn dispatcher_returns_unknown_provider_for_unrecognized_host() {
 
 #[tokio::test]
 async fn dispatcher_dispatches_kimi_to_real_provider_not_stub() {
-    // Lane C: Kimi is now wired with a real implementation. The dispatcher
-    // must NOT emit a "not yet implemented" placeholder — instead it routes
-    // to `kimi::fetch`, which then attempts the real HTTP call. The wire
-    // outcome depends on the test environment: a sealed network returns a
-    // transport error (Valid status, success=false) while a real endpoint
-    // returns HTTP 401 for our fake key (Invalid status, success=false).
-    // Either is fine — the only thing we assert is that the new arm fired.
+    
+    
+    
+    
+    
+    
+    
     let q = fetch_coding_plan_quota("https://api.kimi.com/coding/v1", "sk-test").await;
     assert_eq!(
         q.provider_id, "kimi",

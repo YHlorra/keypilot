@@ -62,7 +62,7 @@ impl super::ProviderAdapter for OpenAiAdapter {
         let client = reqwest::Client::new();
         let base = base_url.trim_end_matches('/');
 
-        // Step 1: GET subscription → hard_limit_usd (already USD, NOT cents)
+        
         let sub_url = format!("{}/dashboard/billing/subscription", base);
         let sub_resp = client
             .get(&sub_url)
@@ -84,14 +84,14 @@ impl super::ProviderAdapter for OpenAiAdapter {
             .await
             .map_err(|e| QuotaError::Parse(e.to_string()))?;
 
-        let hard_limit = sub.hard_limit_usd; // already in USD, NO division by 100
+        let hard_limit = sub.hard_limit_usd; 
 
-        // Step 2: 3-month window iteration (cumulative from 2000-01-01)
-        // Spec L98-150: while start < now: end = min(start + 3 months, now); GET usage; start = end
+        
+        
         let mut total_cents: f64 = 0.0;
         let mut start = NaiveDate::from_ymd_opt(2000, 1, 1).unwrap();
-        // intentional Utc: OpenAI billing API expects UTC calendar dates per its spec;
-        // sending Local dates would shift the window by TZ offset and miss usage on edges.
+        
+        
         let now_date = Utc::now().date_naive();
 
         while start < now_date {
@@ -128,7 +128,7 @@ impl super::ProviderAdapter for OpenAiAdapter {
             start = end;
         }
 
-        // cents → USD, then ceil to eliminate float errors (spec L147, L149)
+        
         let used = (total_cents / 100.0).ceil();
         let remaining = hard_limit - used;
 
@@ -139,7 +139,7 @@ impl super::ProviderAdapter for OpenAiAdapter {
             _ => "ruby",
         };
 
-        // 计算百分比与 ISO 重置时间(月度结算窗口)
+        
         let used_percent = if hard_limit > 0.0 {
             Some((used / hard_limit) * 100.0)
         } else {
@@ -150,12 +150,12 @@ impl super::ProviderAdapter for OpenAiAdapter {
         } else {
             None
         };
-        // 月度窗口:下个月 1 号 00:00 UTC
-        // intentional Utc: OpenAI wallet reset_at is reported in UTC; the unit is
-        // stored verbatim and shown as a UTC clock string to match the source.
+        
+        
+        
         let resets_at_iso = {
             let now = Utc::now();
-            // 加 1 个月,然后把日改为 1 号;若失败 fallback 到加 1 月的日期
+            
             let next_month = now.date_naive().checked_add_months(Months::new(1));
             next_month.and_then(|d| d.with_day(1)).map(|d| {
                 d.and_hms_opt(0, 0, 0)
@@ -165,14 +165,14 @@ impl super::ProviderAdapter for OpenAiAdapter {
         };
 
         Ok(QuotaSnapshot {
-            // 旧字段(向后兼容)
+            
             total: Some(hard_limit),
             used,
             remaining: Some(remaining),
             unit: "USD".to_string(),
             level: Some(level.to_string()),
             reset_at: None,
-            // 新字段(对齐 token-monitor normalizeLimitProvider 输出)
+            
             windows: vec![LimitWindow {
                 kind: LimitWindowKind::Billing,
                 label: "Monthly".to_string(),

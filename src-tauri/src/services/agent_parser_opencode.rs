@@ -1,8 +1,8 @@
-//! Parser for opencode's `opencode.db` session table (SQLite, READ ONLY).
-//!
-//! Calls `parse_opencode_db_records()` — the same pure row-parsing function
-//! used by `TokenUsageService::import_opencode_db`, so there is zero duplicate
-//! SQL/logic between the two call sites.
+
+
+
+
+
 
 use std::path::PathBuf;
 
@@ -10,16 +10,16 @@ use crate::error::AppError;
 use crate::services::agent_parser::{AgentParser, ParseOutcome, ParseStats};
 use crate::services::token_usage::parse_opencode_db_records;
 
-/// Discover opencode Go databases across platform conventions.
-///
-/// Aligns with token-monitor `discoverDbPaths` (Javis603/token-monitor):
-///   1. `%LOCALAPPDATA%\opencode\opencode*.db` (Windows local convention)
-///   2. `~/.local/share/opencode/opencode*.db` (XDG convention, also used by
-///      opencode Go CLI v1.17+ on Windows via HOME)
-/// Glob accepts `opencode.db` and `opencode-<channel>.db`
-/// (channel = `[A-Za-z0-9._-]+`); WAL/SHM side-files (e.g. `opencode.db-wal`)
-/// are rejected by `ends_with(".db")`. Returns paths in sorted order; may
-/// be empty.
+
+
+
+
+
+
+
+
+
+
 pub(crate) fn candidate_paths() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Ok(p) = std::env::var("LOCALAPPDATA") {
@@ -33,15 +33,15 @@ pub(crate) fn candidate_paths() -> Vec<PathBuf> {
     out
 }
 
-/// Filter `*.db` files in a single base directory that match the opencode
-/// naming convention. Pulled out so tests can pass a controlled tempdir
-/// without wrestling with `dirs::home_dir()` (which on Windows resolves via
-/// `SHGetKnownFolderPath` and ignores `HOME` env overrides).
-///
-/// Naming: `starts_with("opencode") && ends_with(".db")` matches:
-///   - `opencode.db`                          ✓
-///   - `opencode-<channel>.db`                ✓ (channel = [A-Za-z0-9._-]+)
-///   - `opencode.db-wal` / `opencode.db-shm`  ✗ (no .db suffix)
+
+
+
+
+
+
+
+
+
 fn filter_db_files(base_dir: &std::path::Path) -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(base_dir) else {
         return Vec::new();
@@ -78,7 +78,7 @@ impl AgentParser for OpencodeParser {
         "opencode"
     }
 
-    /// UI display — first existing candidate, falling back to the XDG primary path.
+    
     fn default_path(&self) -> PathBuf {
         self.candidates
             .iter()
@@ -92,17 +92,17 @@ impl AgentParser for OpencodeParser {
             })
     }
 
-    /// True if any candidate exists.
+    
     fn is_available(&self) -> bool {
         self.candidates.iter().any(|p| p.exists())
     }
 
-    /// Returns session rows as `UsageRecordInput` — caller (`auto_import`)
-    /// feeds them through `record_usage` so FNV-1a dedup applies.
-    /// Iterates every candidate; partial parse failures (schema drift on a
-    /// single channel) do not abort the batch — they land in
-    /// `stats.sample_errors` so the UI can surface WHY a channel contributed
-    /// 0 rows instead of silently dropping it.
+    
+    
+    
+    
+    
+    
     fn parse(&self) -> Result<ParseOutcome, AppError> {
         if !self.is_available() {
             return Ok(ParseOutcome { records: vec![], stats: ParseStats::empty() });
@@ -135,14 +135,14 @@ impl Default for OpencodeParser {
     }
 }
 
-// ---------- Tests ----------
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Helper: per-process isolated tempdir to keep parallel tests from
-    /// stepping on each other.
+    
+    
     fn isolated_tempdir(tag: &str) -> std::path::PathBuf {
         let pid = std::process::id();
         let nanos = std::time::SystemTime::now()
@@ -176,10 +176,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Reject WAL/SHM side-files: `opencode.db-wal` and `opencode.db-shm`
-    /// must NOT appear in candidate paths even when the parent dir is full
-    /// of them.  These are SQLite Write-Ahead Log + shared-memory side-files
-    /// and are not standalone databases.
+    
+    
+    
+    
     #[test]
     fn filter_db_files_excludes_wal_and_shm() {
         let dir = isolated_tempdir("wal");
@@ -192,8 +192,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Filter ignores non-opencode databases (e.g. a sibling app storing
-    /// `app.db` in the same directory).
+    
+    
     #[test]
     fn filter_db_files_ignores_non_opencode_dbs() {
         let dir = isolated_tempdir("other");
@@ -206,11 +206,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Missing dir returns empty (read_dir fails silently).
+    
     #[test]
     fn filter_db_files_returns_empty_on_missing_dir() {
         let dir = isolated_tempdir("missing");
-        // Intentionally do NOT create the dir.
+        
         let found = filter_db_files(&dir);
         assert!(found.is_empty());
     }

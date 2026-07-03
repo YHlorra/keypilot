@@ -9,7 +9,7 @@ import "./styles/globals.css";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 min per REQ-QUOTA-DISPLAY-001
+      staleTime: 5 * 60 * 1000, 
       retry: 1,
     },
   },

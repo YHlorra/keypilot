@@ -1,11 +1,11 @@
-//! Parser for Codex's `~/.codex/sessions/**/*.jsonl` files.
-//!
-//! Each `.jsonl` line is a flat JSON object with top-level `timestamp`
-//! (integer **seconds**, unlike Claude Code's ISO-8601 string), `model`,
-//! and `usage`.  See `agent_parser_claude_code.rs` for the sibling parser.
-//!
-//! The caller (`auto_import`) feeds each emitted `UsageRecordInput` through
-//! `TokenUsageService::record_usage` so FNV-1a dedup applies automatically.
+
+
+
+
+
+
+
+
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -78,7 +78,7 @@ impl AgentParser for CodexParser {
     }
 }
 
-// ---------- JSONL parsing helpers ----------
+
 
 impl CodexParser {
     fn walk_jsonl_dir(
@@ -154,24 +154,24 @@ impl CodexParser {
         }
     }
 
-    /// Parse one Codex JSONL line into a `UsageRecordInput`.
-    ///
-    /// Top-level shape:
-    /// ```json
-    /// {"timestamp": 1718000000, "model": "gpt-4o",
-    ///  "usage": {"prompt_tokens": 1000, "completion_tokens": 500,
-    ///            "reasoning_tokens": 200},
-    ///  "session_id": "abc", "request_id": "def"}
-    /// ```
-    ///
-    /// - `timestamp` is integer **seconds** (NOT ISO-8601 like Claude Code);
-    ///   multiply by 1000 to get millis for `occurred_at`.
-    /// - `usage` is optional — lines without it are silently skipped
-    ///   (NOT counted as errored), because Codex emits non-usage rows too.
-    /// - Codex does not distinguish cache tiers, so both cache fields are 0.
-    /// - `provider_name` comes from `pricing.json` via `PricingService`;
-    ///   when the model is unknown there, fall back to `"openai"`
-    ///   (Codex models are almost always OpenAI).
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     fn parse_session_line(
         &self,
         v: &Value,
@@ -179,13 +179,13 @@ impl CodexParser {
         file: &str,
         line_no: u32,
     ) -> Option<UsageRecordInput> {
-        // `usage` is optional — missing usage means "skip silently, not error".
+        
         let usage = match v.get("usage") {
             Some(u) => u,
             None => return None,
         };
 
-        // Top-level `timestamp` is integer seconds.  Missing/invalid → errored.
+        
         let timestamp_secs = match v.get("timestamp").and_then(|t| t.as_i64()) {
             Some(t) => t,
             None => {
@@ -216,7 +216,7 @@ impl CodexParser {
             .and_then(|x| x.as_i64())
             .unwrap_or(0);
 
-        // Codex does not distinguish cache tiers.
+        
         let cache_read_input_tokens = 0;
         let cache_creation_input_tokens = 0;
 
@@ -251,7 +251,7 @@ impl CodexParser {
     }
 }
 
-// ---------- Tests ----------
+
 
 #[cfg(test)]
 mod tests {
@@ -261,11 +261,11 @@ mod tests {
         Arc::new(PricingService::new())
     }
 
-    /// Synthetic fixture — 4 lines:
-    ///  1. valid (with usage)        → 1 record
-    ///  2. no `usage` field           → skipped silently (NOT errored)
-    ///  3. malformed JSON             → errored
-    ///  4. no `timestamp` (has usage) → errored
+    
+    
+    
+    
+    
     #[test]
     fn parses_synthetic_codex_fixture() {
         let tmp = std::env::temp_dir().join(format!(
@@ -318,7 +318,7 @@ mod tests {
         assert_eq!(r.session_id.as_deref(), Some("s1"));
         assert_eq!(r.request_id.as_deref(), Some("r1"));
 
-        // provider_name should match pricing.json lookup for gpt-4o ("OpenAI").
+        
         let expected = test_pricing().lookup_provider_by_model("gpt-4o");
         assert_eq!(Some(r.provider_name.clone()), expected);
         assert_eq!(r.provider_name, "OpenAI");

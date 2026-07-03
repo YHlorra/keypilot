@@ -18,10 +18,10 @@ use store::AppState;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub fn run() {
-    // Build Tauri app — startup chain runs inside .setup() where app.path() is accessible
+    
     tauri::Builder::default()
         .setup(|app| {
-            // Stage 1: app data dir via Tauri 2 API
+            
             let app_dir = app.path().app_data_dir()?;
 
             std::fs::create_dir_all(&app_dir).map_err(AppError::Io)?;
@@ -30,13 +30,13 @@ pub fn run() {
             let db = Database::open(&db_path)?;
             db.setup_schema()?;
             db.migrate()?;
-            // Purge stale auto-fetched quota_cache rows (older than 7 days).
-            // Manual entries are preserved. Failure is non-fatal — app still starts.
+            
+            
             if let Err(e) = db.purge_expired_quota_cache(7 * 86400) {
                 eprintln!("quota_cache purge failed: {}", e);
             }
-            // One-time cleanup: remove seeded preset providers so app starts empty per user feedback (2026-06-26).
-            // Safe to run on every startup -- only deletes is_preset=1 rows.
+            
+            
             match db.delete_preset_providers() {
                 Ok(n) if n > 0 => eprintln!("Removed {} preset provider(s) from previous startup", n),
                 Ok(_) => {},
@@ -44,28 +44,28 @@ pub fn run() {
             }
 
             let state = AppState::new(db);
-            // Clone Arcs before moving state into app.manage — needed for
-            // auto-import which runs before the window opens.
+            
+            
             let db_for_import = state.db.clone();
             let pricing_for_import = state.pricing.clone();
             app.manage(state);
 
-            // Clone AppHandle BEFORE entering the closure — `app` is `&mut tauri::App`
-            // and can't escape into the spawn_blocking 'static closure.
+            
+            
             let app_handle = app.app_handle().clone();
 
-            // Run auto-import across all available agent parsers (opencode.db,
-            // claude-code jsonl files, etc.) in a BACKGROUND thread so webview
-            // creation is not blocked by a potentially long JSONL scan (Claude
-            // Code projects can be hundreds of MB).  This populates
-            // token_usage_records from existing agent data so the heatmap and
-            // KPI cards are non-empty on first launch.
-            //
-            // 2026-06-29 (Bug #3 fix): replaced one-shot `scan_and_import_if_empty`
-            // (which became a no-op once the DB had > 100 rows) with
-            // `IncrementalImporter` — a file-watching, per-file-cursor scanner
-            // that emits `token_usage_tick` events as Claude Code / Codex append
-            // new lines to their JSONL session logs.
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
             tauri::async_runtime::spawn_blocking(move || {
                 let svc = TokenUsageService::new(db_for_import.clone(), pricing_for_import.clone());
                 let summary = auto_import::scan_and_import_if_empty(&svc);
@@ -74,9 +74,9 @@ pub fn run() {
                     eprintln!("Failed to store last_auto_import meta: {}", e);
                 }
 
-                // Spawn the file watcher + 30s fallback poll loop.  Owns its
-                // own threads; dropping the IncrementalImporter shuts them
-                // down.  V0.1 keeps it alive for the process lifetime.
+                
+                
+                
                 let parsers =
                     services::agent_parser::default_parsers(pricing_for_import.clone());
                 let _importer = IncrementalImporter::start(
@@ -85,15 +85,15 @@ pub fn run() {
                     pricing_for_import,
                     parsers,
                 );
-                // Intentional leak: importer holds debouncer + thread alive
-                // for the process lifetime.  V0.1 has no shutdown signal.
+                
+                
                 Box::leak(Box::new(_importer));
             });
 
-            // Stage 5: Initialize system tray
+            
             let _tray = tray::init_tray(app.handle())?;
 
-            // Create main window
+            
             let (label, title) = ("main".to_string(), "KeyPilot");
 
             let builder = WebviewWindowBuilder::new(
@@ -137,7 +137,7 @@ pub fn run() {
     commands::token_usage::get_pricing,
     commands::token_usage::recompute_costs,
     commands::token_usage::force_rescan_all,
-    // Action Registry (Stage 10)
+    
     commands::action::list_actions,
     commands::action::execute_action,
 ])

@@ -1,5 +1,5 @@
-// src-tauri/src/actions/category.rs
-// Category domain actions — list, add, delete.
+
+
 
 use super::ActionDef;
 use serde_json::json;

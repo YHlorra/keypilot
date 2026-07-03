@@ -18,9 +18,9 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
   { value: "30d", label: "30d" },
 ];
 
-// Presets whose default base_url routes to a coding-plan provider (Lane A).
-// Mirrors `AddCredentialModal.PRESET_DEFAULTS`; keep in sync when adding
-// a new coding-plan preset.
+
+
+
 const CODING_PLAN_PRESETS = new Set<string>([
   "minimax",
   "minimax-overseas",
@@ -42,18 +42,18 @@ export interface UsagePageProps {
 export default function UsagePage({ filterProviderName }: UsagePageProps) {
   const [selectedRange, setSelectedRange] = useState<RangeOption>("30d");
 
-  // 单 IPC:一次拿 today/month/allTime + client_models + limits
-  // 注:filter 只用于 provider 维度过滤,日期由后端按 period_windows 算
+  
+  
   const periodsFilter = useMemo((): UsageFilter => {
     return filterProviderName ? { provider: filterProviderName } : {};
   }, [filterProviderName]);
 
   const { data: periodsData, isLoading: periodsLoading } = useUsagePeriodsSummary(periodsFilter);
 
-  // Coding Plan (Lane C): resolves the numeric provider id for the currently
-  // filtered provider, but only when its preset is in the supported family.
-  // V0.1 scope: all 11 coding-plan presets (minimax* / kimi* / zhipu* /
-  // volcengine* / zenmux).
+  
+  
+  
+  
   const { data: providers = [] } = useProviders();
   const codingPlanProviderId = useMemo<number | null>(() => {
     if (!filterProviderName) return null;
@@ -64,17 +64,17 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
     return provider.id;
   }, [filterProviderName, providers]);
 
-  // 三周期直接读
+  
   const todaySummary = periodsData?.periods.today;
   const monthSummary = periodsData?.periods.month;
   const allTimeSummary = periodsData?.periods.all_time;
 
-  // Trend chart: rolling N-day window from all_time daily series.
-  // Sourcing from `month` would break the 30d view on day 1 of a month
-  // (only 1-2 entries → chart connects them as a misleading straight line).
+  
+  
+  
   const trendDailySeries = allTimeSummary?.daily_series ?? [];
 
-  // Lifetime daily_series 用于 heatmap(all-time)
+  
   const heatmapDateMap = useMemo(() => {
     const series = allTimeSummary?.daily_series ?? [];
     const map = new Map<string, number>();
@@ -102,7 +102,7 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
     return `${spanDays} days`;
   }, [allTimeSummary]);
 
-  // Rolling N-day window: slice the last N entries from the (all-time) series.
+  
   const slicedTrendSeries = useMemo(() => {
     const series = trendDailySeries;
     if (series.length === 0) return [];
@@ -141,7 +141,7 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Page content — single scroll context owned by App.tsx */}
+      {}
       <div className="flex-1 min-h-0 max-w-[1600px] mx-auto px-4 py-3 flex flex-col gap-4">
         <section>
           <div className="flex flex-col mb-3">
@@ -155,7 +155,7 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
           )}
         </section>
 
-        {/* Body: trend chart + leaderboard sidebar */}
+        {}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_230px] gap-4">
           <div className="flex flex-col gap-6">
             <section>
@@ -166,7 +166,7 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
                     {selectedRange === "7d" ? "Last 7 days" : "Last 30 days"} (rolling window)
                   </span>
                 </div>
-                {/* Range toggle */}
+                {}
                 <div className="inline-flex items-center rounded-pill border border-border p-0.5 gap-0.5">
                   {RANGE_OPTIONS.map((opt) => (
                     <button
@@ -202,7 +202,7 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
             </section>
           </div>
 
-          {/* Sidebar: tokens leaderboard only (4 components in spec, no agent+model breakdown) */}
+          {}
           <aside className="lg:sticky lg:top-5 self-start flex flex-col gap-6">
             <TokensLeaderboard providers={providerLeaderboard} isLoading={periodsLoading} />
           </aside>
@@ -216,7 +216,7 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
           allTimeLabel={allTimeLabel}
         />
 
-        {/* Lane C: coding plan quota panel (11 coding-plan presets for V0.1) */}
+        {}
         {codingPlanProviderId != null && (
           <section className="flex flex-col gap-2">
             <SectionLabel>Coding Plan</SectionLabel>
