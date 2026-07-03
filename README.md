@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="#-quick-start"><img alt="Quick Start" src="https://img.shields.io/badge/quick-start-000?style=flat-square&logo=readme&logoColor=white"/></a>
+  <a href="#quick-start"><img alt="Quick Start" src="https://img.shields.io/badge/quick-start-000?style=flat-square&logo=readme&logoColor=white"/></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/YHlorra/keypilot?style=flat-square"/></a>
   <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-000?style=flat-square"/>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6?style=flat-square&logo=windows&logoColor=white"/>
@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <a href="README.zh-CN.md">简体中文</a> · <a href="#-license">License</a>
+  <a href="README.zh-CN.md">简体中文</a> · <a href="#license">License</a>
 </p>
 
 ---
@@ -24,18 +24,17 @@
 
 ## Contents
 
-- [Quick Start](#-quick-start)
-- [About](#-about)
-- [Features](#-features)
-- [Connecting to Providers](#-connecting-to-providers)
-- [Tech Stack](#-tech-stack)
-- [Scope (V0.1)](#-scope-v01)
-- [Project Structure](#-project-structure)
-- [Development](#-development)
-- [Verification](#-verification)
-- [When (Not) to Use](#-when-not-to-use)
-- [Roadmap](#-roadmap)
-- [License](#-license)
+- [Quick Start](#quick-start)
+- [About](#about)
+- [Features](#features)
+- [Connecting to Providers](#connecting-to-providers)
+- [Tech Stack](#tech-stack)
+- [Scope (V0.1)](#scope-v01)
+- [Project Structure](#project-structure)
+- [Development](#development)
+- [When (Not) to Use](#when-not-to-use)
+- [Roadmap](#roadmap)
+- [License](#license)
 
 ## Quick Start
 
@@ -65,12 +64,6 @@ cargo tauri dev
 
 The first launch seeds an empty SQLite DB at `%APPDATA%\com.keypilot.app\`. Add a provider, paste an API key, hit **Fetch Quota** — done.
 
-### Verify the build
-
-```bash
-./init.sh        # cargo check + test + webui typecheck
-```
-
 ## About
 
 KeyPilot is a **local credential manager for AI power users**. It centralises API keys, AK/SK pairs and connection strings for every LLM provider you touch, and refreshes quota / balance in the background so you know what's left before you hit send.
@@ -81,7 +74,7 @@ V0.1 deliberately stops at three things:
 2. **Live quota** — the things you pay for (API wallet, Coding Plan 5-hour / weekly windows) update in the background and surface in a single tray-side panel.
 3. **Token usage history** — auto-parses sessions from OpenCode / Claude Code / Codex, so you can see which agent burned what, when.
 
-Credential encryption, cross-platform support and cloud sync are **explicitly out of scope** — see [Roadmap](#-roadmap) and [When (Not) to Use](#-when-not-to-use).
+Credential encryption, cross-platform support and cloud sync are **explicitly out of scope** — see [Roadmap](#roadmap) and [When (Not) to Use](#when-not-to-use).
 
 ## Features
 
@@ -141,8 +134,6 @@ For Coding Plans, KeyPilot auto-fetches both windows and shows the tighter one i
 keypilot/
 ├── README.md / README.zh-CN.md   # this file
 ├── LICENSE                        # MIT
-├── init.sh                        # build validation script
-├── docs/                          # public docs
 ├── src-tauri/                     # Rust backend (Tauri 2)
 │   ├── Cargo.toml / tauri.conf.json / build.rs
 │   └── src/
@@ -186,16 +177,6 @@ cd webui && pnpm exec playwright test
 # build release
 cargo tauri build
 ```
-
-## Verification
-
-Validate the build with:
-
-```bash
-./init.sh
-```
-
-It runs `cargo check`, `cargo test`, and `pnpm install && tsc --noEmit`.
 
 ## When (Not) to Use
 
