@@ -29,9 +29,9 @@ impl PricingService {
         Self { model_index }
     }
 
-    /// Build a PricingService from an explicit model list (test-only entry point).
-    /// `version()` still reads the bundled pricing.json version, since pricing
-    /// version is a property of the shipping data, not the in-memory index.
+    
+    
+    
     pub(crate) fn from_models(models: Vec<PricingEntry>) -> Self {
         let mut model_index = HashMap::new();
         for entry in models {
@@ -44,8 +44,8 @@ impl PricingService {
         self.model_index.get(model).cloned()
     }
 
-    /// 通过模型名查找对应的 provider 字符串(例如 gpt-4o → "OpenAI")。
-    /// 模型不在 pricing.json 时返回 None。
+    
+    
     pub fn lookup_provider_by_model(&self, model: &str) -> Option<String> {
         self.model_index.get(model).map(|entry| entry.provider.clone())
     }

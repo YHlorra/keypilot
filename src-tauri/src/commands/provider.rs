@@ -6,7 +6,7 @@ use crate::store::AppState;
 use crate::types::{Category, Provider, Theme};
 use std::collections::HashMap;
 
-// 12 IPC command handlers
+
 
 #[tauri::command]
 pub async fn list_providers(
@@ -117,7 +117,7 @@ pub async fn test_connection_by_state(
         return Err(AppError::ProviderCannotTest(preset));
     }
 
-    // Build field map
+    
     let field_map: HashMap<String, String> = fields.into_iter().collect();
     let base_url = field_map.get("base_url").cloned().unwrap_or_default();
     let api_key = field_map.get("api_key").cloned().unwrap_or_default();

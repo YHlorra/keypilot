@@ -32,7 +32,7 @@ function nextTheme(theme: Theme): Theme {
 }
 
 interface ThemeToggleProps {
-  /** When true, render as a bare icon button sized to fit inside a toolbar pill. */
+  
   bare?: boolean;
 }
 
@@ -40,7 +40,7 @@ export const ThemeToggle = React.memo(function ThemeToggle({ bare = false }: The
   const { theme, isLoading, setTheme } = useTheme();
   const [activeTheme, setActiveTheme] = useState<Theme>(theme ?? "dark");
 
-  // init from localStorage on mount
+  
   useEffect(() => {
     const stored = localStorage.getItem("keypilot.theme");
     if (stored === "light" || stored === "dark" || stored === "auto") {
@@ -52,12 +52,12 @@ export const ThemeToggle = React.memo(function ThemeToggle({ bare = false }: The
     }
   }, []);
 
-  // sync from query
+  
   useEffect(() => {
     if (theme) setActiveTheme(theme);
   }, [theme]);
 
-  // auto mode listener
+  
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (e: MediaQueryListEvent | MediaQueryList) => {

@@ -21,7 +21,7 @@ export const KvRow = React.memo(function KvRow({ field, onUpdate, onDelete }: Kv
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-mask after 3 seconds
+  
   const startRevealTimer = useCallback(() => {
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     revealTimerRef.current = setTimeout(() => {
@@ -88,7 +88,7 @@ export const KvRow = React.memo(function KvRow({ field, onUpdate, onDelete }: Kv
 
   return (
     <div className="group flex items-center gap-2 py-2 px-3 rounded-md hover:bg-[color-mix(in_srgb,var(--color-accent)_50%,transparent)] transition-colors">
-      {/* Key */}
+      {}
       <div className="w-[30%] flex-shrink-0">
         {isEditing ? (
           <input
@@ -104,7 +104,7 @@ export const KvRow = React.memo(function KvRow({ field, onUpdate, onDelete }: Kv
         )}
       </div>
 
-      {/* Value */}
+      {}
       <div className="flex-1 min-w-0 flex items-center gap-1">
         {isEditing ? (
           <input
@@ -138,7 +138,7 @@ export const KvRow = React.memo(function KvRow({ field, onUpdate, onDelete }: Kv
         )}
       </div>
 
-      {/* Actions */}
+      {}
       <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {isEditing ? (
           <>

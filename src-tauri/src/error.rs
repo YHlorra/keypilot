@@ -59,7 +59,7 @@ impl From<tauri::Error> for AppError {
     }
 }
 
-// Tauri command serialization: { code: String, message: String }
+
 impl serde::Serialize for AppError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

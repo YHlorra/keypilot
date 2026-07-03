@@ -51,7 +51,7 @@ export const ProviderGrid = ({
   const { isLoading, isError, refetch } = useProviders();
   const queryClient = useQueryClient();
 
-  // Read density from document.documentElement (set by App.tsx)
+  
   const [density, setDensity] = useState<"1" | "2">("1");
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export const ProviderGrid = ({
       await deleteProviderViaAction({ id });
       await queryClient.invalidateQueries({ queryKey: ["providers"] });
     } catch {
-      // error handled by caller if needed
+      
     }
   };
 

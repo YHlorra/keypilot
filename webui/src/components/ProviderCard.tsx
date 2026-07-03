@@ -15,16 +15,16 @@ import { ProviderIcon } from "./Icon";
 
 type Tone = "ok" | "warn" | "crit" | "none";
 
-// ponytail: TONE_BG was specified in the task but has no caller — the donut
-// uses SVG stroke (TONE_STROKE) and the balance uses text color (TONE_TEXT).
-// Strict-mode tsc rejects unused locals, so TONE_BG is intentionally omitted.
+
+
+
 const TONE_TEXT: Record<Tone, string> = {
   ok: "text-[var(--color-success)]",
   warn: "text-[var(--color-accent)]",
   crit: "text-[var(--color-destructive)]",
   none: "text-[var(--color-muted)]",
 };
-// ponytail: SVG stroke can't use Tailwind utility classes — lookup the raw var.
+
 const TONE_STROKE: Record<Tone, string> = {
   ok: "var(--color-success)",
   warn: "var(--color-accent)",
@@ -32,7 +32,7 @@ const TONE_STROKE: Record<Tone, string> = {
   none: "var(--color-muted)",
 };
 
-// ponytail: threshold >50 / >=20 mirrors CodingPlanQuotas's tone grading.
+
 function quotaTone(remaining: number | null): Tone {
   if (remaining === null) return "none";
   if (remaining > 50) return "ok";
@@ -41,7 +41,7 @@ function quotaTone(remaining: number | null): Tone {
 }
 const quotaTextTone = quotaTone;
 
-// ponytail: r=6, stroke=2.2 → circumference ≈ 37.70. Matches preview.
+
 const DONUT_CIRCUMFERENCE = 37.7;
 
 interface ProviderCardProps {
@@ -71,18 +71,18 @@ export const ProviderCard = ({
 }: ProviderCardProps) => {
   const isLlm = isLlmCategory(provider.category_id, categories);
 
-  // Derive a display URL from base_url field if present
+  
   const baseUrlField = provider.fields.find((f) => f.key === "base_url");
   const displayUrl = baseUrlField?.value || "https://example.com";
 
-  // Coding-plan primary tier % — preferred source for the donut.
+  
   const { data: codingPlan } = useCodingPlanQuota(provider.id);
   const pctFromTier = codingPlan?.success
     ? codingPlan.tiers[0]?.remaining_percent ?? null
     : null;
 
-  // QuotaSnapshot remaining/total % — fallback for the donut, and the only
-  // source for the balance text. TanStack dedupes both hooks by providerId.
+  
+  
   const { data: snapshot } = useProviderQuota(provider.id);
   const pctFromSnapshot =
     snapshot?.remaining != null && snapshot?.total != null && snapshot.total > 0
@@ -94,11 +94,11 @@ export const ProviderCard = ({
     pct === null ? 0 : DONUT_CIRCUMFERENCE * (1 - Math.max(0, Math.min(100, pct)) / 100);
   const tone = quotaTone(pct);
 
-  // Balance lives in the right cluster; only renders when snapshot has a remaining value.
+  
   const balance = snapshot?.remaining != null ? snapshot : null;
   const balanceTone: Tone = pct !== null ? quotaTextTone(pct) : "ok";
-  // ponytail: `?? 0` is correct on edge cases — tsc doesn't narrow the
-  // property across the ternary even though we just checked != null.
+  
+  
   const balanceText = balance ? (balance.remaining ?? 0).toFixed(2) : null;
 
   const handleRefresh = (e: React.MouseEvent) => {
@@ -148,12 +148,12 @@ export const ProviderCard = ({
         data-selected={selected}
         onClick={onClick}
         onContextMenu={handleContextMenu}
-        // Radix DropdownMenu.Trigger (mjs:74-77) calls onOpenToggle() + event.preventDefault()
-        // on left-click pointerdown. preventDefault on pointerdown cancels the subsequent click,
-        // so the inline button onClick handlers never fire and the menu also opens. Stopping
-        // pointerdown at the card prevents the Trigger from intercepting; the click event then
-        // fires normally and onClick handlers run. Right-click (button === 2) still bubbles
-        // because Radix opens the menu via the contextmenu event, not pointerdown.
+        
+        
+        
+        
+        
+        
         onPointerDown={(e) => e.stopPropagation()}
         className={cn(
           "relative flex items-center gap-3 px-4 py-3 rounded-[8px] border cursor-pointer transition-colors select-none",
@@ -164,7 +164,7 @@ export const ProviderCard = ({
             : "border border-[var(--color-border)]"
         )}
       >
-        {/* Provider icon */}
+        {}
         <div data-testid="provider-icon" className="shrink-0">
           <ProviderIcon
             preset={provider.preset}
@@ -174,7 +174,7 @@ export const ProviderCard = ({
           />
         </div>
 
-        {/* Provider info */}
+        {}
         <div className="flex-1 min-w-0">
           <div
             data-testid="provider-name"
@@ -224,9 +224,9 @@ export const ProviderCard = ({
           </button>
         </div>
 
-        {/* Right meta cluster */}
+        {}
         <div className="shrink-0 flex items-center gap-3">
-          {/* Balance (only when QuotaSnapshot.remaining is set) */}
+          {}
           {balance && (
             <div
               data-testid="quota-balance"
@@ -242,7 +242,7 @@ export const ProviderCard = ({
             </div>
           )}
 
-          {/* Refresh button */}
+          {}
           <button
             data-testid="refresh-btn"
             onClick={handleRefresh}
@@ -252,7 +252,7 @@ export const ProviderCard = ({
             <RefreshCw className="h-4 w-4" />
           </button>
 
-          {/* Inline action buttons */}
+          {}
           {onEdit && (
             <button
               data-testid="edit-btn"

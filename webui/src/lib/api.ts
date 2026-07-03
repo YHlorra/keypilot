@@ -1,6 +1,6 @@
-// webui/src/lib/api.ts (Phase 2 Lane C -- real IPC wiring)
-// All 12 IPC functions now use @tauri-apps/api/core::invoke (replaces Phase 2 Lane B1 mocks).
-// @see openspec/changes/v0.1-general-credentials/design.md §7 for Rust command signatures.
+
+
+
 
 import { invoke } from "@tauri-apps/api/core";
 import type {
@@ -19,7 +19,7 @@ import type {
 } from "@/types/api";
 import { executeAction } from "@/lib/action-registry";
 
-// 12 IPC functions -- real Tauri invoke wiring
+
 
 export async function listProviders(): Promise<ListProvidersResponse> {
   return invoke<ListProvidersResponse>("list_providers");
@@ -57,11 +57,11 @@ export async function fetchQuota(req: FetchQuotaRequest): Promise<FetchQuotaResp
   return invoke<FetchQuotaResponse>("fetch_quota", { id: req.id });
 }
 
-// Coding-plan quota (Lane C). Always returns a SubscriptionQuota
-// (success: false + error string on transport / auth failure). Provider
-// preset must be one of the 5 coding-plan families; otherwise the
-// backend returns ProviderQuotaUnsupported and the hook surfaces the
-// rejection to the UI.
+
+
+
+
+
 export async function fetchCodingPlanQuota(req: FetchCodingPlanQuotaRequest): Promise<FetchCodingPlanQuotaResponse> {
   return invoke<FetchCodingPlanQuotaResponse>("fetch_coding_plan_quota", { id: req.id });
 }
@@ -78,10 +78,10 @@ export async function setManualQuota(req: SetManualQuotaRequest): Promise<SetMan
   return invoke<SetManualQuotaResponse>("set_manual_quota", { req });
 }
 
-// === Token Usage IPC wrappers (REQ-TOKEN-002) ===
 
-// getUsagePeriodsSummary -- token-monitor-alignment Part A #1
-// 一次返回 today/month/allTime 三周期 + client_models + limits(对齐 token-monitor usage.js 主数据契约)
+
+
+
 export async function getUsagePeriodsSummary(filter: UsageFilter): Promise<PeriodsSummary> {
   return invoke<PeriodsSummary>("get_usage_periods_summary", { filter });
 }
@@ -98,13 +98,13 @@ export async function getPricing(): Promise<PricingEntry[]> {
   return invoke<PricingEntry[]>("get_pricing", {});
 }
 
-// Returns the last auto-import summary JSON string (or null if no run yet).
-// Frontend parses and decides whether to surface a toast.
+
+
 export async function getLastAutoImport(): Promise<string | null> {
   return invoke<string | null>("get_last_auto_import", {});
 }
 
-// === Action Registry wrappers (inline credential card buttons) ===
+
 
 export interface CopyCredentialResponse {
   value: string;

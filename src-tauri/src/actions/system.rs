@@ -1,5 +1,5 @@
-// src-tauri/src/actions/system.rs
-// System domain actions — get_theme, set_theme, quit.
+
+
 
 use super::ActionDef;
 use serde_json::json;

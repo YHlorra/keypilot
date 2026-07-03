@@ -5,10 +5,10 @@ use crate::timeutil;
 use std::time::Duration;
 use crate::types::TokenUsageRecord;
 
-/// One preset template used by `seed_preset_providers` (and mirrored in
-/// `migrate_to_v8` for V0.0 backfill, and in the webui AddCredentialModal
-/// picker). All three places must agree on `(name, preset, base_url)` — keep
-/// this struct as the single Rust source of truth.
+
+
+
+
 struct PresetSeed {
     name: &'static str,
     preset: &'static str,
@@ -16,11 +16,11 @@ struct PresetSeed {
     icon_path: &'static str,
 }
 
-/// 20 curated LLM presets. See `.slim/deepwork/preset-templates-from-cc-switch.md`
-/// for selection rationale (覆盖中文 8 + 西方 6 + 聚合器 6). 适配器映射见
-/// `src-tauri/src/provider/adapter.rs::adapter_for`。`icon_color` is not
-/// stored — Icon.tsx::PRESET_COLORS is the de-facto source; the DB column
-/// exists but is dead data and the UI ignores it.
+
+
+
+
+
 const PRESETS: &[PresetSeed] = &[
     PresetSeed { name: "OpenAI",                preset: "openai",                base_url: "https://api.openai.com/v1",                       icon_path: "/icons/providers/openai.svg"     },
     PresetSeed { name: "Anthropic",             preset: "anthropic",             base_url: "https://api.anthropic.com",                       icon_path: "/icons/providers/anthropic.svg"  },
@@ -42,33 +42,33 @@ const PRESETS: &[PresetSeed] = &[
     PresetSeed { name: "智谱 GLM (Anthropic)",      preset: "zhipu-anthropic",   base_url: "https://open.bigmodel.cn/api/anthropic",         icon_path: ""                                  },
     PresetSeed { name: "DeepSeek (Anthropic)",      preset: "deepseek-anthropic", base_url: "https://api.deepseek.com/anthropic",             icon_path: "/icons/providers/deepseek.svg"   },
     PresetSeed { name: "火山引擎 (Anthropic)",      preset: "volcengine-anthropic", base_url: "https://ark.cn-beijing.volces.com/api/coding",  icon_path: "/icons/providers/volcengine.svg" },
-    // MiniMax — 4 nodes (2 regions × 2 protocols). Official docs:
-    // api.minimaxi.com (CN) / api.minimax.io (overseas) × /anthropic + /v1.
-    // "Coding Plan" is NOT a separate endpoint — it shares the same 4 URLs
-    // with regular API; the only difference is the API key type (group-key)
-    // and rate-limit pool. 4 picker rows give users 1-click access to each
-    // distinct base_url, matching the "4 nodes, 4 base URLs" mental model.
-    //
-    // convention here is OpenAI-protocol is the short id (kimi /
-    // zhipu / qwen / etc.), Anthropic gets `-anthropic` suffix. MiniMax's
-    // first-party docs lead with /anthropic but we follow the codebase
-    // convention for consistency; "MiniMax" in the picker = OpenAI CN, same
-    // shape as "Kimi" / "Zhipu" / "Qwen" = OpenAI CN.
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     PresetSeed { name: "MiniMax",                  preset: "minimax",              base_url: "https://api.minimaxi.com/v1",               icon_path: "/icons/providers/minimax.svg"     },
     PresetSeed { name: "MiniMax 海外",             preset: "minimax-overseas",     base_url: "https://api.minimax.io/v1",                icon_path: "/icons/providers/minimax.svg"     },
     PresetSeed { name: "MiniMax (Anthropic)",      preset: "minimax-anthropic",    base_url: "https://api.minimaxi.com/anthropic",       icon_path: "/icons/providers/minimax.svg"     },
     PresetSeed { name: "MiniMax 海外 (Anthropic)", preset: "minimax-overseas-anthropic", base_url: "https://api.minimax.io/anthropic",  icon_path: "/icons/providers/minimax.svg"     },
 ];
 
-/// Public list of all preset IDs. Used by adapter_for tests and any future
-/// IPC handler that wants to enumerate registered presets without exposing
-/// the full `PresetSeed` struct.
+
+
+
 pub fn preset_ids() -> Vec<&'static str> {
     PRESETS.iter().map(|p| p.preset).collect()
 }
 
-/// Per-file cursor row used by the incremental JSONL importer
-/// (services/incremental_import.rs).  See Bug #3 fix 2026-06-29.
+
+
 #[derive(Debug, Clone)]
 pub struct AgentFileCursor {
     pub agent_type: String,
@@ -120,7 +120,7 @@ impl Database {
     pub fn setup_schema(&self) -> Result<()> {
         let conn = &self.conn;
 
-        // meta
+        
         conn.execute(
             "CREATE TABLE IF NOT EXISTS meta (
                 key TEXT PRIMARY KEY,
@@ -141,7 +141,7 @@ impl Database {
             [],
         )?;
 
-        // categories
+        
         conn.execute(
             "CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,7 +159,7 @@ impl Database {
             [],
         )?;
 
-        // providers
+        
         conn.execute(
             "CREATE TABLE IF NOT EXISTS providers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -187,7 +187,7 @@ impl Database {
             [],
         )?;
 
-        // provider_fields
+        
         conn.execute(
             "CREATE TABLE IF NOT EXISTS provider_fields (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -207,7 +207,7 @@ impl Database {
             [],
         )?;
 
-        // quota_cache
+        
         conn.execute(
             "CREATE TABLE IF NOT EXISTS quota_cache (
                 provider_id INTEGER PRIMARY KEY,
@@ -219,8 +219,8 @@ impl Database {
             [],
         )?;
 
-        // Idempotent column add for databases created before `source` existed
-        // (pre-V0.1-rev2). Fresh DBs get the column from CREATE above.
+        
+        
         let has_source: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM pragma_table_info('quota_cache') WHERE name = 'source'",
@@ -235,11 +235,11 @@ impl Database {
             )?;
         }
 
-        // coding_plan_quota_cache (Lane A: coding plan providers — MiniMax /
-        // Kimi / GLM / Volcengine / ZenMux). Separate table from `quota_cache`
-        // because the snapshot type differs (`SubscriptionQuota` vs
-        // `QuotaSnapshot`) and the per-provider cache key would otherwise
-        // collide on the primary key.
+        
+        
+        
+        
+        
         conn.execute(
             "CREATE TABLE IF NOT EXISTS coding_plan_quota_cache (
                 provider_id INTEGER PRIMARY KEY,
@@ -251,8 +251,8 @@ impl Database {
             [],
         )?;
 
-        // token_usage_records (v5 schema — no prompt_tokens / completion_tokens
-        // legacy cols; those are dropped from v4→v5 migration for old DBs)
+        
+        
         conn.execute(
             "CREATE TABLE IF NOT EXISTS token_usage_records (
                 id TEXT PRIMARY KEY,
@@ -283,7 +283,7 @@ impl Database {
             [],
         )?;
 
-        // daily_agent_model_usage (rollup by date+agent+model+provider)
+        
         conn.execute(
             "CREATE TABLE IF NOT EXISTS daily_agent_model_usage (
                 date TEXT NOT NULL,
@@ -300,7 +300,7 @@ impl Database {
             [],
         )?;
 
-        // daily_model_usage (rollup by date+model+provider)
+        
         conn.execute(
             "CREATE TABLE IF NOT EXISTS daily_model_usage (
                 date TEXT NOT NULL,
@@ -325,12 +325,12 @@ impl Database {
             [],
         )?;
 
-        // agent_file_cursor (v6 schema -- Bug #3 fix 2026-06-29)
-        // Per-file byte-offset cursor for incremental JSONL append detection.
-        // notify-debouncer-full emits Modify events on .jsonl appends; we seek
-        // to `byte_offset` from the previous scan and parse only the new bytes.
-        // Truncation detected by `file_size < byte_offset` -> reset to 0.
-        // WITHOUT ROWID because (agent_type, file_path) is the natural PK.
+        
+        
+        
+        
+        
+        
         conn.execute(
             "CREATE TABLE IF NOT EXISTS agent_file_cursor (
                 agent_type    TEXT NOT NULL,
@@ -375,21 +375,21 @@ impl Database {
                 [],
             )?;
         } else if current == "6" {
-            // migrate_to_v7() updates schema_version internally inside its own
-            // transaction, so this branch has no extra UPDATE meta step.
+            
+            
             self.migrate_to_v7()?;
         } else if current == "7" {
-            // migrate_to_v8() updates schema_version internally inside its own
-            // transaction, mirroring the v7 pattern.
+            
+            
             self.migrate_to_v8()?;
         }
         Ok(())
     }
 
-    /// v8: Backfill `providers.icon` for V0.0 seeded presets so existing users
-    /// see real brand icons instead of stale emoji strings (`'🤖'`, `'🧠'`, …)
-    /// rendered as broken `<img src>` URLs. Idempotent — safe to call on a DB
-    /// that already has v8 applied or on a fresh DB where no presets exist.
+    
+    
+    
+    
     pub fn migrate_to_v8(&self) -> Result<(), AppError> {
         let current = self.schema_version().unwrap_or_default();
         if current == "8" {
@@ -399,12 +399,12 @@ impl Database {
         let conn = self.conn();
         let tx = conn.unchecked_transaction().map_err(AppError::Database)?;
 
-        // Build the CASE WHEN from `PRESETS` so the migration and seed stay in
-        // sync. The `NOT LIKE '/icons/%'` guard skips rows whose icon is
-        // already a /icons/* path — either v8 already applied, or the user set
-        // a custom path under public/icons/providers/. Updating to the same
-        // value would be a no-op; the guard makes the "leave user customizations
-        // alone" intent explicit.
+        
+        
+        
+        
+        
+        
         let mut case_sql = String::from("UPDATE providers SET icon = CASE preset");
         let mut in_list = Vec::new();
         for p in PRESETS {
@@ -430,16 +430,16 @@ impl Database {
         Ok(())
     }
 
-    /// Re-aggregate daily_* tables from token_usage_records using Local timezone buckets.
-    /// Idempotent: safe to call multiple times.
+    
+    
     pub fn migrate_to_v7(&self) -> Result<(), AppError> {
-        // Idempotency guard: version >= 7 means migration already completed
+        
         let current = self.schema_version().unwrap_or_default();
         if current == "7" {
             return Ok(());
         }
 
-        // Check if _v6 backup tables already exist (incomplete prior attempt)
+        
         let v6_exists: bool = self.conn.query_row(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='daily_agent_model_usage_v6'",
             [],
@@ -450,12 +450,12 @@ impl Database {
         let tx = conn.unchecked_transaction().map_err(AppError::Database)?;
 
         if v6_exists {
-            // Prior attempt left _v6 tables; drop them and proceed fresh
-            // (current daily_* tables are the incomplete new ones from prior crash)
+            
+            
             tx.execute("DROP TABLE IF EXISTS daily_agent_model_usage", []).ok();
             tx.execute("DROP TABLE IF EXISTS daily_model_usage", []).ok();
         } else {
-            // First attempt: rename current tables to _v6 backup
+            
             tx.execute(
                 "ALTER TABLE daily_agent_model_usage RENAME TO daily_agent_model_usage_v6",
                 [],
@@ -466,7 +466,7 @@ impl Database {
             ).map_err(AppError::Database)?;
         }
 
-        // Recreate schema (DDL identical to v6)
+        
         tx.execute(
             "CREATE TABLE daily_agent_model_usage (
                 date TEXT NOT NULL,
@@ -497,9 +497,9 @@ impl Database {
             [],
         ).map_err(AppError::Database)?;
 
-        // Re-aggregate using Rust-side Local date conversion (SQLite strftime 'localtime'
-        // is unreliable on Windows). Group by (date, agent, model, provider) in-memory.
-        // 'localtime' on SQLite may diverge from chrono::Local at DST gaps/folds.
+        
+        
+        
         #[derive(Default, Eq, Hash, PartialEq)]
         struct AgentModelKey { date: String, agent: String, model: String, provider: String }
         #[derive(Default)]
@@ -548,7 +548,7 @@ impl Database {
             ).map_err(AppError::Database)?;
         }
 
-        // Re-aggregate daily_model_usage (no agent_type column)
+        
         #[derive(Default, Eq, Hash, PartialEq)]
         struct ModelKey { date: String, model: String, provider: String }
         #[derive(Default)]
@@ -596,9 +596,9 @@ impl Database {
             ).map_err(AppError::Database)?;
         }
 
-        // Update schema_version to "7" inside the tx so a post-commit crash can
-        // only leave either the FULL migration applied (both data + version) or
-        // NEITHER — strict atomicity per REQ-DATE-LOCAL-008.
+        
+        
+        
         tx.execute(
             "UPDATE meta SET value = '7' WHERE key = 'schema_version'",
             [],
@@ -618,7 +618,7 @@ impl Database {
     }
 
     pub fn seed_preset_providers(&self) -> Result<()> {
-        // Check if already seeded
+        
         let seeded: String = self.conn.query_row(
             "SELECT value FROM meta WHERE key = 'preset_seeded'",
             [],
@@ -630,15 +630,15 @@ impl Database {
 
         let now = timeutil::now_secs();
 
-        // assumes category 1 ("凭证") exists. setup_schema() inserts it
-        // with INSERT OR IGNORE so order is safe, but a future reader must NOT
-        // renumber default categories without updating this seed.
-        //
-        // 20 curated LLM presets — same source-of-truth as
-        // webui/src/components/AddCredentialModal.tsx PRESETS_BY_TEMPLATE. When
-        // adding a preset, update both this table AND the TS picker (and the
-        // adapter_for() mapping in src-tauri/src/provider/adapter.rs for
-        // non-trivial protocols).
+        
+        
+        
+        
+        
+        
+        
+        
+        
         for (idx, p) in PRESETS.iter().enumerate() {
             self.conn.execute(
                 "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, sort_index, created_at, updated_at)
@@ -650,7 +650,7 @@ impl Database {
             self.add_field(id, "api_key", "", "masked", 1, now)?;
         }
 
-        // Mark as seeded
+        
         self.conn.execute(
             "UPDATE meta SET value = '1' WHERE key = 'preset_seeded'",
             [],
@@ -835,16 +835,16 @@ impl Database {
         Ok(count)
     }
 
-    /// Delete all preset (is_preset=1) providers. Used for one-time cleanup.
-    /// Returns the number of rows deleted.
+    
+    
     pub fn delete_preset_providers(&self) -> Result<usize> {
         let n = self.conn.execute("DELETE FROM providers WHERE is_preset = 1", [])?;
         Ok(n)
     }
 
-    /// Delete `source='auto'` quota_cache rows whose `fetched_at` is older than
-    /// `now - older_than_secs`. `source='manual'` rows are always preserved.
-    /// Returns the number of rows deleted.
+    
+    
+    
     pub fn purge_expired_quota_cache(&self, older_than_secs: i64) -> Result<usize, AppError> {
         let now_secs = timeutil::now_secs();
         let cutoff = now_secs - older_than_secs;
@@ -855,7 +855,7 @@ impl Database {
         Ok(deleted)
     }
 
-    // ---------- agent_file_cursor CRUD (Bug #3 fix 2026-06-29) ----------
+    
 
     pub fn get_cursor(&self, agent_type: &str, file_path: &str) -> Result<Option<AgentFileCursor>, AppError> {
         let mut stmt = self.conn.prepare(
@@ -878,8 +878,8 @@ impl Database {
         }
     }
 
-    /// Upsert cursor.  Called after a successful incremental parse so a crash
-    /// mid-scan re-processes the same bytes next time (idempotent via FNV-1a).
+    
+    
     pub fn upsert_cursor(&self, c: &AgentFileCursor) -> Result<(), AppError> {
         self.conn.execute(
             "INSERT INTO agent_file_cursor
@@ -946,8 +946,8 @@ impl Database {
         Ok(())
     }
 
-    /// Delete all cursors.  Used by `force_rescan_all` to wipe incremental
-    /// state so the next scan re-parses every known JSONL from byte 0.
+    
+    
     pub fn delete_all_cursors(&self) -> Result<usize, AppError> {
         let n = self.conn.execute("DELETE FROM agent_file_cursor", [])
             .map_err(AppError::Database)?;
@@ -959,23 +959,23 @@ impl Database {
 mod tests {
     use super::*;
 
-    /// quota_cache.source column is added by setup_schema on a fresh DB.
-    /// New presets inserted via INSERT...ON CONFLICT must respect the column.
+    
+    
     #[test]
     fn quota_cache_source_column_default_auto() {
         let db = Database::open_in_memory().unwrap();
         db.setup_schema().unwrap();
         db.seed_preset_providers().unwrap();
 
-        // After setup + seed, every quota_cache row defaults to source='auto'
-        // (which is fine — there are no rows yet, but the schema accepts it).
+        
+        
         let count: i64 = db
             .conn
             .query_row("SELECT COUNT(*) FROM quota_cache", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 0, "Fresh DB should have no quota_cache rows");
 
-        // Manual quota insert: source='manual' must be storable.
+        
         let now: i64 = 1_700_000_000;
         db.conn.execute(
             "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
@@ -991,7 +991,7 @@ mod tests {
         )
         .unwrap();
 
-        // Read back the source column.
+        
         let source: String = db
             .conn
             .query_row(
@@ -1003,8 +1003,8 @@ mod tests {
         assert_eq!(source, "manual");
     }
 
-    /// ON CONFLICT(provider_id) DO UPDATE must flip source from auto → manual
-    /// when a user overwrites an auto-fetched snapshot.
+    
+    
     #[test]
     fn quota_cache_source_overwrite_on_conflict() {
         let db = Database::open_in_memory().unwrap();
@@ -1020,14 +1020,14 @@ mod tests {
         .unwrap();
         let pid: i64 = db.conn.last_insert_rowid();
 
-        // First insert: auto source
+        
         db.conn.execute(
             "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
              VALUES (?1, '{\"auto\":true}', ?2, 'auto')",
             rusqlite::params![pid, now],
         )
         .unwrap();
-        // Overwrite: manual source
+        
         db.conn.execute(
             "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
              VALUES (?1, '{\"manual\":true}', ?2, 'manual')
@@ -1051,9 +1051,9 @@ mod tests {
         assert!(json.contains("manual"));
     }
 
-    /// purge_expired_quota_cache must only delete `source='auto'` rows older
-    /// than the cutoff. Manual rows (regardless of age) and recent auto rows
-    /// must be preserved.
+    
+    
+    
     #[test]
     fn purge_keeps_manual_and_recent_auto() {
         let db = Database::open_in_memory().unwrap();
@@ -1063,8 +1063,8 @@ mod tests {
         let now = timeutil::now_secs();
         const DAY: i64 = 86400;
 
-        // quota_cache.provider_id is PRIMARY KEY (one row per provider), so we
-        // create 3 distinct providers to host the 3 test rows.
+        
+        
         db.conn.execute(
             "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
              VALUES ('purge-test-A', NULL, 0, 1, 0, 100, ?1, ?1)",
@@ -1087,7 +1087,7 @@ mod tests {
         .unwrap();
         let pid_auto_new: i64 = db.conn.last_insert_rowid();
 
-        // Row A: source='manual', 30 days old → kept (manual is never purged)
+        
         db.conn
             .execute(
                 "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
@@ -1095,7 +1095,7 @@ mod tests {
                 rusqlite::params![pid_manual_old, now - 30 * DAY],
             )
             .unwrap();
-        // Row B: source='auto', 8 days old → purged (older than 7-day cutoff)
+        
         db.conn
             .execute(
                 "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
@@ -1103,7 +1103,7 @@ mod tests {
                 rusqlite::params![pid_auto_old, now - 8 * DAY],
             )
             .unwrap();
-        // Row C: source='auto', 1 day old → kept (within 7-day cutoff)
+        
         db.conn
             .execute(
                 "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
@@ -1146,22 +1146,22 @@ mod tests {
         assert_eq!(auto_new_count, 1, "recent auto row must be preserved");
     }
 
-    // ============================================================
-    // fix-date-local-timezone TC-07 (see spec.md REQ-DATE-LOCAL-005, REQ-DATE-LOCAL-008)
-    //
-    //   TC-07.1  migrate_to_v7_empty_db                     — schema-only smoke
-    //   TC-07.2  migrate_to_v7_rebuckets_cross_boundary      — UTC→Local shift
-    //   TC-07.3  migrate_to_v7_two_epochs_different_local    — local-date split
-    //   TC-07.4  migrate_to_v7_sums_conserved               — input/output/cost sum
-    //   TC-07.5  migrate_to_v7_dual_table_coverage           — both tables
-    //   TC-07.6  migrate_to_v7_idempotent                   — second call no-op
-    //   TC-07.7  migrate_to_v7_no_local_now_dependency     — absolute epoch
-    //
-    // All assertions use `crate::timeutil::local_date_str(epoch)` so they
-    // are deterministic across CI hosts regardless of system TZ.
-    // ============================================================
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 
-    /// F.1: Empty DB → migrate_to_v7 creates tables, no rows, version "7"
+    
     #[test]
     fn migrate_to_v7_empty_db() {
         let db = Database::open_in_memory().unwrap();
@@ -1178,12 +1178,12 @@ mod tests {
         assert_eq!(count2, 0);
     }
 
-    /// F.2: Single record at epoch 1782809400000 → bucket must match `local_date_str(epoch)`
-    ///       (chrono's host-system Local). On a non-UTC host (e.g. Asia/Shanghai) this also
-    ///       discriminates from the UTC date string, proving no UTC-revert regression.
-    ///       assertion is dynamical — `chrono::Local` is what `timeutil::local_date_str`
-    ///       uses, so the assertion holds across CI hosts regardless of TZ while still tripping
-    ///       when the implementation regresses to UTC bucketing on a non-UTC host.
+    
+    
+    
+    
+    
+    
     #[test]
     fn migrate_to_v7_rebuckets_cross_boundary_epoch() {
         let db = Database::open_in_memory().unwrap();
@@ -1209,13 +1209,13 @@ mod tests {
         ).unwrap();
         let epoch = 1782809400000_i64;
         let expected_local = crate::timeutil::local_date_str(epoch);
-        // Implementation uses `local_date_str`, so actual must equal Local-bucketed date.
+        
         assert_eq!(actual_date, expected_local,
             "migration must bucket at the host's chrono::Local date for epoch {epoch}, got {actual_date} expected {expected_local}");
-        // On non-UTC hosts the Local date differs from UTC date — assert migration didn't fall
-        // back to UTC bucketing. Skip the second assertion on UTC hosts where dates are equal.
-        // discriminator pattern — intentional UTC-bucketing probe to detect impl
-        //           regression even though REQ-DATE-LOCAL-007 forbids it in production.
+        
+        
+        
+        
         let utc_date = chrono::DateTime::from_timestamp_millis(epoch)
             .unwrap().format("%Y-%m-%d").to_string();
         if expected_local != utc_date {
@@ -1224,14 +1224,14 @@ mod tests {
         }
     }
 
-    /// F.3: Two records in same Local day → one row with request_count=2; in different
-    ///       Local days → two rows. Uses two epochs bracketed to (probably) the same Local
-    ///       day across hosts, with second assertion gated on Local distinction.
+    
+    
+    
     #[test]
     fn migrate_to_v7_two_epochs_different_local_days() {
         let db = Database::open_in_memory().unwrap();
         db.setup_schema().unwrap();
-        // Epochs bracket a value within minutes; on Asia/Shanghai both are Local 2026-07-01.
+        
         let e1 = 1782809400000_i64;
         let e2 = 1782837000000_i64;
         for (i, ts) in [e1, e2].iter().enumerate() {
@@ -1252,7 +1252,7 @@ mod tests {
         let d1 = crate::timeutil::local_date_str(e1);
         let d2 = crate::timeutil::local_date_str(e2);
         if d1 == d2 {
-            // Same Local day → exactly one row in daily_agent_model_usage
+            
             let count: i64 = db.conn().query_row(
                 "SELECT request_count FROM daily_agent_model_usage WHERE agent_type='a' AND model='m' AND provider='p'",
                 [], |r| r.get(0)
@@ -1264,7 +1264,7 @@ mod tests {
             ).unwrap();
             assert_eq!(in_t, 200, "2 × 100 = 200");
         } else {
-            // Different Local days → two distinct rows
+            
             let count: i64 = db.conn().query_row(
                 "SELECT COUNT(*) FROM daily_agent_model_usage WHERE agent_type='a' AND model='m' AND provider='p'",
                 [], |r| r.get(0)
@@ -1282,12 +1282,12 @@ mod tests {
         }
     }
 
-    /// F.4: SUM conservation — aggregate of input/output/total/cost equals raw sum
+    
     #[test]
     fn migrate_to_v7_sums_conserved() {
         let db = Database::open_in_memory().unwrap();
         db.setup_schema().unwrap();
-        // Seed 3 records with known totals
+        
         for (i, ts) in [1782837000000_i64, 1782837100000, 1782837200000].iter().enumerate() {
             db.conn().execute(
                 "INSERT INTO token_usage_records
@@ -1320,8 +1320,8 @@ mod tests {
         assert_eq!(sum_cost, 1.5, "3 × 0.5 = 1.5");
     }
 
-    /// F.5: Dual-table coverage — daily_model_usage also re-aggregated correctly.
-    ///       Date assertions use `local_date_str` for host-TZ portability.
+    
+    
     #[test]
     fn migrate_to_v7_dual_table_coverage() {
         let db = Database::open_in_memory().unwrap();
@@ -1356,12 +1356,12 @@ mod tests {
         assert_eq!(in_t, 1000);
     }
 
-    /// F.6: Idempotency — calling migrate_to_v7() twice is a no-op
+    
     #[test]
     fn migrate_to_v7_idempotent() {
         let db = Database::open_in_memory().unwrap();
         db.setup_schema().unwrap();
-        // Seed one record
+        
         db.conn().execute(
             "INSERT INTO token_usage_records
                 (id, agent_type, model, provider_name, occurred_at, recorded_at,
@@ -1378,7 +1378,7 @@ mod tests {
         let count1: i64 = db.conn().query_row(
             "SELECT request_count FROM daily_agent_model_usage", [], |r| r.get(0)
         ).unwrap();
-        // Call again — should not duplicate
+        
         db.migrate_to_v7().unwrap();
         let count2: i64 = db.conn().query_row(
             "SELECT request_count FROM daily_agent_model_usage", [], |r| r.get(0)
@@ -1387,13 +1387,13 @@ mod tests {
         assert_eq!(db.schema_version().unwrap(), "7");
     }
 
-    /// F.7: No dependency on Local::now() — uses absolute epoch timestamps only
+    
     #[test]
     fn migrate_to_v7_no_local_now_dependency() {
         let db = Database::open_in_memory().unwrap();
         db.setup_schema().unwrap();
-        // epoch 0 = UTC 1970-01-01 00:00:00 = Local 1970-01-01 00:00 (if TZ=UTC or Asia/Shanghai without DST)
-        // We just verify the migration runs correctly with absolute epoch, not Local::now()
+        
+        
         db.conn().execute(
             "INSERT INTO token_usage_records
                 (id, agent_type, model, provider_name, occurred_at, recorded_at,
@@ -1407,35 +1407,35 @@ mod tests {
             [],
         ).unwrap();
         db.migrate_to_v7().unwrap();
-        // Should have exactly one row — doesn't crash, doesn't depend on current time
+        
         let count: i64 = db.conn().query_row(
             "SELECT COUNT(*) FROM daily_agent_model_usage", [], |r| r.get(0)
         ).unwrap();
         assert_eq!(count, 1);
-        // Verify _v6 backup table exists (from rename of original empty daily table)
+        
         let v6_table_exists: i64 = db.conn().query_row(
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='daily_agent_model_usage_v6'",
             [], |r| r.get(0)
         ).unwrap();
         assert_eq!(v6_table_exists, 1, "v6 backup table should exist");
-        // Verify version is now 7
+        
         assert_eq!(db.schema_version().unwrap(), "7");
     }
 
-    /// v8: Backfill the `icon` column for V0.0 users whose seeded presets
-    /// still hold stale emoji strings. Covers the expanded 20-preset set: rows
-    /// matching any of the 13 icon-having presets get their SVG path; the 7
-    /// icon-less presets are skipped; custom user icons under /icons/* are
-    /// preserved (NOT LIKE guard).
+    
+    
+    
+    
+    
     #[test]
     fn migrate_to_v8_backfills_icons_for_all_icon_having_presets() {
         let db = Database::open_in_memory().unwrap();
         db.setup_schema().unwrap();
-        // Force schema to v7 to mimic a V0.0 user about to upgrade.
+        
         db.conn().execute("UPDATE meta SET value = '7' WHERE key = 'schema_version'", []).unwrap();
 
-        // Insert a row for every preset that has a non-empty icon_path, with a
-        // stale emoji as the icon. Covers all icon-having presets from PRESETS.
+        
+        
         let now = timeutil::now_secs();
         for p in PRESETS.iter().filter(|p| !p.icon_path.is_empty()) {
             db.conn().execute(
@@ -1444,7 +1444,7 @@ mod tests {
                 rusqlite::params![p.name, p.preset, now],
             ).unwrap();
         }
-        // Insert one user-customized row that should be preserved by the NOT LIKE guard.
+        
         db.conn().execute(
             "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, sort_index, created_at, updated_at)
              VALUES ('My Kimi', 'kimi', 0, 1, 0, '/icons/providers/my-custom-kimi.svg', 0, ?1, ?1)",
@@ -1454,7 +1454,7 @@ mod tests {
         db.migrate_to_v8().unwrap();
         assert_eq!(db.schema_version().unwrap(), "8");
 
-        // Every icon-having preset got its expected path.
+        
         for p in PRESETS.iter().filter(|p| !p.icon_path.is_empty()) {
             let icon: String = db.conn().query_row(
                 "SELECT icon FROM providers WHERE preset = ?1 AND is_preset = 1",
@@ -1464,7 +1464,7 @@ mod tests {
             assert_eq!(icon, p.icon_path, "preset {} should get {}", p.preset, p.icon_path);
         }
 
-        // The user's custom kimi row was left alone.
+        
         let custom_icon: String = db.conn().query_row(
             "SELECT icon FROM providers WHERE name = 'My Kimi'",
             [],
@@ -1472,7 +1472,7 @@ mod tests {
         ).unwrap();
         assert_eq!(custom_icon, "/icons/providers/my-custom-kimi.svg");
 
-        // Idempotent — re-running doesn't change anything.
+        
         db.migrate_to_v8().unwrap();
         assert_eq!(db.schema_version().unwrap(), "8");
     }

@@ -24,7 +24,7 @@ interface ProviderDetailModalProps {
 
 type EditMode = "view" | "edit";
 
-// Mask value: first 3 + ••• + last 3; if ≤6 chars → "••••••"
+
 function maskValue(value: string): string {
   if (value.length <= 6) return "••••••";
   return value.slice(0, 3) + "•••••" + value.slice(-3);
@@ -46,14 +46,14 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   const [revealedFields, setRevealedFields] = useState<Set<number>>(new Set());
   const [testPending, setTestPending] = useState(false);
 
-  // Fetch provider data
+  
   const { data: provider, isLoading } = useQuery({
     queryKey: ["provider", providerId],
     queryFn: () => getProvider({ id: providerId! } as GetProviderRequest),
     enabled: providerId !== null,
   });
 
-  // Update mutation (silent save on modal close)
+  
   const updateMutation = useMutation({
     mutationFn: (req: UpdateProviderRequest) => updateProvider(req),
     onSuccess: () => {
@@ -65,7 +65,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
     },
   });
 
-  // Delete mutation
+  
   const deleteMutation = useMutation({
     mutationFn: () => deleteProvider({ id: providerId! }),
     onSuccess: () => {
@@ -92,7 +92,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   }, []);
 
   const handleClose = useCallback(() => {
-    // Silent save on modal close (no toast)
+    
     if (editMode === "edit" && provider && editName.trim()) {
       updateMutation.mutate({
         id: provider.id,
@@ -104,32 +104,32 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
     onClose();
   }, [editMode, provider, editName, updateMutation, onClose]);
 
-  // Get base_url from fields for display
+  
   const baseUrlField = useMemo(() => {
     if (!provider?.fields) return null;
     return provider.fields.find((f) => f.key === "base_url" && f.visibility === "visible");
   }, [provider?.fields]);
 
-  // Status pill
+  
   const lastTested = (provider as any)?.last_tested ?? null;
   const statusPillText = lastTested
     ? `Tested ${formatRelative(lastTested * 1000, "bare")} ago`
     : "Not tested";
 
-  // LLM detection for "test connection" action -- driven by category, not preset.
-  // We only render the test button for providers in a category literally named "LLM".
+  
+  
   const canTest = !!provider && isLlmCategory(provider.category_id, categories);
 
-  // Primary field for header-level copy (api_key, else first field)
+  
   const primaryField = useMemo(
     () => provider?.fields.find((f) => f.key === "api_key") ?? provider?.fields[0] ?? null,
     [provider?.fields]
   );
 
-  // Quota data (stub -- real data comes from quota query)
+  
   const quotaData = (provider as any)?.quota ?? null;
 
-  // Toggle field visibility
+  
   const toggleReveal = useCallback((fieldId: number) => {
     setRevealedFields((prev) => {
       const next = new Set(prev);
@@ -139,20 +139,20 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
     });
   }, []);
 
-  // Copy to clipboard
+  
   const handleCopy = useCallback((value: string) => {
     navigator.clipboard.writeText(value).then(() => {
       showToast("已复制", "success");
     });
   }, [showToast]);
 
-  // Header-level copy: copies the primary credential (api_key, else first field)
+  
   const handleCopyPrimary = useCallback(() => {
     if (!primaryField) return;
     handleCopy(primaryField.value);
   }, [primaryField, handleCopy]);
 
-  // Test connection (LLM only) -- wrapper with pending state
+  
   const handleTestClick = useCallback(async () => {
     if (providerId === null || testPending) return;
     setTestPending(true);
@@ -163,11 +163,11 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
     }
   }, [providerId, testPending, onTest]);
 
-  // Add a new field via AddKvModal -- persist via updateProvider.
-  // Reuse updateMutation so onSuccess invalidates ["provider", id] + ["providers"].
-  // The Rust updateProvider is REPLACE-ALL, so we must send every existing field
-  // back. New field IDs are auto-assigned on re-INSERT, so clear revealedFields
-  // (keyed by old field.id) to avoid stale reveals.
+  
+  
+  
+  
+  
   const handleAddKv = useCallback(
     async (key: string, value: string, visibility: Visibility) => {
       if (!provider) return;
@@ -195,10 +195,10 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
     [provider, showToast, updateMutation]
   );
 
-  // Hard guard: never render the Modal subtree when no provider is selected.
-  // (Previously `open={true}` was hard-coded, which let stale query state from
-  // a previous selection bleed into the next open. Now the modal truly closes
-  // when providerId goes back to null.)
+  
+  
+  
+  
   if (!providerId) return null;
 
   if (isLoading) {
@@ -231,7 +231,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
         }
       >
         <div className="space-y-6">
-          {/* Header -- stacks vertically below sm so the action bar doesn't overflow the modal on narrow viewports */}
+          {}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <ProviderIcon
@@ -267,7 +267,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
             </div>
 
             <div className="flex items-center gap-1 flex-wrap shrink-0">
-              {/* Status pill */}
+              {}
               <span
                 className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${
                   lastTested
@@ -278,10 +278,10 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                 {statusPillText}
               </span>
 
-              {/* Action bar (view mode): Copy -> Edit -> Test [LLM only] -> Trash */}
+              {}
               {editMode === "view" && (
                 <>
-                  {/* 1. Copy primary credential */}
+                  {}
                   <button
                     type="button"
                     onClick={handleCopyPrimary}
@@ -292,7 +292,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                     <Copy className="w-4 h-4" />
                   </button>
 
-                  {/* 2. Edit */}
+                  {}
                   <button
                     type="button"
                     onClick={handleStartEdit}
@@ -302,7 +302,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                     <Pencil className="w-4 h-4" />
                   </button>
 
-                  {/* 3. Test connection (LLM preset only) */}
+                  {}
                   {canTest && (
                     <button
                       type="button"
@@ -319,7 +319,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                     </button>
                   )}
 
-                  {/* 4. Trash */}
+                  {}
                   <button
                     type="button"
                     onClick={() => setDeleteConfirmOpen(true)}
@@ -331,7 +331,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                 </>
               )}
 
-              {/* Edit mode: only show cancel (X) */}
+              {}
               {editMode === "edit" && (
                 <button
                   type="button"
@@ -345,7 +345,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
             </div>
           </div>
 
-          {/* Quota section */}
+          {}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold font-serif">Quota</h3>
@@ -372,7 +372,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                     </span>
                   )}
                 </div>
-                {/* Inline 2px progress bar */}
+                {}
                 <div className="w-full h-0.5 bg-card rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary rounded-full"
@@ -390,13 +390,13 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
             )}
           </div>
 
-          {/* Coding Plan section -- percentage + tier model (separate from USD Quota above) */}
+          {}
           <div className="space-y-2">
             <h3 className="text-lg font-semibold font-serif">Coding Plan</h3>
             <CodingPlanQuotas providerId={provider.id} />
           </div>
 
-          {/* Credentials section */}
+          {}
           <div className="space-y-2">
             <h3 className="text-lg font-semibold font-serif">Credentials</h3>
             <div
@@ -420,17 +420,17 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                         index < provider.fields.length - 1 ? "border-b border-border" : ""
                       }`}
                     >
-                      {/* Key */}
+                      {}
                       <span className="text-sm font-medium text-primary w-[30%] flex-shrink-0 truncate">
                         {field.key}
                       </span>
 
-                      {/* Value */}
+                      {}
                       <span className="flex-1 font-mono text-xs text-foreground truncate">
                         {displayValue}
                       </span>
 
-                      {/* Visibility toggle */}
+                      {}
                       {field.visibility === "masked" && (
                         <button
                           type="button"
@@ -446,7 +446,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                         </button>
                       )}
 
-                      {/* Copy */}
+                      {}
                       <button
                         type="button"
                         onClick={() => handleCopy(field.value)}
@@ -459,7 +459,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                   );
                 })
               )}
-              {/* Add field button */}
+              {}
               <button
                 type="button"
                 data-testid="add-field-btn"
@@ -473,7 +473,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
         </div>
       </Modal>
 
-      {/* Delete confirm dialog */}
+      {}
       <ConfirmDialog
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
@@ -484,7 +484,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
         variant="destructive"
       />
 
-      {/* Add field modal */}
+      {}
       <AddKvModal
         open={addKvOpen}
         onClose={() => setAddKvOpen(false)}

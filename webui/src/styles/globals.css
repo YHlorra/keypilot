@@ -2,78 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
-/*
- * Theme color cascade root.
- * Setting these on <html> ensures Radix Dialog portals (mounted to
- * document.body) inherit theme tokens — otherwise body falls back to
- * browser-default colors (black text, transparent bg) when modals open.
- */
+
+
+
+
+
+
 html {
   color: var(--color-foreground);
   background-color: var(--color-background);
 }
 
-/*
- * REQ-UI-001: Kaku Design Token System
- * Aesthetic: Kaku editorial-industrial brutalist
- * - warm cream surfaces, navy primary, Charter serif wordmarks
- * - NO Tailwind default palette — all via CSS variables
- *
- * WCAG contrast targets:
- *   Body text: 4.5:1 (AA)  7:1 (AAA)
- *   Large text / UI: 3:1 (AA)
- *   Verified pairs noted per token below.
- */
 
-/* ─── Light theme ─────────────────────────────────────────────────────────── */
+
+
+
+
+
+
+
+
+
+
+
+
 :root,
 [data-theme="light"] {
-  /* Core palette */
-  --color-primary: #1b365d;                     /* navy */
+  
+  --color-primary: #1b365d;                     
   --color-primary-hover: #152d4e;
-  --color-secondary: #faf9f5;                   /* off-white */
-  --color-secondary-hover: #ebe9e0;             /* slightly darker off-white for Button secondary hover */
-  --color-neutral: #141413;                     /* near-black */
+  --color-secondary: #faf9f5;                   
+  --color-secondary-hover: #ebe9e0;             
+  --color-neutral: #141413;                     
   --color-foreground: #141413;
 
-  /* Surface stack */
-  --color-surface: #f5f4ed;                     /* warm cream — same as bg */
-  --color-surface-sunken: #efeddf;              /* deeper cream */
-  --color-surface-elevated: #ffffff;            /* card / modal bg */
+  
+  --color-surface: #f5f4ed;                     
+  --color-surface-sunken: #efeddf;              
+  --color-surface-elevated: #ffffff;            
   --color-on-surface: #141413;
   --color-background: var(--color-surface);
 
-  /* Muted — muted-foreground is lighter than muted for visual hierarchy */
-  --color-muted: #6b6b65;                       /* mid grey */
-  --color-muted-foreground: #6b6b65;            /* CR: 5.6:1 PASS AA on #f5f4ed */
+  
+  --color-muted: #6b6b65;                       
+  --color-muted-foreground: #6b6b65;            
 
-  /* Accent — warm amber for ghost/link hover, etc. */
-  --color-accent: #8a6840;                      /* amber-brown */
+  
+  --color-accent: #8a6840;                      
   --color-accent-foreground: #faf9f5;
 
-  /* Destructive — same red for both text and bg variants */
+  
   --color-destructive: #b42318;
-  --color-destructive-hover: #9e1d13;          /* ~10% darker for Button destructive hover */
+  --color-destructive-hover: #9e1d13;          
   --color-destructive-foreground: #faf9f5;
-  --color-error: #b42318;                       /* alias for consistency */
+  --color-error: #b42318;                       
 
-  /* UI chrome */
-  --color-border: #d4cfc4;                      /* warm grey border */
-  --color-input: #d4cfc4;                       /* input ring / outline border */
-  --color-ring: #1b365d;                        /* focus ring matches primary */
+  
+  --color-border: #d4cfc4;                      
+  --color-input: #d4cfc4;                       
+  --color-ring: #1b365d;                        
   --color-link: #1d4ed8;
   --color-success: #46a758;
   --color-popover: #ffffff;
 
-  /* Typography scale */
-  --font-size-2xs: 0.625rem;    /* 10px — micro labels */
-  --font-size-xs: 0.75rem;      /* 12px — captions, timestamps */
-  --font-size-sm: 0.875rem;     /* 14px — secondary text */
-  --font-size-base: 1rem;       /* 16px — body */
-  --font-size-lg: 1.125rem;     /* 18px — subtitles */
-  --font-size-xl: 1.375rem;     /* 22px — section titles */
-  --font-size-2xl: 1.75rem;     /* 28px — page titles */
-  --font-size-3xl: 2.25rem;     /* 36px — hero display */
+  
+  --font-size-2xs: 0.625rem;    
+  --font-size-xs: 0.75rem;      
+  --font-size-sm: 0.875rem;     
+  --font-size-base: 1rem;       
+  --font-size-lg: 1.125rem;     
+  --font-size-xl: 1.375rem;     
+  --font-size-2xl: 1.75rem;     
+  --font-size-3xl: 2.25rem;     
 
   --line-height-tight: 1.2;
   --line-height-snug: 1.375;
@@ -85,61 +85,61 @@ html {
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  /* Letter spacing */
+  
   --tracking-tight: -0.02em;
   --tracking-normal: 0;
   --tracking-wide: 0.04em;
-  --tracking-wider: 0.06em;     /* ALL CAPS labels */
+  --tracking-wider: 0.06em;     
 
-  /* Font stacks */
+  
   --font-serif: "Charter", Georgia, Palatino, "Times New Roman", serif;
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  /* Spacing tokens */
+  
   --spacing-xs: 2px;
   --spacing-sm: 10px;
   --spacing-md: 18px;
   --spacing-lg: 28px;
   --spacing-xl: 64px;
 
-  /* Radius tokens */
+  
   --radius-sm: 8px;
   --radius-pill: 999px;
 }
 
-/* ─── Dark theme ──────────────────────────────────────────────────────────── */
+
 [data-theme="dark"] {
-  /* Core palette */
+  
   --color-primary: #9bb8e0;
   --color-primary-hover: #aec8e8;
-  --color-secondary: #0e0d0c;                   /* near-black, darker than bg */
-  --color-secondary-hover: #252320;             /* slightly lighter than surface-elevated for Button secondary hover */
-  --color-neutral: #ece9df;                     /* warm white */
+  --color-secondary: #0e0d0c;                   
+  --color-secondary-hover: #252320;             
+  --color-neutral: #ece9df;                     
   --color-foreground: #ece9df;
 
-  /* Surface stack — slightly differentiated */
-  --color-surface: #1a1916;                     /* same as bg (no separation needed in dark) */
+  
+  --color-surface: #1a1916;                     
   --color-surface-sunken: #131210;
   --color-surface-elevated: #2a2825;
   --color-on-surface: #ece9df;
   --color-background: var(--color-surface);
 
-  /* Muted */
+  
   --color-muted: #8a8780;
-  --color-muted-foreground: #c4c0b8;            /* CR: 9.7:1 PASS AAA on #1a1916 */
+  --color-muted-foreground: #c4c0b8;            
 
-  /* Accent */
-  --color-accent: #c4956a;                      /* warm amber */
+  
+  --color-accent: #c4956a;                      
   --color-accent-foreground: #141413;
 
-  /* Destructive */
+  
   --color-destructive: #e87a72;
-  --color-destructive-hover: #f5958e;          /* ~10% lighter for Button destructive hover (dark mode) */
+  --color-destructive-hover: #f5958e;          
   --color-destructive-foreground: #141413;
   --color-error: #e87a72;
 
-  /* UI chrome */
+  
   --color-border: #2e2c28;
   --color-input: #3d3a34;
   --color-ring: #9bb8e0;
@@ -147,7 +147,7 @@ html {
   --color-success: #7ad27d;
   --color-popover: #2a2825;
 
-  /* Typography scale — same sizes, no adjustment needed */
+  
   --font-size-2xs: 0.625rem;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;

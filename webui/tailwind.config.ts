@@ -22,14 +22,14 @@ const config: Config = {
         pill: "var(--radius-pill)",
       },
       colors: {
-        /* shadcn-compatible base */
+        
         background: "var(--color-background)",
         foreground: "var(--color-foreground)",
-        // Nested shape so `*-foreground` classes resolve. Flat keys like
-        // `primaryForeground` (camelCase top-level) are NOT kebab-cased by
-        // Tailwind v3's flattenColorPalette — only nested objects get the
-        // `primary-foreground` kebab variant. See button.tsx / select.tsx /
-        // Icon.tsx for the consumers.
+        
+        
+        
+        
+        
         card: {
           DEFAULT: "var(--color-surface)",
           foreground: "var(--color-on-surface)",
@@ -61,7 +61,7 @@ const config: Config = {
         border: "var(--color-border)",
         input: "var(--color-input)",
         ring: "var(--color-ring)",
-        /* Kaku extras */
+        
         link: "var(--color-link)",
         success: "var(--color-success)",
         error: "var(--color-error)",

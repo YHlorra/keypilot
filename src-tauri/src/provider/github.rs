@@ -11,7 +11,7 @@ impl super::ProviderAdapter for GitHubAdapter {
     }
 
     fn can_test(&self) -> bool {
-        false // GitHub doesn't have a simple test_connection endpoint
+        false 
     }
 
     fn can_fetch_quota(&self) -> bool {
@@ -19,7 +19,7 @@ impl super::ProviderAdapter for GitHubAdapter {
     }
 
     async fn validate_key(&self, _base_url: &str, _api_key: &str) -> Result<(), ValidateError> {
-        // Not implemented - can_test() returns false, caller must check first
+        
         Err(ValidateError::Ambiguous)
     }
 
@@ -68,7 +68,7 @@ impl super::ProviderAdapter for GitHubAdapter {
         let used = core.used as f64;
         let remaining = core.remaining as f64;
 
-        // Determine level based on remaining percentage
+        
         let level = if total > 0.0 {
             let pct = remaining / total;
             if pct > 0.5 {
@@ -84,7 +84,7 @@ impl super::ProviderAdapter for GitHubAdapter {
             None
         };
 
-        // 计算百分比与 ISO 重置时间(hourly 窗口)
+        
         let used_percent = if total > 0.0 {
             Some((used / total) * 100.0)
         } else {
@@ -95,19 +95,19 @@ impl super::ProviderAdapter for GitHubAdapter {
         } else {
             None
         };
-        // GitHub rate_limit reset 是 unix epoch 秒,转 ISO 8601
+        
         let resets_at_iso = chrono::DateTime::from_timestamp(core.reset, 0)
             .map(|dt| dt.to_rfc3339());
 
         Ok(QuotaSnapshot {
-            // 旧字段(向后兼容)
+            
             total: Some(total),
             used,
             remaining: Some(remaining),
             unit: "req".to_string(),
             level,
             reset_at: Some(core.reset),
-            // 新字段(对齐 token-monitor normalizeLimitProvider 输出)
+            
             windows: vec![LimitWindow {
                 kind: LimitWindowKind::Session,
                 label: "Hourly".to_string(),
@@ -127,7 +127,7 @@ impl super::ProviderAdapter for GitHubAdapter {
             account_label: None,
             account_email: None,
             region: None,
-            // GitHub 是请求数,不是金额,故 balance/used_amount/balance_usd/used_usd 全部 None
+            
             balance: None,
             used_amount: None,
             balance_usd: None,

@@ -29,19 +29,19 @@ export const TopBar = ({
   onDensityChange,
   categories,
 }: TopBarProps) => {
-  // The Select keeps a string-typed value; we round-trip to/from categoryFilter (number | "all")
-  // at the boundary.
+  
+  
   const selectValue = categoryFilter === "all" ? ALL_VALUE : String(categoryFilter);
   const handleCategorySelect = (v: string) => {
     onCategoryChange(v === ALL_VALUE ? "all" : Number(v));
   };
 
   return (
-    // removed `fixed left-0 md:left-16 right-0 z-40` + `style.top:48`
-    // so TopBar becomes a flex sibling of Titlebar inside the right column,
-    // letting `flex-1` scrollContainer start cleanly at TopBar's bottom edge.
+    
+    
+    
     <div className="shrink-0 flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 border-b border-border bg-card">
-      {/* Search input - 360px wide on desktop */}
+      {}
       <div className="w-full sm:w-[360px] shrink-0">
         <Input
           type="search"
@@ -52,10 +52,10 @@ export const TopBar = ({
         />
       </div>
 
-      {/* Right cluster: category filter (Select dropdown) + density */}
+      {}
       <div className="flex flex-wrap items-center gap-2 ml-auto">
-        {/* Category filter -- Select dropdown. Replaces the previous ChipGroup that overflowed
-            and broke Chinese text mid-character when the user had many categories. */}
+        {
+}
         <Select value={selectValue} onValueChange={handleCategorySelect}>
           <SelectTrigger
             aria-label="Filter by category"

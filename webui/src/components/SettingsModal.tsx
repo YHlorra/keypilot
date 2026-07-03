@@ -18,12 +18,12 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-/** Detect Tauri runtime -- in plain browser dev (vite), invoke() throws. */
+
 function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI__" in window;
 }
 
-/** Format a mutation error so users see a friendly message, not a JS internals leak. */
+
 function formatMutationError(e: unknown, action: string): string {
   if (!isTauriRuntime()) {
     return "无法连接桌面运行时,请在 KeyPilot 应用内操作";
@@ -94,7 +94,7 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
     setMigrateTo(id);
   };
 
-  // Providers count per category
+  
   const providersInCategory = (id: number) => providers.filter((p) => p.category_id === id).length;
 
   const isAdding = addMutation.isPending;
@@ -112,13 +112,13 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
       }
     >
       <div className="space-y-6">
-        {/* Theme */}
+        {}
         <div>
           <h3 className="text-lg font-semibold font-serif mb-3">主题</h3>
           <ThemeToggle />
         </div>
 
-        {/* Categories */}
+        {}
         <div>
           <h3 className="text-lg font-semibold font-serif mb-3">分类</h3>
           <div className="space-y-2">
@@ -154,7 +154,7 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
             })}
           </div>
 
-          {/* Add category input */}
+          {}
           <div className="flex items-center gap-2 mt-3">
             <Input
               value={newCategoryName}
@@ -186,7 +186,7 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
           </div>
         </div>
 
-        {/* About */}
+        {}
         <div>
           <h3 className="text-lg font-semibold font-serif mb-3">关于</h3>
           <div className="text-sm text-muted-foreground space-y-1">
@@ -204,7 +204,7 @@ export const SettingsModal = React.memo(function SettingsModal({ open, onClose }
         </div>
       </div>
 
-      {/* Delete category confirm dialog */}
+      {}
       <ConfirmDialog
         open={confirmDeleteOpen}
         onClose={() => !isDeleting && setConfirmDeleteOpen(false)}

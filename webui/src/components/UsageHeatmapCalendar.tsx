@@ -3,23 +3,23 @@ import { useMemo } from "react";
 import { formatTokens, formatLocalDate } from "@/lib/format";
 
 interface HeatmapCalendarProps {
-  /** Map of date string "YYYY-MM-DD" -> token count */
+  
   dateMap: Map<string, number>;
 }
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// Build a 7-row × N-column grid of { date, count } for the last ~26 weeks (182 days)
+
 function buildCalendarGrid(dateMap: Map<string, number>): { date: string; count: number }[][] {
   const today = new Date();
   const endDate = new Date(today);
-  // Start from the beginning of the week 26 weeks ago
+  
   const startDate = new Date(today);
-  startDate.setDate(startDate.getDate() - 181); // ~26 weeks
-  // Adjust to start of week (Monday)
-  const dayOfWeek = startDate.getDay(); // 0 = Sunday
-  const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // adjust to Monday
+  startDate.setDate(startDate.getDate() - 181); 
+  
+  const dayOfWeek = startDate.getDay(); 
+  const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; 
   startDate.setDate(startDate.getDate() + offset);
 
   const weeks: { date: string; count: number }[][] = [];
@@ -38,7 +38,7 @@ function buildCalendarGrid(dateMap: Map<string, number>): { date: string; count:
   return weeks;
 }
 
-// Return month label for each week column, empty string if month didn't change
+
 function buildMonthLabelsByCol(weeks: { date: string; count: number }[][]): string[] {
   const labels = new Array<string>(weeks.length).fill('');
   let lastMonth = -1;
@@ -52,7 +52,7 @@ function buildMonthLabelsByCol(weeks: { date: string; count: number }[][]): stri
   return labels;
 }
 
-// 6 buckets: l0 (no data), l1–l5 (intensity ramp)
+
 function intensityColor(count: number, maxCount: number): string {
   if (maxCount === 0 || count === 0) return "var(--color-border)";
   const ratio = count / maxCount;
@@ -99,15 +99,15 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
 
   return (
     <div className="flex flex-col gap-2 min-w-0">
-      {/* One CSS grid: auto col (day labels) + 26 cell columns */}
+      {}
       <div
         className="grid w-full"
         style={{ gridTemplateColumns: `auto repeat(${TOTAL_COLS}, minmax(0, 1fr))`, gap: 5 }}
       >
-        {/* Row 1, col 1: empty corner */}
+        {}
         <div />
 
-        {/* Row 1, cols 2-27: month labels, absolutely positioned by week index */}
+        {}
         <div className="relative h-4" style={{ gridColumn: `2 / span ${TOTAL_COLS}` }}>
           {monthLabelByCol.map((label, i) =>
             label ? (
@@ -122,17 +122,17 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
           )}
         </div>
 
-        {/* Rows 2-8: day label + 26 cells per row, in source order */}
+        {}
         {DAYS.map((day, d) => (
           <React.Fragment key={day}>
-            {/* Day label col */}
+            {}
             <div
               className="text-xs text-muted-foreground text-right pr-2 flex items-center leading-tight whitespace-nowrap"
               style={{ minWidth: 36 }}
             >
               {day}
             </div>
-            {/* 26 cells for this day across all weeks */}
+            {}
             {weeks.map((week) => {
               const dayData = week[d];
               return (
@@ -149,7 +149,7 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
         ))}
       </div>
 
-      {/* Intensity legend */}
+      {}
       <div className="flex items-center gap-2 mt-1">
         <span className="text-xs text-muted-foreground">Less</span>
         <div className="flex gap-1">
@@ -171,7 +171,7 @@ export const UsageHeatmapCalendar = React.memo(function UsageHeatmapCalendar({
         <span className="text-xs text-muted-foreground">More</span>
       </div>
 
-      {/* Tooltip */}
+      {}
       {tooltip && (
         <div
           className="fixed z-50 bg-background border border-border rounded-sm shadow-lg px-2 py-1.5 text-xs pointer-events-none"
