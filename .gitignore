@@ -97,6 +97,10 @@ webui/inspect.mjs
 /CLAUDE.md
 /DESIGN.md
 /PLAN.md
+/BACKLOG.md
+/feature_list.json
+/progress.md
+/session-handoff.md
 /init.sh
 /openspec/
 /docs/
