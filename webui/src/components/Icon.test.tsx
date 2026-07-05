@@ -7,21 +7,21 @@ import { ProviderIcon } from './Icon';
 // (reading 'charAt')" whenever `preset` was a truthy custom string not present
 // in PRESET_LABELS (e.g. user-typed "openrouter" via the "自定义…" picker).
 describe('ProviderIcon', () => {
-  it('renders the label initial for a known preset', () => {
+  it('renders the first two letters for a known preset', () => {
     render(<ProviderIcon preset="openai" name="My OpenAI" />);
-    expect(screen.getByTitle('OpenAI').textContent).toBe('O');
+    expect(screen.getByTitle('OpenAI').textContent).toBe('OP');
   });
 
   it('falls back to the provider name for an unknown custom preset', () => {
     // Before the fix: this threw TypeError because PRESET_LABELS["openrouter"]
     // is undefined and label.charAt(0) crashed.
     render(<ProviderIcon preset="openrouter" name="OpenRouter" />);
-    expect(screen.getByTitle('OpenRouter').textContent).toBe('O');
+    expect(screen.getByTitle('OpenRouter').textContent).toBe('OP');
   });
 
-  it('falls back to the provider name when preset is null', () => {
+  it('falls back to the first two letters of the provider name when preset is null', () => {
     render(<ProviderIcon preset={null} name="My Custom" />);
-    expect(screen.getByTitle('My Custom').textContent).toBe('M');
+    expect(screen.getByTitle('My Custom').textContent).toBe('MY');
   });
 
   it('renders an <img> when icon is set, with src and alt derived from the path and name', () => {

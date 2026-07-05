@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod catalog;
 pub mod database;
 pub mod error;
 pub mod store;
@@ -15,11 +16,18 @@ use services::auto_import;
 use services::incremental_import::IncrementalImporter;
 use services::token_usage::TokenUsageService;
 use store::AppState;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::Manager;
 
 pub fn run() {
     
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.show();
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+        }))
         .setup(|app| {
             
             let app_dir = app.path().app_data_dir()?;
@@ -42,6 +50,8 @@ pub fn run() {
                 Ok(_) => {},
                 Err(e) => eprintln!("Failed to clean preset providers: {}", e),
             }
+
+            db.seed_preset_providers()?;
 
             let state = AppState::new(db);
             
@@ -77,35 +87,20 @@ pub fn run() {
                 
                 
                 
-                let parsers =
+let parsers =
                     services::agent_parser::default_parsers(pricing_for_import.clone());
-                let _importer = IncrementalImporter::start(
-                    app_handle,
+                let state = app_handle.state::<AppState>();
+                let importer = IncrementalImporter::start(
+                    app_handle.clone(),
                     db_for_import.clone(),
                     pricing_for_import,
                     parsers,
                 );
-                
-                
-                Box::leak(Box::new(_importer));
+                state.set_importer(importer);
             });
 
             
             let _tray = tray::init_tray(app.handle())?;
-
-            
-            let (label, title) = ("main".to_string(), "KeyPilot");
-
-            let builder = WebviewWindowBuilder::new(
-                app,
-                label,
-                WebviewUrl::App("index.html".into()),
-            )
-            .title(title)
-            .inner_size(1200.0, 760.0)
-            .resizable(true);
-
-            builder.build()?;
 
             Ok(())
         })
@@ -118,7 +113,9 @@ pub fn run() {
     commands::provider::list_categories,
     commands::provider::add_category,
     commands::provider::delete_category,
-    commands::provider::test_connection,
+    commands::provider::test_connection_detailed,
+    commands::provider::preflight,
+    commands::provider::list_catalog_presets,
     commands::quota::fetch_quota,
     commands::quota::set_manual_quota,
     commands::quota::fetch_coding_plan_quota,

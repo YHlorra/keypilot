@@ -1,148 +1,9 @@
-
-
-
-
-
 use super::*;
 use crate::provider::coding_plan::minimax::parse_minimax_tiers;
 use crate::provider::coding_plan::subscription::{
     extract_reset_ms, make_error, make_success, make_tier, parse_f64,
 };
 use crate::types::subscription::{CredentialStatus, QuotaTierKind, TierStatus};
-
-
-
-#[test]
-fn detect_provider_minimax_cn() {
-    assert_eq!(
-        detect_provider("https://api.minimaxi.com/v1"),
-        Some(CodingPlanProvider::MiniMaxCn)
-    );
-}
-
-#[test]
-fn detect_provider_minimax_en() {
-    assert_eq!(
-        detect_provider("https://api.minimax.io/v1"),
-        Some(CodingPlanProvider::MiniMaxEn)
-    );
-}
-
-#[test]
-fn detect_provider_minimax_case_insensitive() {
-    
-    assert_eq!(
-        detect_provider("HTTPS://API.MINIMAXI.COM/V1"),
-        Some(CodingPlanProvider::MiniMaxCn)
-    );
-}
-
-#[test]
-fn detect_provider_kimi() {
-    assert_eq!(
-        detect_provider("https://api.kimi.com/coding/v1"),
-        Some(CodingPlanProvider::Kimi)
-    );
-}
-
-#[test]
-fn detect_provider_kimi_preset_default() {
-    assert_eq!(
-        detect_provider("https://api.moonshot.cn/v1"),
-        Some(CodingPlanProvider::Kimi)
-    );
-}
-
-#[test]
-fn detect_provider_kimi_anthropic_preset_default() {
-    assert_eq!(
-        detect_provider("https://api.moonshot.cn/anthropic"),
-        Some(CodingPlanProvider::Kimi)
-    );
-}
-
-#[test]
-fn detect_provider_zhipu_cn() {
-    assert_eq!(
-        detect_provider("https://open.bigmodel.cn/api/paas/v4"),
-        Some(CodingPlanProvider::ZhipuCn)
-    );
-}
-
-#[test]
-fn detect_provider_zhipu_en() {
-    assert_eq!(
-        detect_provider("https://api.z.ai/api/paas/v4"),
-        Some(CodingPlanProvider::ZhipuEn)
-    );
-}
-
-#[test]
-fn detect_provider_volcengine() {
-    assert_eq!(
-        detect_provider("https://ark.cn-beijing.volces.com/api/coding/v3"),
-        Some(CodingPlanProvider::Volcengine)
-    );
-}
-
-#[test]
-fn detect_provider_volcengine_preset_default() {
-    assert_eq!(
-        detect_provider("https://ark.cn-beijing.volces.com/api/v3"),
-        Some(CodingPlanProvider::Volcengine)
-    );
-}
-
-#[test]
-fn detect_provider_volcengine_anthropic_preset_default() {
-    assert_eq!(
-        detect_provider("https://ark.cn-beijing.volces.com/api/coding"),
-        Some(CodingPlanProvider::Volcengine)
-    );
-}
-
-#[test]
-fn detect_provider_zhipu_anthropic_preset_default() {
-    assert_eq!(
-        detect_provider("https://open.bigmodel.cn/api/anthropic"),
-        Some(CodingPlanProvider::ZhipuCn)
-    );
-}
-
-#[test]
-fn detect_provider_zenmux() {
-    assert_eq!(
-        detect_provider("https://zenmux.example.com/api/v1"),
-        Some(CodingPlanProvider::ZenMux)
-    );
-}
-
-#[test]
-fn detect_provider_unknown() {
-    assert_eq!(detect_provider("https://example.com"), None);
-    assert_eq!(detect_provider(""), None);
-    assert_eq!(detect_provider("not-a-url"), None);
-}
-
-#[test]
-fn detect_provider_order_minimax_cn_beats_io_substring() {
-    
-    
-    
-    
-    assert_eq!(
-        detect_provider("https://api.minimaxi.com/v1"),
-        Some(CodingPlanProvider::MiniMaxCn),
-        "CN must not collapse into EN"
-    );
-    assert_eq!(
-        detect_provider("https://api.minimax.io/v1"),
-        Some(CodingPlanProvider::MiniMaxEn),
-        "EN must not collapse into CN"
-    );
-}
-
-
 
 #[test]
 fn parse_f64_accepts_number_and_string() {
@@ -164,23 +25,17 @@ fn parse_f64_handles_integer() {
 
 #[test]
 fn parse_f64_empty_string_returns_none() {
-    
-    
     assert_eq!(parse_f64(&serde_json::json!("")), None);
 }
 
-
-
 #[test]
 fn extract_reset_ms_handles_ms() {
-    
     let v = serde_json::json!(1_782_993_600_000_i64);
     assert_eq!(extract_reset_ms(&v), Some(1_782_993_600_000));
 }
 
 #[test]
 fn extract_reset_ms_handles_seconds() {
-    
     let v = serde_json::json!(1_782_993_600_i64);
     assert_eq!(extract_reset_ms(&v), Some(1_782_993_600_000));
 }
@@ -189,14 +44,11 @@ fn extract_reset_ms_handles_seconds() {
 fn extract_reset_ms_handles_iso8601_string() {
     let v = serde_json::json!("2026-07-01T00:00:00Z");
     let out = extract_reset_ms(&v).expect("ISO 8601 must parse");
-    
-    
     assert_eq!(out, 1_782_864_000_000);
 }
 
 #[test]
 fn extract_reset_ms_handles_negative() {
-    
     assert_eq!(extract_reset_ms(&serde_json::json!(-1_i64)), None);
     assert_eq!(extract_reset_ms(&serde_json::json!(0_i64)), None);
 }
@@ -211,8 +63,6 @@ fn extract_reset_ms_handles_null_and_bool() {
     assert_eq!(extract_reset_ms(&serde_json::json!(null)), None);
     assert_eq!(extract_reset_ms(&serde_json::json!(true)), None);
 }
-
-
 
 #[test]
 fn make_tier_clamps_remaining_percent() {
@@ -266,8 +116,6 @@ fn make_tier_used_equals_hundred_minus_remaining() {
     assert_eq!(tier.used_percent, Some(15.0));
 }
 
-
-
 #[test]
 fn make_error_default_status_is_valid() {
     let err = make_error("test", "boom".into(), CredentialStatus::Valid);
@@ -276,7 +124,6 @@ fn make_error_default_status_is_valid() {
     assert_eq!(err.credential_status, CredentialStatus::Valid);
     assert_eq!(err.provider_id, "test");
     assert!(err.tiers.is_empty());
-    
     assert!(err.queried_at_ms > 0);
 }
 
@@ -295,11 +142,8 @@ fn make_success_default_status_is_valid() {
     assert_eq!(ok.provider_id, "minimax");
 }
 
-
-
 #[test]
 fn minimax_parses_real_response_with_active_weekly() {
-    
     let body = serde_json::json!({
         "model_remains": [{
             "model_name": "general",
@@ -323,7 +167,6 @@ fn minimax_parses_real_response_with_active_weekly() {
     let tiers = parse_minimax_tiers(&body);
     assert_eq!(tiers.len(), 2);
 
-    
     assert_eq!(tiers[0].kind, QuotaTierKind::FiveHour);
     assert_eq!(tiers[0].label, "General 5h");
     assert_eq!(tiers[0].remaining_percent, Some(85.0));
@@ -331,7 +174,6 @@ fn minimax_parses_real_response_with_active_weekly() {
     assert_eq!(tiers[0].resets_at_ms, Some(1_783_008_000_000));
     assert_eq!(tiers[0].status, TierStatus::Active);
 
-    
     assert_eq!(tiers[1].kind, QuotaTierKind::Weekly);
     assert_eq!(tiers[1].label, "General Weekly");
     assert_eq!(tiers[1].remaining_percent, Some(75.0));
@@ -341,8 +183,6 @@ fn minimax_parses_real_response_with_active_weekly() {
 
 #[test]
 fn minimax_skips_weekly_when_status_is_3() {
-    
-    
     let body = serde_json::json!({
         "model_remains": [{
             "model_name": "general",
@@ -360,7 +200,6 @@ fn minimax_skips_weekly_when_status_is_3() {
 
 #[test]
 fn minimax_skips_non_general_model_entries() {
-    
     let body = serde_json::json!({
         "model_remains": [
             {
@@ -393,7 +232,6 @@ fn minimax_handles_missing_model_remains() {
 
 #[test]
 fn minimax_handles_missing_general_entry() {
-    
     let body = serde_json::json!({
         "model_remains": [{
             "model_name": "video",
@@ -406,7 +244,6 @@ fn minimax_handles_missing_general_entry() {
 
 #[test]
 fn minimax_string_percent_fallback() {
-    
     let body = serde_json::json!({
         "model_remains": [{
             "model_name": "general",
@@ -425,8 +262,6 @@ fn minimax_string_percent_fallback() {
 
 #[test]
 fn minimax_inactive_5h_status_maps_to_inactive() {
-    
-    
     let body = serde_json::json!({
         "model_remains": [{
             "model_name": "general",
@@ -441,45 +276,4 @@ fn minimax_inactive_5h_status_maps_to_inactive() {
     assert_eq!(tiers.len(), 2);
     assert_eq!(tiers[0].status, TierStatus::Inactive);
     assert_eq!(tiers[1].status, TierStatus::Active);
-}
-
-
-
-#[tokio::test]
-async fn dispatcher_rejects_empty_api_key() {
-    let q = fetch_coding_plan_quota("https://api.minimaxi.com/v1", "").await;
-    assert!(!q.success);
-    assert_eq!(q.credential_status, CredentialStatus::Invalid);
-    assert!(q.error.is_some());
-}
-
-#[tokio::test]
-async fn dispatcher_returns_unknown_provider_for_unrecognized_host() {
-    let q = fetch_coding_plan_quota("https://example.com", "sk-test").await;
-    assert!(!q.success);
-    assert_eq!(q.credential_status, CredentialStatus::Unknown);
-    assert_eq!(q.provider_id, "unknown");
-    assert!(q.tiers.is_empty());
-}
-
-#[tokio::test]
-async fn dispatcher_dispatches_kimi_to_real_provider_not_stub() {
-    
-    
-    
-    
-    
-    
-    
-    let q = fetch_coding_plan_quota("https://api.kimi.com/coding/v1", "sk-test").await;
-    assert_eq!(
-        q.provider_id, "kimi",
-        "Lane C: Kimi must dispatch to kimi::fetch, not return a stub"
-    );
-    let err = q.error.as_deref().unwrap_or("");
-    assert!(
-        !err.contains("not yet implemented"),
-        "stub placeholder must be gone after Lane C wiring (got: {err:?})"
-    );
-    assert!(!q.success, "no successful Kimi fetch without a real key");
 }

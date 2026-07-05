@@ -14,6 +14,7 @@ pub struct AddProviderRequest {
     pub icon: Option<String>,
     pub icon_color: Option<String>,
     pub fields: Option<Vec<AddProviderFieldRequest>>,
+    pub custom_spec: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -143,23 +144,32 @@ pub async fn add_provider_by_state(state: &AppState, req: AddProviderRequest) ->
     let db = state.db.clone();
     let now = timeutil::now_secs();
 
+    // Auto-fill icon from catalog when frontend omitted it (preset id known).
+    // Frontend AddCredentialModal only sends preset id; icon column must not stay NULL
+    // or ProviderIcon falls back to letter abbreviations.
+    let icon = req.icon.clone().or_else(|| {
+        req.preset.as_ref().and_then(|p| crate::catalog::preset_icon(p))
+    });
+
     let provider = tauri::async_runtime::spawn_blocking(move || {
         let guard = db.lock().unwrap();
         let pinned = if req.pinned.unwrap_or(false) { 1 } else { 0 };
 
         guard.conn.execute(
             "INSERT INTO providers (name, preset, is_preset, category_id, pinned, notes, icon,
-                                    icon_color, sort_index, created_at, updated_at)
+                                    icon_color, custom_spec, sort_index, created_at, updated_at)
              VALUES (?1, ?2, 0, ?3, ?4, ?5, ?6, ?7,
-                     (SELECT COALESCE(MAX(sort_index), 0) + 1 FROM providers), ?8, ?8)",
+                     ?8,
+                     (SELECT COALESCE(MAX(sort_index), 0) + 1 FROM providers), ?9, ?9)",
             rusqlite::params![
                 req.name,
                 req.preset,
                 req.category_id,
                 pinned,
                 req.notes,
-                req.icon,
+                icon,
                 req.icon_color,
+                req.custom_spec,
                 now
             ],
         )?;

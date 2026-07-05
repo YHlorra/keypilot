@@ -16,6 +16,7 @@ import type {
   QuotaSnapshot,
   PeriodsSummary,
   FetchCodingPlanQuotaRequest, FetchCodingPlanQuotaResponse,
+  CatalogPresetMeta,
 } from "@/types/api";
 import { executeAction } from "@/lib/action-registry";
 
@@ -128,6 +129,10 @@ export async function openForEdit(req: { id: number }): Promise<GetProviderRespo
 
 export async function deleteProviderViaAction(req: { id: number }): Promise<void> {
   return executeAction("provider.delete", req) as Promise<void>;
+}
+
+export async function listCatalogPresets(): Promise<CatalogPresetMeta[]> {
+  return invoke<CatalogPresetMeta[]>("list_catalog_presets");
 }
 
 

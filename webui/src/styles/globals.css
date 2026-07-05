@@ -172,3 +172,8 @@ html {
   --tracking-wide: 0.04em;
   --tracking-wider: 0.06em;
 }
+
+
+[data-theme="dark"] .provider-icon-img {
+  filter: invert(1);
+}
