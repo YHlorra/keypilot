@@ -46,8 +46,6 @@ use crate::types::subscription::{CredentialStatus, QuotaTierKind, SubscriptionQu
 
 
 
-const TOKEN_PLAN_URL: &str = "https://www.minimaxi.com/v1/token_plan/remains";
-
 const HTTP_TIMEOUT_SECS: u64 = 15;
 
 
@@ -63,9 +61,13 @@ pub async fn fetch(base_url: &str, api_key: &str) -> SubscriptionQuota {
         "minimax_cn"
     };
 
+    // ponytail: derive token_plan endpoint from base_url so CN (api.minimaxi.com)
+    // and EN (api.minimax.io) resolve to their own gateway. Hardcoding www.* broke EN.
+    let token_plan_url = format!("{}/token_plan/remains", base_url.trim_end_matches('/'));
+
     let client = reqwest::Client::new();
     let resp = client
-        .get(TOKEN_PLAN_URL)
+        .get(&token_plan_url)
         .header("Authorization", format!("Bearer {api_key}"))
         .header("Content-Type", "application/json")
         .timeout(std::time::Duration::from_secs(HTTP_TIMEOUT_SECS))

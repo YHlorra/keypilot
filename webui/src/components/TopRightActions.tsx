@@ -11,10 +11,6 @@ interface TopRightActionsProps {
 
 
 
-
-
-
-
 export const TopRightActions = React.memo(function TopRightActions({
   onSettingsClick,
   onAddClick,

@@ -22,10 +22,10 @@ const RANGE_OPTIONS: { value: RangeOption; label: string }[] = [
 
 
 const CODING_PLAN_PRESETS = new Set<string>([
-  "minimax",
-  "minimax-overseas",
-  "minimax-anthropic",
-  "minimax-overseas-anthropic",
+  "minimax-cn",
+  "minimax-en",
+  "minimax-cn-anthropic",
+  "minimax-en-anthropic",
   "kimi",
   "kimi-anthropic",
   "zhipu",
@@ -33,6 +33,7 @@ const CODING_PLAN_PRESETS = new Set<string>([
   "volcengine",
   "volcengine-anthropic",
   "zenmux",
+  "mimo",
 ]);
 
 export interface UsagePageProps {

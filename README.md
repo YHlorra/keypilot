@@ -8,7 +8,7 @@
 <p align="center">
   <a href="#quick-start"><img alt="Quick Start" src="https://img.shields.io/badge/quick-start-000?style=flat-square&logo=readme&logoColor=white"/></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/YHlorra/keypilot?style=flat-square"/></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-000?style=flat-square"/>
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.1-000?style=flat-square"/>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6?style=flat-square&logo=windows&logoColor=white"/>
   <img alt="Stack" src="https://img.shields.io/badge/stack-Tauri%202%20%C2%B7%20Rust%20%C2%B7%20React%20%E2%9A%99%EF%B8%8F-000?style=flat-square"/>
 </p>
@@ -20,7 +20,7 @@
 ---
 
 > [!NOTE]
-> This repository is a **public showcase snapshot** of KeyPilot V0.1. Issues and pull requests are welcome.
+> This repository is a **public showcase snapshot** of KeyPilot V0.2.1. Issues and pull requests are welcome.
 
 ## Contents
 
@@ -29,7 +29,7 @@
 - [Features](#features)
 - [Connecting to Providers](#connecting-to-providers)
 - [Tech Stack](#tech-stack)
-- [Scope (V0.1)](#scope-v01)
+- [Scope (V0.2.1)](#scope-v021)
 - [Project Structure](#project-structure)
 - [Development](#development)
 - [When (Not) to Use](#when-not-to-use)
@@ -78,8 +78,11 @@ Credential encryption, cross-platform support and cloud sync are **explicitly ou
 
 ## Features
 
-- **24 provider presets** — Anthropic, OpenAI, DeepSeek, GitHub Models, Volcengine, Kimi, GLM, MiniMax, ZenMux, and more. Each preset ships its own field schema and quota endpoint.
-- **11 Coding Plan trackers** — Kimi For Coding, GLM Coding, MiniMax Token Plan, Volcengine Ark Coding Plan, ZenMux 5h + weekly windows. Both 5-hour and weekly windows surfaced side-by-side.
+- **21 built-in provider presets** (V0.2.1) — Anthropic, OpenAI, DeepSeek, GitHub Models, Volcengine, Kimi, GLM, MiniMax (CN/EN), Mimo, OpenRouter, Groq, Mistral, SiliconFlow, Together, StepFun, Cohere, Perplexity, Fireworks AI, AI21 Labs. Each preset ships its own field schema, docs_url and quota endpoint.
+- **Multi-endpoint catalog (V0.2.1)** — 6 dual-protocol presets (Kimi / GLM / Volcengine / DeepSeek / MiniMax-CN / MiniMax-EN) expose both OpenAI-compat and Anthropic-compat endpoints under a single API key. Click "另有 N 个协议端点" on the card to inspect.
+- **Add Custom Provider (V0.2)** — `+` → "+ 自定义" dialog (shadcn/Radix/Tailwind). Pick protocol, fill URL + Key, "测试连接" runs `provider.preflight` against the live endpoint before save.
+- **7 Coding Plan trackers** — Kimi For Coding, GLM Coding, MiniMax Token Plan (CN+EN), Volcengine Ark Coding Plan, ZenMux 5h + weekly windows. Both 5-hour and weekly windows surfaced side-by-side.
+- **5 protocol registry (V0.2)** — typed match on `ProtocolId` (OpenAI / Anthropic / GitHub / Balance / DeepSeek). Adding a new protocol = 1 file under `src-tauri/src/provider/protocols/` + 1 line in `registry.rs`. Adding a new preset = 1 toml file. No central switch.
 - **3 themes** — Dark / Light / Follow System. Radix UI Colors palette, brutalist typography, no Tailwind defaults.
 - **Visibility tri-state** — `visible → masked → revealed`. The disk never cares; the UI decides.
 - **Token usage history** — auto-parses OpenCode / Claude Code / Codex session logs. Heatmap + trend line + per-agent leaderboard.
@@ -115,17 +118,19 @@ For Coding Plans, KeyPilot auto-fetches both windows and shows the tighter one i
 | DB | SQLite (`rusqlite` bundled) |
 | Tray / FS watch | `tauri::tray`, `notify-debouncer-full` |
 
-## Scope (V0.1)
+## Scope (V0.2.1)
 
 | Capability | Status |
 |---|---|
 | Windows 10 / 11 | Supported |
 | Credential storage | Plaintext + Windows ACL (no encryption) |
-| Live quota | 5 LLM providers + 6 Coding Plans |
+| Live quota | 21 LLM presets + 7 Coding Plans (V0.2.1) |
+| Multi-endpoint per preset | V0.2.1 — 6 dual-protocol presets share 1 API key |
 | Token usage history | OpenCode / Claude Code / Codex auto-parse |
 | Cross-platform | Not in V0.3+ |
-| Master password / Argon2 | Evaluated for V0.2 |
+| Master password / Argon2 | Deferred to V0.2.2+ RFC |
 | Auto-refresh / low-quota alerts | V0.2 |
+| Real LLM call routing | V0.3+ (catalog already has `extras` plumbing) |
 | Import / Export | V0.2 |
 
 ## Project Structure
@@ -196,11 +201,14 @@ Do **not** use KeyPilot when:
 
 ## Roadmap
 
-| Version | Focus |
-|---|---|
-| V0.2 | SQLCipher / master-password Argon2id / DPAPI evaluation; auto-refresh; low-quota alerts; import/export |
-| V0.3 | macOS / Linux support |
-| V1.0 | Stable API, signed releases, auto-update channel |
+| Version | Status | Focus |
+|---|---|---|
+| V0.1 | ✅ Shipped | 5 presets, manual quota, Windows-only, plaintext credentials |
+| V0.2 | ✅ Shipped | 18 presets via catalog; 5 protocol registry (typed match); AddCustomProviderDialog + provider.preflight |
+| **V0.2.1** | ✅ Shipped | Multi-endpoint catalog — 6 dual-protocol presets (Kimi / GLM / Volcengine / DeepSeek / MiniMax-CN / MiniMax-EN) merge 12 toml → 6 with `[[extras]]`; +3 single-protocol presets (Mimo / Fireworks / AI21) → 21 total; ProviderCard extras foldout; preset icons auto-resolved from catalog |
+| V0.2.2 | Planned | Encryption RFC (SQLCipher / master-password Argon2id / DPAPI); T3.9 advanced JSON mode |
+| V0.3 | Planned | macOS / Linux support; real LLM call routing using catalog `extras` |
+| V1.0 | Planned | Stable API, signed releases, auto-update channel |
 
 ## License
 

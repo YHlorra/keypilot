@@ -21,7 +21,7 @@ export interface ProviderField {
 export interface Provider {
   id: number;
   name: string;
-  preset: string | null;               
+  preset: string | null;
   is_preset: boolean;
   category_id: number;
   pinned: boolean;
@@ -31,7 +31,26 @@ export interface Provider {
   sort_index: number;
   created_at: number;
   updated_at: number;
-  fields: ProviderField[];             
+  fields: ProviderField[];
+  // Phase 5: extra protocol endpoints (multi-endpoint catalog)
+  extras?: ExtraEndpoint[];
+}
+
+export type ExtraProtocol = "openai" | "anthropic" | "github" | "deepseek" | "balance";
+
+export interface ExtraEndpoint {
+  protocol: ExtraProtocol;
+  base_url: string;
+  auth_header: string;
+  validate_probe?: {
+    method: string;
+    path: string;
+    success_status: number[];
+    parser: string;
+  };
+  // Phase 5c follow-on: status populated by test_connection_detailed
+  status?: "ok" | "fail" | "untested";
+  message?: string;
 }
 
 export interface Category {
@@ -408,3 +427,21 @@ export interface SubscriptionQuota {
 
 export interface FetchCodingPlanQuotaRequest { id: number; }
 export type FetchCodingPlanQuotaResponse = SubscriptionQuota;
+
+export interface CatalogExtraPresetMeta {
+  protocol: string;
+  base_url: string;
+}
+
+export interface CatalogPresetMeta {
+  id: string;
+  name: string;
+  protocol: string;
+  icon: string | null;
+  coding_plan: string | null;
+  default_base_url: string;
+  docs_url: string | null;
+  key_field: string;
+  // V0.2.1: secondary protocol endpoints sharing one api_key (empty for single-protocol presets)
+  extras: CatalogExtraPresetMeta[];
+}

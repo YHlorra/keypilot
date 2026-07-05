@@ -5,15 +5,26 @@ import {
   BarChart3,
   Terminal,
   Trash2,
+  ChevronDown,
 } from "lucide-react";
 import { cn, isLlmCategory } from "@/lib/utils";
-import type { Provider, Category } from "@/types/api";
+import { formatRelativeShort, formatTimeOfDay } from "@/lib/format";
+import type { Provider, Category, ExtraProtocol } from "@/types/api";
 import { useCodingPlanQuota } from "@/hooks/useCodingPlanQuota";
 import { useProviderQuota } from "@/hooks/useProviderQuota";
 import { ContextMenu } from "./ContextMenu";
 import { ProviderIcon } from "./Icon";
-
 type Tone = "ok" | "warn" | "crit" | "none";
+
+// Phase 5c: extras foldout. Types from @/types/api (ExtraEndpoint, ExtraProtocol).
+// ponytail: protocol → human label kept local; if it grows, hoist to format.ts.
+const EXTRA_PROTOCOL_LABEL: Record<ExtraProtocol, string> = {
+  openai: "OpenAI 兼容",
+  anthropic: "Anthropic 兼容",
+  github: "GitHub",
+  deepseek: "DeepSeek",
+  balance: "仅余额",
+};
 
 
 
@@ -44,6 +55,15 @@ const quotaTextTone = quotaTone;
 
 const DONUT_CIRCUMFERENCE = 37.7;
 
+function TooltipRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-[var(--color-muted)] shrink-0">{label}</span>
+      <span className="tabular-nums text-right truncate text-[var(--color-neutral)]">{value}</span>
+    </div>
+  );
+}
+
 interface ProviderCardProps {
   provider: Provider;
   categories: Category[];
@@ -69,25 +89,34 @@ export const ProviderCard = ({
   onTokenUsage,
   onTest,
 }: ProviderCardProps) => {
-  const isLlm = isLlmCategory(provider.category_id, categories);
+const isLlm = isLlmCategory(provider.category_id, categories);
 
-  
+  // Phase 5c: extras from Provider type (REQ-CAT-022: extras only present for built-in presets with multi-endpoint catalog)
+  const extras = provider.extras;
+
   const baseUrlField = provider.fields.find((f) => f.key === "base_url");
   const displayUrl = baseUrlField?.value || "https://example.com";
 
   
-  const { data: codingPlan } = useCodingPlanQuota(provider.id);
+const codingPlanQuery = useCodingPlanQuota(provider.id);
+  const codingPlan = codingPlanQuery.data;
   const pctFromTier = codingPlan?.success
     ? codingPlan.tiers[0]?.remaining_percent ?? null
     : null;
 
   
   
-  const { data: snapshot } = useProviderQuota(provider.id);
+  const quotaQuery = useProviderQuota(provider.id);
+  const snapshot = quotaQuery.data;
   const pctFromSnapshot =
     snapshot?.remaining != null && snapshot?.total != null && snapshot.total > 0
       ? (snapshot.remaining / snapshot.total) * 100
       : null;
+
+  
+  const updatedAtMs = quotaQuery.dataUpdatedAt || codingPlanQuery.dataUpdatedAt || undefined;
+  const tier0 = codingPlan?.success ? codingPlan.tiers[0] : null;
+  const resetMs = tier0?.resets_at_ms ?? snapshot?.reset_at ?? null;
 
   const pct = pctFromTier ?? pctFromSnapshot;
   const donutOffset =
@@ -181,35 +210,82 @@ export const ProviderCard = ({
             className="flex items-center gap-2 min-w-0"
           >
             {pct !== null && (
-              <svg
-                data-testid="quota-donut"
-                viewBox="0 0 16 16"
-                width="16"
-                height="16"
-                className="shrink-0"
-                aria-label={`${Math.round(pct)}% remaining`}
+              <div className="relative shrink-0 group/donut" data-testid="quota-tooltip-wrapper">
+                <svg
+                  data-testid="quota-donut"
+                  viewBox="0 0 16 16"
+                  width="16"
+                  height="16"
+                  className="block cursor-help"
+                  aria-label={`${Math.round(pct)}% remaining`}
+                  role="img"
+                >
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="6"
+                    fill="none"
+                    stroke="var(--color-surface-elevated)"
+                    strokeWidth="2.2"
+                  />
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="6"
+                    fill="none"
+                    stroke={TONE_STROKE[tone]}
+                    strokeWidth="2.2"
+                    strokeDasharray={DONUT_CIRCUMFERENCE}
+                    strokeDashoffset={donutOffset}
+                    strokeLinecap="round"
+                    style={{ transform: "rotate(-90deg)", transformOrigin: "50% 50%" }}
+                  />
+                </svg>
+                <div
+                  data-testid="quota-tooltip"
+                  role="tooltip"
+                  className={cn(
+                    "absolute left-0 top-full mt-2 z-50 w-56 p-2.5 rounded-md",
+                    "bg-[var(--color-popover)] border border-[var(--color-border)]",
+                    "shadow-lg text-xs leading-relaxed",
+                    "opacity-0 invisible group-hover/donut:opacity-100 group-hover/donut:visible",
+                    "transition-opacity duration-150 pointer-events-none"
+                  )}
+                >
+                  <div className="font-semibold text-[var(--color-neutral)] mb-1.5">
+                    额度详情 · {Math.round(pct ?? 0)}%
+                  </div>
+                  {tier0 ? (
+                    <>
+                      <TooltipRow label="已用" value={`${tier0.used ?? "—"}${tier0.limit != null ? ` / ${tier0.limit}` : ""}`} />
+                      {tier0.reset_description && (
+                        <TooltipRow label="重置" value={tier0.reset_description} />
+                      )}
+                    </>
+                  ) : snapshot ? (
+                    <>
+                      <TooltipRow label="已用" value={`${(snapshot.used ?? 0).toFixed(2)} ${snapshot.unit}`} />
+                      <TooltipRow label="总额" value={snapshot.total != null ? `${snapshot.total.toFixed(2)} ${snapshot.unit}` : "—"} />
+                      <TooltipRow label="剩余" value={balanceText != null ? `${balanceText} ${snapshot.unit}` : "—"} />
+                    </>
+                  ) : (
+                    <div className="text-[var(--color-muted)]">暂无数据</div>
+                  )}
+                  <div className="border-t border-[var(--color-border)] mt-1.5 pt-1.5">
+                    <TooltipRow label="更新于" value={formatTimeOfDay(updatedAtMs)} />
+                    {resetMs && <TooltipRow label="重置于" value={formatTimeOfDay(resetMs)} />}
+                  </div>
+                </div>
+              </div>
+            )}
+            {pct !== null && (
+              <span
+                data-testid="quota-updated"
+                className="shrink-0 text-[10px] text-[var(--color-muted)] tabular-nums whitespace-nowrap hidden min-[420px]:inline"
+                title={`更新于 ${formatTimeOfDay(updatedAtMs)}`}
               >
-                <circle
-                  cx="8"
-                  cy="8"
-                  r="6"
-                  fill="none"
-                  stroke="var(--color-surface-elevated)"
-                  strokeWidth="2.2"
-                />
-                <circle
-                  cx="8"
-                  cy="8"
-                  r="6"
-                  fill="none"
-                  stroke={TONE_STROKE[tone]}
-                  strokeWidth="2.2"
-                  strokeDasharray={DONUT_CIRCUMFERENCE}
-                  strokeDashoffset={donutOffset}
-                  strokeLinecap="round"
-                  style={{ transform: "rotate(-90deg)", transformOrigin: "50% 50%" }}
-                />
-              </svg>
+                {formatRelativeShort(updatedAtMs)}
+              </span>
             )}
             <span className="text-sm font-semibold text-[var(--color-neutral)] truncate">
               {provider.name}
@@ -307,6 +383,41 @@ export const ProviderCard = ({
           </button>
         </div>
       </div>
+
+      {}
+      {extras && extras.length > 0 && (
+        <details
+          data-testid="extras-foldout"
+          className="group mx-3 mt-1 mb-1 rounded-[6px] border border-[var(--color-border)] bg-[var(--color-surface-sunken)]"
+        >
+          <summary
+            data-testid="extras-toggle"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[var(--color-muted)] cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden marker:hidden hover:text-[var(--color-foreground)] transition-colors"
+          >
+            <ChevronDown className="h-3 w-3 transition-transform group-open:rotate-180" />
+            <span>另有 {extras.length} 个协议端点</span>
+          </summary>
+          <div className="border-t border-[var(--color-border)] px-2.5 py-1.5 space-y-1">
+            {extras.map((e) => (
+              <div
+                key={`${e.protocol}-${e.base_url}`}
+                data-testid="extras-row"
+                className="flex items-center gap-2 min-w-0"
+              >
+                <span className="shrink-0 text-[10px] font-medium text-[var(--color-foreground)] px-1.5 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)]">
+                  {EXTRA_PROTOCOL_LABEL[e.protocol] ?? e.protocol}
+                </span>
+                <span
+                  title={e.base_url}
+                  className="text-xs font-mono text-[var(--color-link)] truncate min-w-0"
+                >
+                  {e.base_url}
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
     </ContextMenu>
   );
 };

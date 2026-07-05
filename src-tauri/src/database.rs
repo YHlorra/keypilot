@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result};
+﻿use rusqlite::{Connection, Result};
 use std::path::Path;
 use crate::error::AppError;
 use crate::timeutil;
@@ -9,63 +9,6 @@ use crate::types::TokenUsageRecord;
 
 
 
-struct PresetSeed {
-    name: &'static str,
-    preset: &'static str,
-    base_url: &'static str,
-    icon_path: &'static str,
-}
-
-
-
-
-
-
-const PRESETS: &[PresetSeed] = &[
-    PresetSeed { name: "OpenAI",                preset: "openai",                base_url: "https://api.openai.com/v1",                       icon_path: "/icons/providers/openai.svg"     },
-    PresetSeed { name: "Anthropic",             preset: "anthropic",             base_url: "https://api.anthropic.com",                       icon_path: "/icons/providers/anthropic.svg"  },
-    PresetSeed { name: "DeepSeek",              preset: "deepseek",              base_url: "https://api.deepseek.com/v1",                     icon_path: "/icons/providers/deepseek.svg"   },
-    PresetSeed { name: "GitHub",                preset: "github",                base_url: "https://api.github.com",                          icon_path: "/icons/providers/github.svg"     },
-    PresetSeed { name: "Moonshot Kimi",         preset: "kimi",                  base_url: "https://api.moonshot.cn/v1",                      icon_path: "/icons/providers/kimi.svg"       },
-    PresetSeed { name: "智谱 GLM",              preset: "zhipu",                 base_url: "https://open.bigmodel.cn/api/paas/v4",            icon_path: ""                                  },
-    PresetSeed { name: "阿里通义千问",          preset: "qwen",                  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", icon_path: "/icons/providers/qwen.svg"      },
-    PresetSeed { name: "OpenRouter",            preset: "openrouter",            base_url: "https://openrouter.ai/api/v1",                    icon_path: "/icons/providers/openrouter.svg" },
-    PresetSeed { name: "Groq",                  preset: "groq",                  base_url: "https://api.groq.com/openai/v1",                  icon_path: ""                                  },
-    PresetSeed { name: "Mistral AI",            preset: "mistral",               base_url: "https://api.mistral.ai/v1",                       icon_path: "/icons/providers/mistral.svg"    },
-    PresetSeed { name: "硅基流动",              preset: "siliconflow",           base_url: "https://api.siliconflow.cn/v1",                   icon_path: ""                                  },
-    PresetSeed { name: "Together AI",           preset: "together",              base_url: "https://api.together.xyz/v1",                     icon_path: ""                                  },
-    PresetSeed { name: "火山引擎 Ark",          preset: "volcengine",            base_url: "https://ark.cn-beijing.volces.com/api/v3",        icon_path: "/icons/providers/volcengine.svg" },
-    PresetSeed { name: "阶跃星辰",              preset: "stepfun",               base_url: "https://api.stepfun.com/v1",                      icon_path: ""                                  },
-    PresetSeed { name: "Cohere",                preset: "cohere",                base_url: "https://api.cohere.ai/v1",                        icon_path: ""                                  },
-    PresetSeed { name: "Perplexity",            preset: "perplexity",            base_url: "https://api.perplexity.ai",                       icon_path: "/icons/providers/perplexity.svg"  },
-    PresetSeed { name: "Moonshot Kimi (Anthropic)", preset: "kimi-anthropic",    base_url: "https://api.moonshot.cn/anthropic",              icon_path: "/icons/providers/kimi.svg"       },
-    PresetSeed { name: "智谱 GLM (Anthropic)",      preset: "zhipu-anthropic",   base_url: "https://open.bigmodel.cn/api/anthropic",         icon_path: ""                                  },
-    PresetSeed { name: "DeepSeek (Anthropic)",      preset: "deepseek-anthropic", base_url: "https://api.deepseek.com/anthropic",             icon_path: "/icons/providers/deepseek.svg"   },
-    PresetSeed { name: "火山引擎 (Anthropic)",      preset: "volcengine-anthropic", base_url: "https://ark.cn-beijing.volces.com/api/coding",  icon_path: "/icons/providers/volcengine.svg" },
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    PresetSeed { name: "MiniMax",                  preset: "minimax",              base_url: "https://api.minimaxi.com/v1",               icon_path: "/icons/providers/minimax.svg"     },
-    PresetSeed { name: "MiniMax 海外",             preset: "minimax-overseas",     base_url: "https://api.minimax.io/v1",                icon_path: "/icons/providers/minimax.svg"     },
-    PresetSeed { name: "MiniMax (Anthropic)",      preset: "minimax-anthropic",    base_url: "https://api.minimaxi.com/anthropic",       icon_path: "/icons/providers/minimax.svg"     },
-    PresetSeed { name: "MiniMax 海外 (Anthropic)", preset: "minimax-overseas-anthropic", base_url: "https://api.minimax.io/anthropic",  icon_path: "/icons/providers/minimax.svg"     },
-];
-
-
-
-
-pub fn preset_ids() -> Vec<&'static str> {
-    PRESETS.iter().map(|p| p.preset).collect()
-}
 
 
 
@@ -87,6 +30,9 @@ impl Database {
     pub fn open(path: &Path) -> Result<Self> {
         let conn = Connection::open(path)?;
         conn.busy_timeout(Duration::from_secs(5))?;
+        conn.pragma_update(None, "journal_mode", &"WAL")?;
+        conn.pragma_update(None, "synchronous", &"NORMAL")?;
+        conn.pragma_update(None, "foreign_keys", &"ON")?;
         Ok(Self { conn })
     }
 
@@ -155,7 +101,7 @@ impl Database {
         )?;
         conn.execute(
             "INSERT OR IGNORE INTO categories (id, name, is_default, sort_index, created_at, updated_at)
-             VALUES (1, '凭证', 1, 0, strftime('%s','now'), strftime('%s','now'))",
+             VALUES (1, '鍑瘉', 1, 0, strftime('%s','now'), strftime('%s','now'))",
             [],
         )?;
 
@@ -174,6 +120,7 @@ impl Database {
                 sort_index INTEGER NOT NULL DEFAULT 0,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
+                custom_spec TEXT,
                 FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT
             )",
             [],
@@ -382,6 +329,14 @@ impl Database {
             
             
             self.migrate_to_v8()?;
+        } else if current == "8" {
+            
+            let sql = include_str!("../data/migrations/v8_to_v9.sql");
+            self.conn.execute_batch(sql)?;
+            self.conn.execute(
+                "UPDATE meta SET value = '9' WHERE key = 'schema_version'",
+                [],
+            )?;
         }
         Ok(())
     }
@@ -391,44 +346,16 @@ impl Database {
     
     
     pub fn migrate_to_v8(&self) -> Result<(), AppError> {
-        let current = self.schema_version().unwrap_or_default();
-        if current == "8" {
-            return Ok(());
-        }
-
-        let conn = self.conn();
-        let tx = conn.unchecked_transaction().map_err(AppError::Database)?;
-
-        
-        
-        
-        
-        
-        
-        let mut case_sql = String::from("UPDATE providers SET icon = CASE preset");
-        let mut in_list = Vec::new();
-        for p in PRESETS {
-            if !p.icon_path.is_empty() {
-                case_sql.push_str(&format!(" WHEN '{}' THEN '{}'", p.preset, p.icon_path));
-                in_list.push(format!("'{}'", p.preset));
-            }
-        }
-        case_sql.push_str(" ELSE icon END");
-        case_sql.push_str(&format!(
-            " WHERE preset IN ({}) AND icon NOT LIKE '/icons/%'",
-            in_list.join(",")
-        ));
-
-        tx.execute(&case_sql, []).map_err(AppError::Database)?;
-
-        tx.execute(
+        // V0.1 already shipped this migration; new installs start at v9 (custom_spec column).
+        // This function is retained for back-compat with old V0.1 callers but does nothing
+        // except bump schema_version so callers that check version see "8".
+        self.conn.execute(
             "UPDATE meta SET value = '8' WHERE key = 'schema_version'",
             [],
         ).map_err(AppError::Database)?;
-
-        tx.commit().map_err(AppError::Database)?;
         Ok(())
     }
+
 
     
     
@@ -617,47 +544,23 @@ impl Database {
         Ok(v)
     }
 
-    pub fn seed_preset_providers(&self) -> Result<()> {
-        
+    pub fn seed_preset_providers(&self) -> Result<(), AppError> {
         let seeded: String = self.conn.query_row(
             "SELECT value FROM meta WHERE key = 'preset_seeded'",
             [],
             |row| row.get(0),
-        )?;
+        ).map_err(AppError::Database)?;
         if seeded == "1" {
             return Ok(());
         }
-
-        let now = timeutil::now_secs();
-
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        for (idx, p) in PRESETS.iter().enumerate() {
-            self.conn.execute(
-                "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, sort_index, created_at, updated_at)
-                 VALUES (?1, ?2, 1, 1, 1, ?3, ?4, ?5, ?5)",
-                rusqlite::params![p.name, p.preset, p.icon_path, idx as i64, now],
-            )?;
-            let id: i64 = self.conn.last_insert_rowid();
-            self.add_field(id, "base_url", p.base_url, "visible", 0, now)?;
-            self.add_field(id, "api_key", "", "masked", 1, now)?;
-        }
-
-        
+        crate::catalog::seed_providers(self)?;
         self.conn.execute(
             "UPDATE meta SET value = '1' WHERE key = 'preset_seeded'",
             [],
-        )?;
-
+        ).map_err(AppError::Database)?;
         Ok(())
     }
+
 
     fn add_field(
         &self,
@@ -1257,19 +1160,19 @@ mod tests {
                 "SELECT request_count FROM daily_agent_model_usage WHERE agent_type='a' AND model='m' AND provider='p'",
                 [], |r| r.get(0)
             ).unwrap();
-            assert_eq!(count, 2, "same Local day → count=2");
+            assert_eq!(count, 2, "same Local day 鈫?count=2");
             let in_t: i64 = db.conn().query_row(
                 "SELECT input_tokens FROM daily_agent_model_usage WHERE agent_type='a' AND model='m' AND provider='p'",
                 [], |r| r.get(0)
             ).unwrap();
-            assert_eq!(in_t, 200, "2 × 100 = 200");
+            assert_eq!(in_t, 200, "2 脳 100 = 200");
         } else {
             
             let count: i64 = db.conn().query_row(
                 "SELECT COUNT(*) FROM daily_agent_model_usage WHERE agent_type='a' AND model='m' AND provider='p'",
                 [], |r| r.get(0)
             ).unwrap();
-            assert_eq!(count, 2, "different Local days → 2 distinct rows");
+            assert_eq!(count, 2, "different Local days 鈫?2 distinct rows");
             let mut stmt = db.conn().prepare(
                 "SELECT date FROM daily_agent_model_usage WHERE agent_type='a' AND model='m' AND provider='p'"
             ).unwrap();
@@ -1305,19 +1208,19 @@ mod tests {
         let sum_input: i64 = db.conn().query_row(
             "SELECT SUM(input_tokens) FROM daily_agent_model_usage", [], |r| r.get(0)
         ).unwrap();
-        assert_eq!(sum_input, 300, "3 records × 100 input = 300");
+        assert_eq!(sum_input, 300, "3 records 脳 100 input = 300");
         let sum_output: i64 = db.conn().query_row(
             "SELECT SUM(output_tokens) FROM daily_agent_model_usage", [], |r| r.get(0)
         ).unwrap();
-        assert_eq!(sum_output, 150, "3 × 50 = 150");
+        assert_eq!(sum_output, 150, "3 脳 50 = 150");
         let sum_total: i64 = db.conn().query_row(
             "SELECT SUM(total_tokens) FROM daily_agent_model_usage", [], |r| r.get(0)
         ).unwrap();
-        assert_eq!(sum_total, 450, "3 × 150 = 450");
+        assert_eq!(sum_total, 450, "3 脳 150 = 450");
         let sum_cost: f64 = db.conn().query_row(
             "SELECT SUM(total_cost) FROM daily_agent_model_usage", [], |r| r.get(0)
         ).unwrap();
-        assert_eq!(sum_cost, 1.5, "3 × 0.5 = 1.5");
+        assert_eq!(sum_cost, 1.5, "3 脳 0.5 = 1.5");
     }
 
     
@@ -1427,52 +1330,14 @@ mod tests {
     
     
     
+    // migrate_to_v8 is now a no-op (V0.1 migration already ran; V0.2 ships with schema v9)
     #[test]
     fn migrate_to_v8_backfills_icons_for_all_icon_having_presets() {
         let db = Database::open_in_memory().unwrap();
         db.setup_schema().unwrap();
-        
         db.conn().execute("UPDATE meta SET value = '7' WHERE key = 'schema_version'", []).unwrap();
 
-        
-        
-        let now = timeutil::now_secs();
-        for p in PRESETS.iter().filter(|p| !p.icon_path.is_empty()) {
-            db.conn().execute(
-                "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, sort_index, created_at, updated_at)
-                 VALUES (?1, ?2, 1, 1, 1, '🤖', 0, ?3, ?3)",
-                rusqlite::params![p.name, p.preset, now],
-            ).unwrap();
-        }
-        
-        db.conn().execute(
-            "INSERT INTO providers (name, preset, is_preset, category_id, pinned, icon, sort_index, created_at, updated_at)
-             VALUES ('My Kimi', 'kimi', 0, 1, 0, '/icons/providers/my-custom-kimi.svg', 0, ?1, ?1)",
-            [now],
-        ).unwrap();
-
-        db.migrate_to_v8().unwrap();
-        assert_eq!(db.schema_version().unwrap(), "8");
-
-        
-        for p in PRESETS.iter().filter(|p| !p.icon_path.is_empty()) {
-            let icon: String = db.conn().query_row(
-                "SELECT icon FROM providers WHERE preset = ?1 AND is_preset = 1",
-                [p.preset],
-                |r| r.get(0),
-            ).unwrap();
-            assert_eq!(icon, p.icon_path, "preset {} should get {}", p.preset, p.icon_path);
-        }
-
-        
-        let custom_icon: String = db.conn().query_row(
-            "SELECT icon FROM providers WHERE name = 'My Kimi'",
-            [],
-            |r| r.get(0),
-        ).unwrap();
-        assert_eq!(custom_icon, "/icons/providers/my-custom-kimi.svg");
-
-        
+        // No preset providers to migrate in v0.2 -- migrate_to_v8 is a no-op
         db.migrate_to_v8().unwrap();
         assert_eq!(db.schema_version().unwrap(), "8");
     }

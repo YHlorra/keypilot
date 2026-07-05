@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trash2, Eye, EyeOff, Copy, ExternalLink, Terminal, Pencil, X, RefreshCw, Loader2 } from "lucide-react";
+import { Trash2, Copy, ExternalLink, Terminal, Pencil, X, RefreshCw, Loader2 } from "lucide-react";
 import { formatRelative } from "@/lib/format";
 import { Modal } from "./Modal";
 import { Button } from "./ui/button";
@@ -9,8 +9,9 @@ import { Input } from "./ui/input";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon, useToast, ProviderIcon } from "./Icon";
 import { AddKvModal } from "./AddKvModal";
+import { KvRow } from "./KvRow";
 import { CodingPlanQuotas } from "./CodingPlanQuotas";
-import { getProvider, updateProvider, deleteProvider } from "@/lib/api";
+import { getProvider, updateProvider, deleteProvider, listCatalogPresets } from "@/lib/api";
 import type { GetProviderRequest, UpdateProviderRequest, Visibility, Category } from "@/types/api";
 import { isLlmCategory } from "@/lib/utils";
 
@@ -25,11 +26,6 @@ interface ProviderDetailModalProps {
 type EditMode = "view" | "edit";
 
 
-function maskValue(value: string): string {
-  if (value.length <= 6) return "••••••";
-  return value.slice(0, 3) + "•••••" + value.slice(-3);
-}
-
 export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   providerId,
   categories,
@@ -43,7 +39,6 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   const [editName, setEditName] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [addKvOpen, setAddKvOpen] = useState(false);
-  const [revealedFields, setRevealedFields] = useState<Set<number>>(new Set());
   const [testPending, setTestPending] = useState(false);
 
   
@@ -129,17 +124,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
   
   const quotaData = (provider as any)?.quota ?? null;
 
-  
-  const toggleReveal = useCallback((fieldId: number) => {
-    setRevealedFields((prev) => {
-      const next = new Set(prev);
-      if (next.has(fieldId)) next.delete(fieldId);
-      else next.add(fieldId);
-      return next;
-    });
-  }, []);
 
-  
   const handleCopy = useCallback((value: string) => {
     navigator.clipboard.writeText(value).then(() => {
       showToast("已复制", "success");
@@ -185,7 +170,6 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
           id: provider.id,
           fields: nextFields,
         });
-        setRevealedFields(new Set());
         showToast("字段已添加", "success");
         setAddKvOpen(false);
       } catch {
@@ -194,6 +178,59 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
     },
     [provider, showToast, updateMutation]
   );
+
+  // Per-field inline edit: rebuild fields array with the updated row, then call update_provider.
+  const handleFieldUpdate = useCallback(
+    async (fieldId: number, key: string, value: string, visibility: Visibility) => {
+      if (!provider) return;
+      const nextFields = provider.fields.map((f) =>
+        f.id === fieldId
+          ? { key, value, visibility, sort_index: f.sort_index }
+          : { key: f.key, value: f.value, visibility: f.visibility, sort_index: f.sort_index }
+      );
+      try {
+        await updateMutation.mutateAsync({ id: provider.id, fields: nextFields });
+        showToast("字段已更新", "success");
+      } catch {
+        showToast("更新失败", "error");
+      }
+    },
+    [provider, updateMutation, showToast]
+  );
+
+  // Per-field delete: drop the row and re-index sort_index so it stays contiguous.
+  const handleFieldDelete = useCallback(
+    async (fieldId: number) => {
+      if (!provider) return;
+      const nextFields = provider.fields
+        .filter((f) => f.id !== fieldId)
+        .map((f, i) => ({
+          key: f.key,
+          value: f.value,
+          visibility: f.visibility,
+          sort_index: i,
+        }));
+      try {
+        await updateMutation.mutateAsync({ id: provider.id, fields: nextFields });
+        showToast("字段已删除", "success");
+      } catch {
+        showToast("删除失败", "error");
+      }
+    },
+    [provider, updateMutation, showToast]
+  );
+
+  // Catalog reverse-lookup: docs_url + icon not stored on provider row, fetch from catalog presets.
+  const { data: catalogPresets = [] } = useQuery({
+    queryKey: ["catalogPresets"],
+    queryFn: listCatalogPresets,
+    staleTime: Infinity,
+  });
+  const presetMeta = useMemo(
+    () => (provider?.preset ? catalogPresets.find((p) => p.id === provider.preset) ?? null : null),
+    [catalogPresets, provider?.preset]
+  );
+  const docsUrl = presetMeta?.docs_url ?? null;
 
   
   
@@ -250,7 +287,7 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                 ) : (
                   <h2 className="text-lg font-semibold font-serif">{provider.name}</h2>
                 )}
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                   {baseUrlField && (
                     <a
                       href={baseUrlField.value}
@@ -259,6 +296,18 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
                       className="text-xs text-primary hover:underline flex items-center gap-0.5"
                     >
                       {baseUrlField.value.replace(/^https?:\/\//, "").slice(0, 30)}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  {docsUrl && (
+                    <a
+                      href={docsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-muted-foreground hover:text-foreground hover:underline flex items-center gap-0.5"
+                      title="官方文档"
+                    >
+                      文档
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   )}
@@ -406,58 +455,14 @@ export const ProviderDetailModal = React.memo(function ProviderDetailModal({
               {provider.fields.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">暂无字段</p>
               ) : (
-                provider.fields.map((field, index) => {
-                  const isRevealed = revealedFields.has(field.id);
-                  const displayValue =
-                    field.visibility === "masked" && !isRevealed
-                      ? maskValue(field.value)
-                      : field.value;
-
-                  return (
-                    <div
-                      key={field.id}
-                      className={`flex items-center gap-3 py-2 ${
-                        index < provider.fields.length - 1 ? "border-b border-border" : ""
-                      }`}
-                    >
-                      {}
-                      <span className="text-sm font-medium text-primary w-[30%] flex-shrink-0 truncate">
-                        {field.key}
-                      </span>
-
-                      {}
-                      <span className="flex-1 font-mono text-xs text-foreground truncate">
-                        {displayValue}
-                      </span>
-
-                      {}
-                      {field.visibility === "masked" && (
-                        <button
-                          type="button"
-                          onClick={() => toggleReveal(field.id)}
-                          className="p-1 rounded hover:bg-accent transition-colors flex-shrink-0"
-                          title={isRevealed ? "Hide" : "Show"}
-                        >
-                          {isRevealed ? (
-                            <EyeOff className="w-3.5 h-3.5" />
-                          ) : (
-                            <Eye className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      )}
-
-                      {}
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(field.value)}
-                        className="p-1 rounded hover:bg-accent transition-colors flex-shrink-0"
-                        title="Copy"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  );
-                })
+                provider.fields.map((field) => (
+                  <KvRow
+                    key={field.id}
+                    field={field}
+                    onUpdate={(k, v, vis) => handleFieldUpdate(field.id, k, v, vis)}
+                    onDelete={() => handleFieldDelete(field.id)}
+                  />
+                ))
               )}
               {}
               <button

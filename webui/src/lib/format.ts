@@ -72,3 +72,23 @@ export function formatRelative(
   }
   return formatted;
 }
+
+
+export function formatRelativeShort(ms: number | undefined | null): string {
+  if (!ms || !Number.isFinite(ms)) return "—";
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return "刚刚";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
+  return `${Math.floor(diff / 86_400_000)}d`;
+}
+
+
+export function formatTimeOfDay(ms: number | undefined | null): string {
+  if (!ms || !Number.isFinite(ms)) return "—";
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}

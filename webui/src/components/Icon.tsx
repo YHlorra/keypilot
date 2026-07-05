@@ -31,10 +31,13 @@ export const PRESET_COLORS: Record<string, string> = {
   "deepseek-anthropic": "#1d4ed8",
   "volcengine-anthropic": "#2563eb",
   
-  minimax: "#f59e0b",
-  "minimax-overseas": "#f59e0b",
-  "minimax-anthropic": "#f59e0b",
-  "minimax-overseas-anthropic": "#f59e0b",
+  "minimax-cn": "#f59e0b",
+  "minimax-en": "#f59e0b",
+  "minimax-cn-anthropic": "#f59e0b",
+  "minimax-en-anthropic": "#f59e0b",
+  mimo: "#f59e0b",
+  fireworks: "#7c3aed",
+  ai21: "#dc2626",
 };
 
 export const PRESET_LABELS: Record<string, string> = {
@@ -59,10 +62,13 @@ export const PRESET_LABELS: Record<string, string> = {
   "deepseek-anthropic": "DeepSeek (Anthropic)",
   "volcengine-anthropic": "Volcengine (Anthropic)",
   
-  minimax: "MiniMax",
-  "minimax-overseas": "MiniMax",
-  "minimax-anthropic": "MiniMax (Anthropic)",
-  "minimax-overseas-anthropic": "MiniMax (Anthropic)",
+  "minimax-cn": "MiniMax",
+  "minimax-en": "MiniMax 海外",
+  "minimax-cn-anthropic": "MiniMax (Anthropic)",
+  "minimax-en-anthropic": "MiniMax 海外 (Anthropic)",
+  mimo: "Xiaomi Mimo",
+  fireworks: "Fireworks AI",
+  ai21: "AI21 Labs",
 };
 
 interface IconProps {
@@ -90,6 +96,8 @@ export const Icon = React.memo(function Icon({ name, className, color }: IconPro
   return <>{iconMap[name] || null}</>;
 });
 
+const COLORED_PRESETS = new Set(["cohere", "groq", "siliconflow"]);
+
 interface ProviderIconProps {
   preset: string | null;
   name: string;
@@ -108,23 +116,29 @@ export const ProviderIcon = React.memo(function ProviderIcon({ preset, name, ico
   const label = (preset && PRESET_LABELS[preset]) || name;
 
   if (icon) {
+    
+    const isColored = preset ? COLORED_PRESETS.has(preset) : false;
     return (
       <span
         title={label}
         className={cn("inline-flex items-center justify-center overflow-hidden", className)}
       >
-        <img src={icon} alt={name} className="w-full h-full object-contain" />
+        <img
+          src={icon}
+          alt={name}
+          className={cn("w-full h-full object-contain", !isColored && "provider-icon-img")}
+        />
       </span>
     );
   }
 
   return (
     <span
-      className={cn("inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold text-[var(--color-secondary)]", className)}
+      className={cn("inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold text-[var(--color-secondary)] tracking-tight", className)}
       style={{ backgroundColor: color }}
       title={label}
     >
-      {label.charAt(0).toUpperCase()}
+      {label.slice(0, 2).toUpperCase()}
     </span>
   );
 });

@@ -28,9 +28,6 @@ pub enum AppError {
     #[error("category is default and cannot be deleted: id={0}")]
     CategoryIsDefault(i64),
 
-    #[error("provider {0} cannot be tested")]
-    ProviderCannotTest(String),
-
     #[error("provider {0} does not support fetch_quota")]
     ProviderQuotaUnsupported(String),
 
@@ -51,6 +48,15 @@ pub enum AppError {
 
     #[error("unknown action: {0}")]
     ActionNotFound(String),
+
+    #[error("catalog error: {0}")]
+    Catalog(String),
+}
+
+impl From<crate::catalog::MergerError> for AppError {
+    fn from(e: crate::catalog::MergerError) -> Self {
+        AppError::Catalog(e.to_string())
+    }
 }
 
 impl From<tauri::Error> for AppError {
@@ -77,7 +83,6 @@ impl serde::Serialize for AppError {
             Self::ProviderNotFound(_) => "PROVIDER_NOT_FOUND",
             Self::CategoryNotFound(_) => "CATEGORY_NOT_FOUND",
             Self::CategoryIsDefault(_) => "CATEGORY_IS_DEFAULT",
-            Self::ProviderCannotTest(_) => "PROVIDER_CANNOT_TEST",
             Self::ProviderQuotaUnsupported(_) => "PROVIDER_QUOTA_UNSUPPORTED",
             Self::Http(_) => "HTTP",
             Self::TokenUsageInvalidFormat(_) => "TOKEN_USAGE_INVALID_FORMAT",
@@ -85,6 +90,7 @@ impl serde::Serialize for AppError {
             Self::TokenUsagePricingNotFound(_) => "TOKEN_USAGE_PRICING_NOT_FOUND",
             Self::ActionValidation(_) => "ACTION_VALIDATION",
             Self::ActionNotFound(_) => "ACTION_NOT_FOUND",
+            Self::Catalog(_) => "CATALOG",
         };
         s.serialize_field("code", code)?;
         s.serialize_field("message", &self.to_string())?;

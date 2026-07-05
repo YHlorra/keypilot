@@ -1,22 +1,22 @@
 import * as React from "react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Modal } from "./Modal";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { PresetCombobox } from "./PresetCombobox";
 import { useToast } from "./Icon";
 import { useProviders } from "@/hooks/useProviders";
 import { useCategories } from "@/hooks/useCategories";
-import { addProvider } from "@/lib/api";
-import type { AddProviderRequest, Visibility } from "@/types/api";
+import { useQuery } from "@tanstack/react-query";
+import { addProvider, listCatalogPresets } from "@/lib/api";
+import type { AddProviderRequest, CatalogPresetMeta, Visibility } from "@/types/api";
 
 interface AddCredentialModalProps {
   open: boolean;
   onClose: () => void;
   defaultCategoryId?: number;
 }
-
-
 
 type TemplateId = "custom" | "llm" | "dev-tools";
 const CUSTOM_PRESET_ID = "__custom__";
@@ -26,87 +26,6 @@ const TEMPLATES: Array<{ id: TemplateId; label: string }> = [
   { id: "llm", label: "大模型 (LLM)" },
   { id: "dev-tools", label: "开发工具" },
 ];
-
-
-
-
-
-
-
-
-const PRESETS_BY_TEMPLATE: Record<TemplateId, Array<{ id: string; label: string }>> = {
-  custom: [],
-  llm: [
-    { id: "openai", label: "OpenAI" },
-    { id: "anthropic", label: "Anthropic" },
-    { id: "deepseek", label: "DeepSeek" },
-    { id: "kimi", label: "Moonshot Kimi" },
-    { id: "zhipu", label: "智谱 GLM" },
-    { id: "qwen", label: "阿里通义千问" },
-    { id: "openrouter", label: "OpenRouter" },
-    { id: "groq", label: "Groq" },
-    { id: "mistral", label: "Mistral AI" },
-    { id: "siliconflow", label: "硅基流动" },
-    { id: "together", label: "Together AI" },
-    { id: "volcengine", label: "火山引擎 Ark" },
-    { id: "stepfun", label: "阶跃星辰" },
-    { id: "cohere", label: "Cohere" },
-    { id: "perplexity", label: "Perplexity" },
-    { id: "kimi-anthropic", label: "Moonshot Kimi (Anthropic)" },
-    { id: "zhipu-anthropic", label: "智谱 GLM (Anthropic)" },
-    { id: "deepseek-anthropic", label: "DeepSeek (Anthropic)" },
-    { id: "volcengine-anthropic", label: "火山引擎 (Anthropic)" },
-    
-    
-    
-    { id: "minimax", label: "MiniMax" },
-    { id: "minimax-overseas", label: "MiniMax 海外" },
-    { id: "minimax-anthropic", label: "MiniMax (Anthropic)" },
-    { id: "minimax-overseas-anthropic", label: "MiniMax 海外 (Anthropic)" },
-    { id: CUSTOM_PRESET_ID, label: "自定义..." },
-  ],
-  "dev-tools": [
-    { id: "github", label: "GitHub" },
-    { id: CUSTOM_PRESET_ID, label: "自定义..." },
-  ],
-};
-
-
-
-const apiKeyBaseUrl = (baseUrl: string) => [
-  { key: "api_key", value: "", visibility: "masked" as Visibility },
-  { key: "base_url", value: baseUrl, visibility: "visible" as Visibility },
-];
-
-const PRESET_DEFAULTS: Record<string, Array<{ key: string; value: string; visibility: Visibility }>> = {
-  openai: apiKeyBaseUrl("https://api.openai.com/v1"),
-  deepseek: apiKeyBaseUrl("https://api.deepseek.com/v1"),
-  anthropic: apiKeyBaseUrl("https://api.anthropic.com"),
-  kimi: apiKeyBaseUrl("https://api.moonshot.cn/v1"),
-  zhipu: apiKeyBaseUrl("https://open.bigmodel.cn/api/paas/v4"),
-  qwen: apiKeyBaseUrl("https://dashscope.aliyuncs.com/compatible-mode/v1"),
-  openrouter: apiKeyBaseUrl("https://openrouter.ai/api/v1"),
-  groq: apiKeyBaseUrl("https://api.groq.com/openai/v1"),
-  mistral: apiKeyBaseUrl("https://api.mistral.ai/v1"),
-  siliconflow: apiKeyBaseUrl("https://api.siliconflow.cn/v1"),
-  together: apiKeyBaseUrl("https://api.together.xyz/v1"),
-  volcengine: apiKeyBaseUrl("https://ark.cn-beijing.volces.com/api/v3"),
-  stepfun: apiKeyBaseUrl("https://api.stepfun.com/v1"),
-  cohere: apiKeyBaseUrl("https://api.cohere.ai/v1"),
-  perplexity: apiKeyBaseUrl("https://api.perplexity.ai"),
-  "kimi-anthropic": apiKeyBaseUrl("https://api.moonshot.cn/anthropic"),
-  "zhipu-anthropic": apiKeyBaseUrl("https://open.bigmodel.cn/api/anthropic"),
-  "deepseek-anthropic": apiKeyBaseUrl("https://api.deepseek.com/anthropic"),
-  "volcengine-anthropic": apiKeyBaseUrl("https://ark.cn-beijing.volces.com/api/coding"),
-  
-  minimax: apiKeyBaseUrl("https://api.minimaxi.com/v1"),
-  "minimax-overseas": apiKeyBaseUrl("https://api.minimax.io/v1"),
-  "minimax-anthropic": apiKeyBaseUrl("https://api.minimaxi.com/anthropic"),
-  "minimax-overseas-anthropic": apiKeyBaseUrl("https://api.minimax.io/anthropic"),
-  github: [
-    { key: "access_token", value: "", visibility: "masked" },
-  ],
-};
 
 export const AddCredentialModal = React.memo(function AddCredentialModal({
   open,
@@ -125,15 +44,46 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
   const { data: categories } = useCategories();
   const { showToast } = useToast();
 
-  
-  
-  const usedPresetsInCategory = new Set(
-    providers
-      .filter((p) => p.category_id === categoryId && p.preset != null)
-      .map((p) => p.preset as string)
+  // Dynamic catalog presets — single source of truth from backend
+  const { data: catalogPresets = [] } = useQuery({
+    queryKey: ["catalogPresets"],
+    queryFn: listCatalogPresets,
+    staleTime: Infinity, // catalog is compiled in, never changes mid-session
+  });
+
+  // Derive templates from catalog: protocol === "github" → dev-tools, else → llm
+  const presetsByTemplate = useMemo(() => {
+    const llm: CatalogPresetMeta[] = [];
+    const devTools: CatalogPresetMeta[] = [];
+    for (const p of catalogPresets) {
+      if (p.protocol === "github") {
+        devTools.push(p);
+      } else {
+        llm.push(p);
+      }
+    }
+    return { llm, devTools };
+  }, [catalogPresets]);
+
+  const presetOptionsByTemplate: Record<TemplateId, CatalogPresetMeta[]> = {
+    custom: [],
+    llm: presetsByTemplate.llm,
+    "dev-tools": presetsByTemplate.devTools,
+  };
+
+  const usedPresetsInCategory = useMemo(() => {
+    return new Set(
+      providers
+        .filter((p) => p.category_id === categoryId && p.preset != null)
+        .map((p) => p.preset as string)
+    );
+  }, [providers, categoryId]);
+
+  const presetMeta = useMemo(
+    () => catalogPresets.find((p) => p.id === preset) ?? null,
+    [catalogPresets, preset]
   );
 
-  
   const handleTemplateChange = useCallback((newTemplate: TemplateId) => {
     setTemplate(newTemplate);
     setPreset(null);
@@ -144,17 +94,31 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
   const handlePresetChange = useCallback((newPreset: string) => {
     setPreset(newPreset || null);
     if (newPreset === CUSTOM_PRESET_ID) {
-      
       setCustomPresetName("");
       setFields([{ key: "", value: "", visibility: "visible" }]);
-    } else if (newPreset && PRESET_DEFAULTS[newPreset]) {
+    } else if (newPreset && presetMeta) {
       setCustomPresetName("");
-      setFields(PRESET_DEFAULTS[newPreset].map((f) => ({ ...f })));
+      const keyField = presetMeta.key_field || "api_key";
+      const baseUrl = presetMeta.default_base_url;
+      // V0.2.1 multi-endpoint catalog: presets with extras share one api_key
+      // across primary + secondary protocols (e.g. DeepSeek OpenAI + Anthropic).
+      // Auto-fill both URLs so user sees the dual-protocol shape immediately.
+      const extras = presetMeta.extras ?? [];
+      const extraFields = extras.map((e) => ({
+        key: `${e.protocol}_base_url`,
+        value: e.base_url,
+        visibility: "visible" as Visibility,
+      }));
+      setFields([
+        { key: keyField, value: "", visibility: "masked" as Visibility },
+        ...(baseUrl ? [{ key: "base_url", value: baseUrl, visibility: "visible" as Visibility }] : []),
+        ...extraFields,
+      ]);
     } else {
       setCustomPresetName("");
       setFields([{ key: "", value: "", visibility: "visible" }]);
     }
-  }, []);
+  }, [presetMeta]);
 
   const handleFieldChange = useCallback((index: number, key: string, value: string, visibility: Visibility) => {
     setFields((prev) => {
@@ -172,6 +136,15 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
     setFields((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const handleClose = useCallback(() => {
+    setName("");
+    setTemplate(null);
+    setPreset(null);
+    setCustomPresetName("");
+    setFields([]);
+    onClose();
+  }, [onClose]);
+
   const handleSave = useCallback(async () => {
     if (!name.trim()) {
       showToast("请输入名称", "error");
@@ -181,13 +154,11 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
       showToast("请选择类型", "error");
       return;
     }
-    
     if (template !== "custom" && !preset) {
       showToast("请选择具体服务", "error");
       return;
     }
-    
-    
+
     let effectivePreset: string | null = preset;
     if (preset === CUSTOM_PRESET_ID) {
       if (!customPresetName.trim()) {
@@ -221,20 +192,9 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
     } finally {
       setIsSaving(false);
     }
-  }, [name, template, preset, customPresetName, categoryId, fields, refetchProviders, showToast]);
+  }, [name, template, preset, customPresetName, categoryId, fields, refetchProviders, showToast, handleClose]);
 
-  const handleClose = useCallback(() => {
-    setName("");
-    setTemplate(null);
-    setPreset(null);
-    setCustomPresetName("");
-    setFields([]);
-    onClose();
-  }, [onClose]);
-
-  
-  
-  const allPresetOptions = template ? PRESETS_BY_TEMPLATE[template] : [];
+  const allPresetOptions = template ? presetOptionsByTemplate[template] : [];
   const presetOptions = allPresetOptions.filter(
     (p) => p.id === CUSTOM_PRESET_ID || !usedPresetsInCategory.has(p.id)
   );
@@ -260,7 +220,6 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
       }
     >
       <div className="space-y-4">
-        {}
         <div>
           <label className="text-sm font-medium mb-1.5 block">名称</label>
           <Input
@@ -270,7 +229,6 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
           />
         </div>
 
-        {}
         <div>
           <label className="text-sm font-medium mb-1.5 block">分类</label>
           <Select value={String(categoryId)} onValueChange={(v) => setCategoryId(Number(v))}>
@@ -287,7 +245,6 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
           </Select>
         </div>
 
-        {}
         <div>
           <label className="text-sm font-medium mb-1.5 block">类型</label>
           <Select value={template ?? ""} onValueChange={(v) => handleTemplateChange(v as TemplateId)}>
@@ -304,31 +261,17 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
           </Select>
         </div>
 
-        {}
         {showPresetPicker && (
           <div>
             <label className="text-sm font-medium mb-1.5 block">服务</label>
-            <Select value={preset ?? ""} onValueChange={handlePresetChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="选择服务..." />
-              </SelectTrigger>
-              <SelectContent>
-                {presetOptions.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PresetCombobox
+              options={presetOptions}
+              value={preset}
+              onValueChange={handlePresetChange}
+              placeholder="选择服务..."
+              allBuiltinsUsed={allBuiltinsUsed}
+            />
 
-            {}
-            {allBuiltinsUsed && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                该分类下已添加所有预设服务。可使用"自定义..."添加其他服务。
-              </p>
-            )}
-
-            {}
             {preset === CUSTOM_PRESET_ID && (
               <Input
                 value={customPresetName}
@@ -340,7 +283,6 @@ export const AddCredentialModal = React.memo(function AddCredentialModal({
           </div>
         )}
 
-        {}
         {fields.length > 0 && (
           <div>
             <label className="text-sm font-medium mb-1.5 block">字段</label>
