@@ -1,0 +1,31 @@
+[meta]
+id = "volcengine"
+name = "火山引擎 Ark"
+protocol = "openai"
+coding_plan = "volcengine"
+icon = "/icons/providers/volcengine.svg"
+
+[endpoint]
+default_base_url = "https://ark.cn-beijing.volces.com/api/v3"
+docs_url = "https://www.volcengine.com/docs/82379/1099475"
+
+[auth]
+auth_header = "Authorization: Bearer {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "GET"
+path = "/models"
+parser = "none"
+
+[[extras]]
+protocol = "anthropic"
+base_url = "https://ark.cn-beijing.volces.com/api/coding"
+auth_header = "x-api-key: {api_key}"
+validate_probe = { method = "GET", path = "/models", success_status = [200], parser = "none" }

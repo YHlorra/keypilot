@@ -1,0 +1,24 @@
+[meta]
+id = "cohere"
+name = "Cohere"
+protocol = "openai"
+icon = "/icons/providers/cohere.svg"
+
+[endpoint]
+default_base_url = "https://api.cohere.ai/v1"
+docs_url = "https://docs.cohere.com"
+
+[auth]
+auth_header = "Authorization: Bearer {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "GET"
+path = "/models"
+parser = "none"

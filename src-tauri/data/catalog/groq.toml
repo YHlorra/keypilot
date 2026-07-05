@@ -1,0 +1,24 @@
+[meta]
+id = "groq"
+name = "Groq"
+protocol = "openai"
+icon = "/icons/providers/groq.svg"
+
+[endpoint]
+default_base_url = "https://api.groq.com/openai/v1"
+docs_url = "https://console.groq.com/docs/api-reference"
+
+[auth]
+auth_header = "Authorization: Bearer {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "GET"
+path = "/models"
+parser = "none"

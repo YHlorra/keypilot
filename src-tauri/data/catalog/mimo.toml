@@ -1,0 +1,31 @@
+[meta]
+id = "mimo"
+name = "Xiaomi Mimo"
+protocol = "openai"
+coding_plan = "mimo"
+icon = "/icons/providers/mimo.svg"
+
+[endpoint]
+default_base_url = "https://api.xiaomimimo.com/v1"
+docs_url = "https://mimo.mi.com/docs/zh-CN/"
+
+[auth]
+auth_header = "api-key: {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "GET"
+path = "/models"
+parser = "none"
+
+[[extras]]
+protocol = "anthropic"
+base_url = "https://api.xiaomimimo.com/anthropic/v1"
+auth_header = "api-key: {api_key}"
+validate_probe = { method = "GET", path = "/models", success_status = [200], parser = "none" }
