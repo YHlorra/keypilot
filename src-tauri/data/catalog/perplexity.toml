@@ -1,0 +1,24 @@
+[meta]
+id = "perplexity"
+name = "Perplexity"
+protocol = "openai"
+icon = "/icons/providers/perplexity.svg"
+
+[endpoint]
+default_base_url = "https://api.perplexity.ai"
+docs_url = "https://docs.perplexity.ai"
+
+[auth]
+auth_header = "Authorization: Bearer {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "GET"
+path = "/models"
+parser = "none"

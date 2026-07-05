@@ -1,0 +1,24 @@
+[meta]
+id = "ai21"
+name = "AI21 Labs"
+protocol = "openai"
+icon = "/icons/providers/ai21.svg"
+
+[endpoint]
+default_base_url = "https://api.ai21.com/v1"
+docs_url = "https://docs.ai21.com/reference/jamba-15-api-ref"
+
+[auth]
+auth_header = "Authorization: Bearer {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "GET"
+path = "/models"
+parser = "none"

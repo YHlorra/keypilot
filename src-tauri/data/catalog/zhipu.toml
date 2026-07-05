@@ -1,0 +1,31 @@
+[meta]
+id = "zhipu"
+name = "智谱 GLM"
+protocol = "openai"
+coding_plan = "zhipu_cn"
+icon = "/icons/providers/zhipu.svg"
+
+[endpoint]
+default_base_url = "https://open.bigmodel.cn/api/paas/v4"
+docs_url = "https://open.bigmodel.cn/dev/api"
+
+[auth]
+auth_header = "Authorization: Bearer {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "GET"
+path = "/models"
+parser = "none"
+
+[[extras]]
+protocol = "anthropic"
+base_url = "https://open.bigmodel.cn/api/anthropic"
+auth_header = "x-api-key: {api_key}"
+validate_probe = { method = "GET", path = "/models", success_status = [200], parser = "none" }

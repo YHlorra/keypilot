@@ -1,0 +1,30 @@
+[meta]
+id = "deepseek"
+name = "DeepSeek"
+protocol = "deepseek"
+icon = "/icons/providers/deepseek.svg"
+
+[endpoint]
+default_base_url = "https://api.deepseek.com/v1"
+docs_url = "https://api.deepseek.com/docs/api-reference"
+
+[auth]
+auth_header = "Authorization: Bearer {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "GET"
+path = "/user/balance"
+parser = "none"
+
+[[extras]]
+protocol = "anthropic"
+base_url = "https://api.deepseek.com/anthropic"
+auth_header = "x-api-key: {api_key}"
+validate_probe = { method = "GET", path = "/models", success_status = [200], parser = "none" }

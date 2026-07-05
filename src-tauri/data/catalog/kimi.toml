@@ -1,0 +1,31 @@
+[meta]
+id = "kimi"
+name = "Moonshot Kimi"
+protocol = "openai"
+coding_plan = "kimi"
+icon = "/icons/providers/kimi.svg"
+
+[endpoint]
+default_base_url = "https://api.moonshot.cn/v1"
+docs_url = "https://platform.moonshot.cn/docs/api-reference"
+
+[auth]
+auth_header = "Authorization: Bearer {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "GET"
+path = "/models"
+parser = "none"
+
+[[extras]]
+protocol = "anthropic"
+base_url = "https://api.moonshot.cn/anthropic"
+auth_header = "x-api-key: {api_key}"
+validate_probe = { method = "GET", path = "/models", success_status = [200], parser = "none" }

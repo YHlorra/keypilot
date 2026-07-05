@@ -1,0 +1,24 @@
+[meta]
+id = "anthropic"
+name = "Anthropic"
+protocol = "anthropic"
+icon = "/icons/providers/anthropic.svg"
+
+[endpoint]
+default_base_url = "https://api.anthropic.com"
+docs_url = "https://docs.anthropic.com/en/api/reference"
+
+[auth]
+auth_header = "x-api-key: {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "POST"
+path = "/v1/messages"
+parser = "none"

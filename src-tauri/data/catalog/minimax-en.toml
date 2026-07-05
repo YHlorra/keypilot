@@ -1,0 +1,31 @@
+[meta]
+id = "minimax-en"
+name = "MiniMax 海外"
+protocol = "openai"
+coding_plan = "minimax_en"
+icon = "/icons/providers/minimax.svg"
+
+[endpoint]
+default_base_url = "https://api.minimax.io/v1"
+docs_url = "https://www.minimax.io/document"
+
+[auth]
+auth_header = "Authorization: Bearer {api_key}"
+key_field = "api_key"
+
+[validate_probe]
+method = "GET"
+path = "/models"
+success_status = [200]
+parser = "none"
+
+[quota_probe]
+method = "GET"
+path = "/models"
+parser = "none"
+
+[[extras]]
+protocol = "anthropic"
+base_url = "https://api.minimax.io/anthropic"
+auth_header = "x-api-key: {api_key}"
+validate_probe = { method = "GET", path = "/models", success_status = [200], parser = "none" }
