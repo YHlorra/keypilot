@@ -1,0 +1,52 @@
+name: Tests
+
+# Reusable test suite. Consumed by ci.yml (every push / PR) and release.yml
+# (as a release gate). Mirrors the project's own `init.sh` verification harness
+# plus the WebUI unit tests.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Verify (init.sh + unit tests)
+    # Windows: matches the local dev environment and avoids the Linux-only
+    # Tauri WebKit/GTK system-dependency compile trap.
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11'
+
+      - name: Setup Rust 1.92
+        uses: dtolnay/rust-toolchain@1.92
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri'
+
+      # Canonical gate: cargo check, cargo test, webui typecheck,
+      # hard-constraint grep (§3 of AGENTS.md), JSON validity.
+      - name: Run project verification harness
+        shell: bash
+        run: bash init.sh
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ./webui
+
+      - name: WebUI unit tests (vitest)
+        run: pnpm test
+        working-directory: ./webui

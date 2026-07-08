@@ -1,0 +1,15 @@
+name: CI
+
+# Fast feedback on every commit / PR. Runs the shared test suite only —
+# no packaging, no publishing. The release pipeline (release.yml) reuses
+# the same `tests.yml` as a hard gate before it builds anything.
+on:
+  push:
+    branches: ['main', 'develop']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  test:
+    name: Test suite
+    uses: ./.github/workflows/tests.yml

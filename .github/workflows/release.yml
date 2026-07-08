@@ -1,0 +1,128 @@
+name: Release
+
+# Build & publish pipeline.
+#   1. Run the shared test suite (tests.yml) as a hard gate.
+#   2. Only if tests pass: build the Windows installer (msi + nsis) on Windows.
+#   3. Optionally sign with Azure Trusted Signing (when secrets are configured).
+#   4. Publish artifacts to a GitHub Release with auto-generated changelog.
+#
+# Triggers:
+#   - Push a tag like `v0.3.0`  ->  builds & publishes that release.
+#   - Manual `workflow_dispatch` -> builds from the current branch (prerelease-style
+#     tag derived from Cargo.toml version + commit sha).
+#
+# Required repo secrets (only for signing; the pipeline works unsigned without them):
+#   AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_DLIB_ENDPOINT,
+#   AZURE_SIGNING_ACCOUNT, AZURE_CERT_PROFILE
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: 'Sign with Azure Trusted Signing (requires Azure secrets)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  # ---- Gate: the same test suite used in CI must pass before we build ----
+  test:
+    name: Test suite (release gate)
+    uses: ./.github/workflows/tests.yml
+
+  # ---- Build + publish (Windows only; bundles msi + nsis) ----
+  release:
+    name: Build & publish
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: webui/pnpm-lock.yaml
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11'
+
+      - name: Setup Rust 1.92
+        uses: dtolnay/rust-toolchain@1.92
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri'
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ./webui
+
+      - name: Build Tauri app (msi + nsis)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: ./src-tauri
+          includeRelease: false   # we publish via softprops below (auto changelog)
+          args: ''
+
+      - name: Verify bundle artifacts
+        shell: pwsh
+        run: |
+          $boot = "src-tauri\target\release\bundle\msi\WebView2Bootstrapper.exe"
+          if (-not (Test-Path $boot)) {
+            Write-Error "Missing WebView2Bootstrapper.exe"
+            exit 1
+          }
+          Get-ChildItem -Path "src-tauri\target\release\bundle" -Recurse -File |
+            Select-Object FullName, Length
+
+      - name: Sign with Azure Trusted Signing
+        if: ${{ secrets.AZURE_DLIB_ENDPOINT != '' && github.event.inputs.sign != 'false' }}
+        uses: Azure/trusted-signing-action@v0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_DLIB_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE }}
+          files-folder: ${{ github.workspace }}/src-tauri/target/release/bundle
+          files-folder-filter: exe,msi
+          file-depth: 2
+
+      - name: Determine version / tag
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            ver=$(grep -m1 '^version' src-tauri/Cargo.toml | sed -E 's/version *= *"([^"]+)".*/\1/')
+            echo "version=${ver}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: KeyPilot ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/WebView2Bootstrapper.exe

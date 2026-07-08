@@ -104,8 +104,10 @@ webui/inspect.mjs
 /init.sh
 /openspec/
 /docs/
-/.github/
 /src-tauri/tests/
 /webui/scripts/
 /webui/tests/
 /webui/vite-preview.err
+
+# Agent local state (WorkBuddy) — never commit
+.workbuddy/
