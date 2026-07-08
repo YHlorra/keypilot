@@ -101,13 +101,17 @@ webui/inspect.mjs
 /feature_list.json
 /progress.md
 /session-handoff.md
-/init.sh
 /openspec/
 /docs/
 /src-tauri/tests/
 /webui/scripts/
 /webui/tests/
 /webui/vite-preview.err
+# Local-only tool/agent state (never public)
+.slim/
+.claude/
+scripts/
+docs-test.md
 
 # Agent local state (WorkBuddy) — never commit
 .workbuddy/
