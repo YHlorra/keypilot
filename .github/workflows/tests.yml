@@ -37,15 +37,19 @@ jobs:
         with:
           workspaces: 'src-tauri'
 
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ./webui
+
+      - name: Build frontend (required by tauri::generate_context!)
+        run: pnpm build
+        working-directory: ./webui
+
       # Canonical gate: cargo check, cargo test, webui typecheck,
       # hard-constraint grep (§3 of AGENTS.md), JSON validity.
       - name: Run project verification harness
         shell: bash
         run: bash init.sh
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: ./webui
 
       - name: WebUI unit tests (vitest)
         run: pnpm test
