@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::store::AppState;
 use crate::timeutil;
-use crate::types::{Provider, ProviderField, Visibility};
+use crate::types::{Provider, ProviderField, QuotaSnapshot, Visibility};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -355,4 +355,118 @@ pub async fn copy_credential_by_state(
         value: field.value.clone(),
         field_key: field.key.clone(),
     })
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PinnedProviderQuota {
+    pub id: i64,
+    pub name: String,
+    pub preset: Option<String>,
+    pub snapshot: Option<QuotaSnapshot>,
+    pub fetched_at: Option<i64>,
+}
+
+pub async fn list_pinned_with_quota_cache(
+    state: &AppState,
+) -> Result<Vec<PinnedProviderQuota>, AppError> {
+    let db = state.db.clone();
+    let items = tauri::async_runtime::spawn_blocking(move || {
+        let guard = db.lock().unwrap();
+        let mut stmt = guard.conn.prepare(
+            "SELECT p.id, p.name, p.preset, qc.snapshot_json, qc.fetched_at
+             FROM providers p
+             LEFT JOIN quota_cache qc ON p.id = qc.provider_id
+             WHERE p.pinned = 1
+             ORDER BY p.sort_index, p.name",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let snapshot_json: Option<String> = row.get(3)?;
+            let fetched_at: Option<i64> = row.get(4)?;
+            let snapshot = snapshot_json
+                .as_deref()
+                .and_then(|s| serde_json::from_str::<QuotaSnapshot>(s).ok());
+            Ok(PinnedProviderQuota {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                preset: row.get(2)?,
+                snapshot,
+                fetched_at,
+            })
+        })?;
+        Ok::<_, AppError>(rows.filter_map(|r| r.ok()).collect())
+    })
+    .await
+    .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
+    Ok(items)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_state() -> AppState {
+        let db = crate::database::Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        AppState::new(db)
+    }
+
+    #[tokio::test]
+    async fn list_pinned_with_quota_cache_returns_empty_when_no_pinned() {
+        let state = setup_state();
+        let now: i64 = 1_700_000_000;
+        {
+            let db = state.db.lock().unwrap();
+            db.conn
+                .execute(
+                    "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
+                     VALUES ('not-pinned', NULL, 0, 1, 0, 1, ?1, ?1)",
+                    [now],
+                )
+                .unwrap();
+        }
+        let result = list_pinned_with_quota_cache(&state).await.unwrap();
+        assert!(result.is_empty(), "no pinned provider should yield empty list");
+    }
+
+    #[tokio::test]
+    async fn list_pinned_with_quota_cache_returns_snapshot_from_cache() {
+        let state = setup_state();
+        let now: i64 = 1_700_000_000;
+        let snapshot = QuotaSnapshot {
+            total: Some(100.0),
+            used: 30.0,
+            unit: "USD".to_string(),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&snapshot).unwrap();
+        let pid: i64 = {
+            let db = state.db.lock().unwrap();
+            db.conn
+                .execute(
+                    "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
+                     VALUES ('pinned-one', NULL, 0, 1, 1, 1, ?1, ?1)",
+                    [now],
+                )
+                .unwrap();
+            db.conn.last_insert_rowid()
+        };
+        {
+            let db = state.db.lock().unwrap();
+            db.conn
+                .execute(
+                    "INSERT INTO quota_cache (provider_id, snapshot_json, fetched_at, source)
+                     VALUES (?1, ?2, ?3, 'auto')",
+                    rusqlite::params![pid, json, now],
+                )
+                .unwrap();
+        }
+        let result = list_pinned_with_quota_cache(&state).await.unwrap();
+        assert_eq!(result.len(), 1);
+        let item = &result[0];
+        assert_eq!(item.id, pid);
+        assert_eq!(item.name, "pinned-one");
+        assert!(item.snapshot.is_some(), "snapshot must deserialize from cache");
+        assert_eq!(item.snapshot.as_ref().unwrap().total, Some(100.0));
+        assert_eq!(item.fetched_at, Some(now));
+    }
 }

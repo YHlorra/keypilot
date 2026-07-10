@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import type { Provider } from "@/types/api";
 import { useProviders } from "@/hooks/useProviders";
 import { useQueryClient } from "@tanstack/react-query";
-import { deleteProviderViaAction } from "@/lib/api";
+import { deleteProviderViaAction, pinProvider, unpinProvider } from "@/lib/api";
 
 interface ProviderGridProps {
   providers: Provider[];
@@ -69,6 +69,20 @@ export const ProviderGrid = ({
   const handleDelete = async (id: number) => {
     try {
       await deleteProviderViaAction({ id });
+      await queryClient.invalidateQueries({ queryKey: ["providers"] });
+    } catch {
+      
+    }
+  };
+
+  const handlePin = async (id: number) => {
+    const provider = providers.find((p) => p.id === id);
+    try {
+      if (provider?.pinned) {
+        await unpinProvider({ id });
+      } else {
+        await pinProvider({ id });
+      }
       await queryClient.invalidateQueries({ queryKey: ["providers"] });
     } catch {
       
@@ -160,6 +174,7 @@ export const ProviderGrid = ({
           onEdit={onEdit}
           onTokenUsage={onTokenUsage}
           onTest={onTest}
+          onPin={handlePin}
         />
       ))}
     </div>

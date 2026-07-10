@@ -135,4 +135,12 @@ export async function listCatalogPresets(): Promise<CatalogPresetMeta[]> {
   return invoke<CatalogPresetMeta[]>("list_catalog_presets");
 }
 
+export async function pinProvider(req: { id: number }): Promise<void> {
+  return invoke<void>("pin_provider", { providerId: req.id });
+}
+
+export async function unpinProvider(req: { id: number }): Promise<void> {
+  return invoke<void>("unpin_provider", { providerId: req.id });
+}
+
 

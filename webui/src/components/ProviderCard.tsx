@@ -6,6 +6,7 @@ import {
   Terminal,
   Trash2,
   ChevronDown,
+  Pin,
 } from "lucide-react";
 import { cn, isLlmCategory } from "@/lib/utils";
 import { formatRelativeShort, formatTimeOfDay } from "@/lib/format";
@@ -75,6 +76,7 @@ interface ProviderCardProps {
   onEdit?: (id: number) => void;
   onTokenUsage?: (id: number) => void;
   onTest?: (id: number) => void;
+  onPin?: (id: number) => void;
 }
 
 export const ProviderCard = ({
@@ -88,6 +90,7 @@ export const ProviderCard = ({
   onEdit,
   onTokenUsage,
   onTest,
+  onPin,
 }: ProviderCardProps) => {
 const isLlm = isLlmCategory(provider.category_id, categories);
 
@@ -167,6 +170,11 @@ const codingPlanQuery = useCodingPlanQuota(provider.id);
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete(provider.id);
+  };
+
+  const handlePin = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onPin?.(provider.id);
   };
 
   return (
@@ -317,6 +325,21 @@ const codingPlanQuery = useCodingPlanQuota(provider.id);
               <span className="text-[var(--color-muted)] ml-0.5">{balance.unit}</span>
             </div>
           )}
+
+          {}
+          <button
+            data-testid="pin-btn"
+            onClick={handlePin}
+            className={cn(
+              "p-1.5 rounded hover:bg-accent transition-colors",
+              provider.pinned
+                ? "text-[var(--color-primary)]"
+                : "text-[var(--color-muted)] hover:text-[var(--color-primary)]"
+            )}
+            title={provider.pinned ? "取消钉住" : "钉住到托盘"}
+          >
+            <Pin className={cn("h-4 w-4", provider.pinned && "fill-current")} />
+          </button>
 
           {}
           <button

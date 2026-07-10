@@ -46,7 +46,6 @@ function filterProviders(
 }
 
 export default function App() {
-  
   const [density, setDensity] = useState<"1" | "2">(
     () => (localStorage.getItem("keypilot.density") as "1" | "2") ?? "1"
   );
@@ -97,7 +96,7 @@ export default function App() {
     
   }, [autoImport, showToast]);
 
-  
+
   const handleTest = async (id: number) => {
     try {
       const result = await testAndRefresh({ id });
@@ -116,7 +115,8 @@ export default function App() {
   const handleFetchQuota = async (id: number) => {
     try {
       await fetchQuota({ id });
-      queryClient.invalidateQueries({ queryKey: ["provider", id] });
+      queryClient.invalidateQueries({ queryKey: ["provider_quota", id] });
+      queryClient.invalidateQueries({ queryKey: ["coding_plan_quota", id] });
     } catch (e) {
       console.error("fetch quota failed", e);
     }
@@ -198,6 +198,7 @@ export default function App() {
                 categories={categories}
                 onSelectProvider={(id) => setActiveProviderId(id)}
                 onAddClick={() => setAddCredOpen(true)}
+                onRefreshProvider={handleFetchQuota}
                 onCopy={handleCopy}
                 onEdit={handleEdit}
                 onTokenUsage={handleTokenUsage}

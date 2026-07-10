@@ -27,7 +27,7 @@ pub async fn fetch_quota_by_state(
     state: &AppState,
     id: i64,
 ) -> Result<QuotaSnapshot, AppError> {
-    let (preset, custom_spec_json, api_key, cached) = {
+    let (preset, custom_spec_json, api_key, cached, stale_cached) = {
         let db = state.db.lock().unwrap();
 
         let preset: Option<String> = db
@@ -66,7 +66,7 @@ pub async fn fetch_quota_by_state(
 
         let now = timeutil::now_secs();
 
-        let cached: Option<QuotaSnapshot> = db
+        let cached_row: Option<(String, i64, String)> = db
             .conn
             .query_row(
                 "SELECT snapshot_json, fetched_at, source FROM quota_cache WHERE provider_id = ?1",
@@ -77,13 +77,28 @@ pub async fn fetch_quota_by_state(
                     row.get::<_, String>(2)?,
                 )),
             )
-            .ok()
+            .ok();
+
+        let cached: Option<QuotaSnapshot> = cached_row
+            .as_ref()
             .filter(|(_, fetched_at, source)| {
                 source == "manual" || now - fetched_at < QUOTA_CACHE_TTL_SECS
             })
-            .and_then(|(json, _, _)| serde_json::from_str(&json).ok());
+            .and_then(|(json, _, _)| serde_json::from_str::<QuotaSnapshot>(json).ok())
+            .filter(|s| !matches!(
+                s.status,
+                LimitStatus::Unavailable | LimitStatus::Error | LimitStatus::NotConfigured
+            ));
 
-        (preset, custom_spec_json, api_key, cached)
+        let stale_cached: Option<QuotaSnapshot> = cached_row
+            .as_ref()
+            .and_then(|(json, _, _)| serde_json::from_str::<QuotaSnapshot>(json).ok())
+            .filter(|s| !matches!(
+                s.status,
+                LimitStatus::Unavailable | LimitStatus::Error | LimitStatus::NotConfigured
+            ));
+
+        (preset, custom_spec_json, api_key, cached, stale_cached)
     };
 
     if let Some(snapshot) = cached {
@@ -100,63 +115,78 @@ pub async fn fetch_quota_by_state(
     let adapter = adapter_for(resolved.protocol);
     let snapshot = match adapter.fetch_quota(&resolved, &api_key).await {
         Ok(s) => s,
-        Err(QuotaError::Network(_msg)) => QuotaSnapshot {
-            total: None,
-            used: 0.0,
-            remaining: None,
-            unit: "USD".to_string(),
-            level: None,
-            reset_at: None,
-            windows: Vec::new(),
-            status: LimitStatus::Unavailable,
-            source: LimitSource::Api,
-            source_detail: "app".to_string(),
-            account_label: None,
-            account_email: None,
-            region: None,
-            balance: None,
-            used_amount: None,
-            balance_usd: None,
-            used_usd: None,
-        },
-        Err(QuotaError::Parse(msg)) => QuotaSnapshot {
-            total: None,
-            used: 0.0,
-            remaining: None,
-            unit: "USD".to_string(),
-            level: None,
-            reset_at: None,
-            windows: Vec::new(),
-            status: LimitStatus::Error,
-            source: LimitSource::Api,
-            source_detail: format!("parse error: {}", msg),
-            account_label: None,
-            account_email: None,
-            region: None,
-            balance: None,
-            used_amount: None,
-            balance_usd: None,
-            used_usd: None,
-        },
-        Err(QuotaError::Unsupported) => QuotaSnapshot {
-            total: None,
-            used: 0.0,
-            remaining: None,
-            unit: "USD".to_string(),
-            level: None,
-            reset_at: None,
-            windows: Vec::new(),
-            status: LimitStatus::NotConfigured,
-            source: LimitSource::Api,
-            source_detail: "unknown".to_string(),
-            account_label: None,
-            account_email: None,
-            region: None,
-            balance: None,
-            used_amount: None,
-            balance_usd: None,
-            used_usd: None,
-        },
+        Err(QuotaError::Network(_msg)) => {
+            if let Some(old) = stale_cached {
+                return Ok(old);
+            }
+            return Ok(QuotaSnapshot {
+                total: None,
+                used: 0.0,
+                remaining: None,
+                unit: "USD".to_string(),
+                level: None,
+                reset_at: None,
+                windows: Vec::new(),
+                status: LimitStatus::Unavailable,
+                source: LimitSource::Api,
+                source_detail: "app".to_string(),
+                account_label: None,
+                account_email: None,
+                region: None,
+                balance: None,
+                used_amount: None,
+                balance_usd: None,
+                used_usd: None,
+            });
+        }
+        Err(QuotaError::Parse(_msg)) => {
+            if let Some(old) = stale_cached {
+                return Ok(old);
+            }
+            return Ok(QuotaSnapshot {
+                total: None,
+                used: 0.0,
+                remaining: None,
+                unit: "USD".to_string(),
+                level: None,
+                reset_at: None,
+                windows: Vec::new(),
+                status: LimitStatus::Error,
+                source: LimitSource::Api,
+                source_detail: "parse error".to_string(),
+                account_label: None,
+                account_email: None,
+                region: None,
+                balance: None,
+                used_amount: None,
+                balance_usd: None,
+                used_usd: None,
+            });
+        }
+        Err(QuotaError::Unsupported) => {
+            if let Some(old) = stale_cached {
+                return Ok(old);
+            }
+            return Ok(QuotaSnapshot {
+                total: None,
+                used: 0.0,
+                remaining: None,
+                unit: "USD".to_string(),
+                level: None,
+                reset_at: None,
+                windows: Vec::new(),
+                status: LimitStatus::NotConfigured,
+                source: LimitSource::Api,
+                source_detail: "unknown".to_string(),
+                account_label: None,
+                account_email: None,
+                region: None,
+                balance: None,
+                used_amount: None,
+                balance_usd: None,
+                used_usd: None,
+            });
+        }
     };
 
     {

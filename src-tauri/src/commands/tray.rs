@@ -4,6 +4,7 @@ use crate::store::AppState;
 
 #[tauri::command]
 pub async fn pin_provider(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     provider_id: i64,
 ) -> Result<(), AppError> {
@@ -20,12 +21,14 @@ pub async fn pin_provider(
     .await
     .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
 
+    crate::tray::rebuild_menu(&app);
     Ok(())
 }
 
 
 #[tauri::command]
 pub async fn unpin_provider(
+    app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
     provider_id: i64,
 ) -> Result<(), AppError> {
@@ -42,6 +45,7 @@ pub async fn unpin_provider(
     .await
     .map_err(|e| AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))??;
 
+    crate::tray::rebuild_menu(&app);
     Ok(())
 }
 

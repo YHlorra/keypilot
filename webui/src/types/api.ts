@@ -68,15 +68,61 @@ export interface Category {
 
 
 
+// Mirrors src-tauri/src/types/mod.rs (LimitWindowKind / LimitStatus / LimitSource /
+// MoneyAmount / LimitWindow / QuotaSnapshot). Variants are kept as string unions so
+// Rust serde PascalCase values ("Ok", "Oauth", "Session" ...) are accepted, while
+// still allowing future rename_all without breaking the frontend.
+export type LimitWindowKind = 'Session' | 'Weekly' | 'Billing' | string;
+export type LimitStatus = 'Ok' | 'Disabled' | 'NotConfigured' | 'Unauthorized'
+  | 'RateLimited' | 'SourceRateLimited' | 'Unavailable' | string;
+export type LimitSource = 'Oauth' | 'Cli' | 'Web' | 'Rpc' | 'Local' | 'Api' | 'Manual' | string;
+
+// ponytail: today_spend / month_spend / month_since_tracking use
+// #[serde(default, skip_serializing_if = "Option::is_none")] on the Rust side, so
+// they are ABSENT (not null) when None -> plain optional, no `| null`.
+export interface MoneyAmount {
+  amount: number;
+  currency: string;
+  today_spend?: number;
+  month_spend?: number;
+  month_since_tracking?: boolean;
+}
+
+export interface LimitWindow {
+  kind: LimitWindowKind;
+  label: string;
+  used: number;
+  limit?: number | null;
+  remaining?: number | null;
+  used_percent?: number | null;
+  remaining_percent?: number | null;
+  resets_at?: string | null;
+  window_minutes?: number | null;
+  reset_description: string;
+  show_meter: boolean;
+}
+
 export interface QuotaSnapshot {
   total: number | null;
   used: number;
-  remaining?: number;
-  unit: 'USD' | 'CNY' | 'req' | 'GB' | 'token' | string;
-  level?: 'green' | 'amber' | 'red' | 'ruby' | string;
-  reset_at?: number;
+  remaining?: number | null;
+  unit: string;
+  level?: string | null;
+  reset_at?: number | null;
+  // ponytail: Rust uses #[serde(default)] for the fields below, so they may be
+  // absent on legacy snapshots -> all optional.
+  windows?: LimitWindow[];
+  status?: LimitStatus;
+  source?: LimitSource;
+  source_detail?: string;
+  account_label?: string | null;
+  account_email?: string | null;
+  region?: string | null;
+  balance?: MoneyAmount | null;
+  used_amount?: MoneyAmount | null;
+  balance_usd?: number | null;
+  used_usd?: number | null;
 }
-
 
 export type AppErrorCode =
   | 'DATABASE'

@@ -28,6 +28,14 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
             
             let app_dir = app.path().app_data_dir()?;
