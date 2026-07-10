@@ -91,7 +91,7 @@ jobs:
             Select-Object FullName, Length
 
       - name: Sign with Azure Trusted Signing
-        if: ${{ secrets.AZURE_DLIB_ENDPOINT != '' && github.event.inputs.sign != 'false' }}
+        if: ${{ github.event.inputs.sign == 'true' }}
         uses: Azure/trusted-signing-action@v0
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
