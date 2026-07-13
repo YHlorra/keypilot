@@ -59,7 +59,7 @@ fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-async fn refresh_and_rebuild<R: Runtime>(app: &AppHandle<R>) {
+pub async fn refresh_and_rebuild<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AppState>();
 
     // Read pinned provider meta (id, name, preset, custom_spec)
@@ -110,7 +110,7 @@ async fn refresh_and_rebuild<R: Runtime>(app: &AppHandle<R>) {
 }
 
 /// Check if a provider has a coding_plan vendor by resolving its catalog entry.
-fn has_coding_plan(preset: &Option<String>, custom_spec_json: &Option<String>) -> bool {
+pub fn has_coding_plan(preset: &Option<String>, custom_spec_json: &Option<String>) -> bool {
     let preset = match preset {
         Some(p) => p,
         None => return false,
