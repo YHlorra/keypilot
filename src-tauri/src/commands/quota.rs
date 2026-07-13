@@ -260,7 +260,7 @@ pub async fn fetch_coding_plan_quota_by_state(
     state: &AppState,
     id: i64,
 ) -> Result<SubscriptionQuota, AppError> {
-    let (preset, custom_spec_json, api_key, cached) = {
+    let (preset, custom_spec_json, api_key, cached, stale_cached) = {
         let db = state.db.lock().unwrap();
 
         let preset: Option<String> = db
@@ -298,7 +298,7 @@ pub async fn fetch_coding_plan_quota_by_state(
             .unwrap_or_default();
 
         let now = timeutil::now_secs();
-        let cached: Option<SubscriptionQuota> = db
+        let cached_row: Option<(String, i64, String)> = db
             .conn
             .query_row(
                 "SELECT snapshot_json, fetched_at, source FROM coding_plan_quota_cache WHERE provider_id = ?1",
@@ -309,13 +309,22 @@ pub async fn fetch_coding_plan_quota_by_state(
                     row.get::<_, String>(2)?,
                 )),
             )
-            .ok()
+            .ok();
+        // Mirror fetch_quota_by_state: only a *successful* snapshot counts as
+        // fresh, and keep a last-good copy for fallback on transient failures.
+        let cached: Option<SubscriptionQuota> = cached_row
+            .as_ref()
             .filter(|(_, fetched_at, source)| {
-                source == "manual" || now - fetched_at < QUOTA_CACHE_TTL_SECS
+                *source == "manual" || now - *fetched_at < QUOTA_CACHE_TTL_SECS
             })
-            .and_then(|(json, _, _)| serde_json::from_str(&json).ok());
+            .and_then(|(json, _, _)| serde_json::from_str::<SubscriptionQuota>(json).ok())
+            .filter(|s| s.success);
+        let stale_cached: Option<SubscriptionQuota> = cached_row
+            .as_ref()
+            .and_then(|(json, _, _)| serde_json::from_str::<SubscriptionQuota>(json).ok())
+            .filter(|s| s.success);
 
-        (preset, custom_spec_json, api_key, cached)
+        (preset, custom_spec_json, api_key, cached, stale_cached)
     };
 
     if let Some(snapshot) = cached {
@@ -339,6 +348,16 @@ pub async fn fetch_coding_plan_quota_by_state(
     )
     .await;
 
+    // Never persist a failed snapshot, and fall back to the last-good cache so a
+    // transient network/auth error doesn't get stuck in the tray (and isn't
+    // re-served as "cached" on the next refresh within TTL).
+    if !snapshot.success {
+        if let Some(old) = stale_cached {
+            return Ok(old);
+        }
+        return Ok(snapshot);
+    }
+
     {
         let db = state.db.lock().unwrap();
         let now = timeutil::now_secs();
@@ -355,4 +374,145 @@ pub async fn fetch_coding_plan_quota_by_state(
     }
 
     Ok(snapshot)
+}
+
+#[tauri::command]
+pub async fn refresh_provider_quota(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+    id: i64,
+) -> Result<(), AppError> {
+    // Read preset + custom_spec to pick the correct quota path.
+    let (preset, custom_spec_json) = {
+        let db = state.db.lock().unwrap();
+        let preset: Option<String> = db
+            .conn
+            .prepare("SELECT preset FROM providers WHERE id = ?1")
+            .and_then(|mut s| s.query_row([id], |r| r.get::<_, Option<String>>(0)))
+            .ok()
+            .flatten();
+        let custom_spec_json: Option<String> = db
+            .conn
+            .prepare("SELECT custom_spec FROM providers WHERE id = ?1")
+            .ok()
+            .and_then(|mut s| s.query_row([id], |r| r.get::<_, Option<String>>(0)).ok().flatten());
+        (preset, custom_spec_json)
+    };
+
+    let has_cp = crate::tray::has_coding_plan(&preset, &custom_spec_json);
+    if has_cp {
+        let _ = fetch_coding_plan_quota_by_state(&state, id).await;
+    } else {
+        let _ = fetch_quota_by_state(&state, id).await;
+    }
+
+    // Notify tray to refresh asynchronously (don't block IPC return).
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        crate::tray::refresh_and_rebuild(&app_handle).await;
+    });
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::store::AppState;
+    use crate::types::subscription::{
+        CredentialStatus, QuotaTier, QuotaTierKind, SubscriptionQuota, TierStatus,
+    };
+
+    fn setup_state() -> AppState {
+        let db = crate::database::Database::open_in_memory().unwrap();
+        db.setup_schema().unwrap();
+        AppState::new(db)
+    }
+
+    fn pinned_coding_plan_provider(state: &AppState, preset: &str) -> i64 {
+        let db = state.db.lock().unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO providers (name, preset, is_preset, category_id, pinned, sort_index, created_at, updated_at)
+                 VALUES (?1, ?2, 0, 1, 1, 1, 1, 1)",
+                [format!("{preset}-test"), preset.to_string()],
+            )
+            .unwrap();
+        db.conn.last_insert_rowid()
+    }
+
+    fn valid_coding_plan_snapshot() -> SubscriptionQuota {
+        SubscriptionQuota {
+            provider_id: "kimi".to_string(),
+            credential_status: CredentialStatus::Valid,
+            credential_message: None,
+            success: true,
+            tiers: vec![QuotaTier {
+                kind: QuotaTierKind::FiveHour,
+                label: "Kimi 5h".to_string(),
+                used: Some(10.0),
+                limit: Some(100.0),
+                used_percent: Some(10.0),
+                remaining_percent: Some(90.0),
+                resets_at_ms: None,
+                reset_description: String::new(),
+                status: TierStatus::Active,
+            }],
+            error: None,
+            queried_at_ms: 0,
+        }
+    }
+
+    // Prove-It for the tray persistence bug: a transient fetch failure must NOT
+    // overwrite a previously-good coding_plan cache row, otherwise the tray
+    // gets stuck showing the error and the "refresh quota" button becomes a no-op
+    // until TTL expires.
+    #[tokio::test]
+    async fn coding_plan_failure_does_not_poison_cache() {
+        let state = setup_state();
+        let pid = pinned_coding_plan_provider(&state, "kimi");
+
+        // Seed a *valid* (success=true) snapshot that is already past TTL.
+        let now = timeutil::now_secs();
+        let valid = valid_coding_plan_snapshot();
+        let json = serde_json::to_string(&valid).unwrap();
+        {
+            let db = state.db.lock().unwrap();
+            db.conn
+                .execute(
+                    "INSERT INTO coding_plan_quota_cache (provider_id, snapshot_json, fetched_at, source)
+                     VALUES (?1, ?2, ?3, 'auto')",
+                    rusqlite::params![pid, json, now - 2 * QUOTA_CACHE_TTL_SECS],
+                )
+                .unwrap();
+        }
+
+        // The real fetch (no valid API key / offline) deterministically fails
+        // with success=false.
+        let result = fetch_coding_plan_quota_by_state(&state, pid)
+            .await
+            .unwrap();
+
+        // Fall back to the last-good cache, not the failure.
+        assert!(
+            result.success,
+            "transient failure must fall back to last-good cached snapshot"
+        );
+
+        // The cache row must NOT have been overwritten with the failed snapshot.
+        let cached_json: String = state
+            .db
+            .lock()
+            .unwrap()
+            .conn
+            .query_row(
+                "SELECT snapshot_json FROM coding_plan_quota_cache WHERE provider_id = ?1",
+                [pid],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(
+            cached_json.contains("\"success\":true"),
+            "cache must keep the valid snapshot, got: {cached_json}"
+        );
+    }
 }
