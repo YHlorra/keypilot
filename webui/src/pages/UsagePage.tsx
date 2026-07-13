@@ -97,8 +97,17 @@ export default function UsagePage({ filterProviderName }: UsagePageProps) {
     if (series.length === 0) return "";
     if (series.length === 1) return "1 day";
     const dates = series.map((p) => p.date).sort();
-    const first = new Date(dates[0]);
-    const last = new Date(dates[dates.length - 1]);
+    // Backend emits Local calendar-day strings ("YYYY-MM-DD"). Parse them as
+    // LOCAL dates (not UTC) so the span is correct in any host timezone.
+    // `new Date("2026-07-01")` would parse as UTC midnight and shift
+    // the day on non-UTC+8 hosts — the same class of bug as the
+    // backend fix-date-local-timezone work.
+    const toLocalDate = (s: string) => {
+      const [y, m, d] = s.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    };
+    const first = toLocalDate(dates[0]);
+    const last = toLocalDate(dates[dates.length - 1]);
     const spanDays = Math.max(1, Math.round((last.getTime() - first.getTime()) / 86400000) + 1);
     return `${spanDays} days`;
   }, [allTimeSummary]);
