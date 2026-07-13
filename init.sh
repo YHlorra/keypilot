@@ -3,7 +3,12 @@
 # Reference: AGENTS.md §10 (Sprint Contract)
 set -e
 
-# TZ pin for fix-date-local-timezone regression gates
+# TZ pin for fix-date-local-timezone regression gates.
+# NOTE: on Windows CI this env var is IGNORED — chrono::Local reads
+# GetTimeZoneInformation, not the TZ env var. The authoritative pin for
+# Windows runners is the OS-level `Set-TimeZone` step in
+# .github/workflows/tests.yml. This export still helps local runs on
+# Linux/macOS, where TZ IS honored.
 export TZ='Asia/Shanghai'
 
 cd "$(dirname "$0")"
@@ -85,6 +90,16 @@ fi
 # 4d. fix-date-local-timezone: TZ anti-pattern gates (REQ-DATE-LOCAL-007).
 # Production code MUST NOT use `from_timestamp_millis(...).format("%Y-%m-%d")`
 # (UTC-bucketing bug) or `date.toISOString().split("T")[0]` (JS UTC-truncation bug).
+# CONTRACT (grep-gate is LINE-ANCHORED on purpose):
+#   - the forbidden `from_timestamp_millis(...).format` must sit on ONE line;
+#     a multi-line `.unwrap().format` split across two lines is NOT matched
+#     (this is symmetric: the intentional discriminator in database.rs::tests
+#      is multi-line by design and is exempt — do NOT make the gate
+#      multi-line, or it would FALSE-POSITIVE on that test code).
+#   - test files legitimately use these patterns as discriminators (spec TC-04
+#     etc.); they are exempt by the multi-line layout, not by a `// ` prefix.
+#   - known intentional UTC exceptions are commented `// intentional Utc:`
+#     at the call site (openai.rs billing, volcengine SigV4 X-Date).
 # Exceptions:
 #   - src-tauri/src/provider/openai.rs:93 Utc::now().date_naive() — OpenAI billing
 #   - src-tauri/src/provider/openai.rs:153 Utc::now() — OpenAI wallet timestamp
