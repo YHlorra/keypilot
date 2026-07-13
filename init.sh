@@ -64,7 +64,7 @@ fi
 if [ -f "src-tauri/src/database.rs" ]; then
     if grep -q "CREATE TABLE.*provider_fields" src-tauri/src/database.rs \
        && grep -q "value TEXT NOT NULL" src-tauri/src/database.rs \
-       && grep -q "visibility TEXT NOT NULL"; then
+       && grep -q "visibility TEXT NOT NULL" src-tauri/src/database.rs; then
         echo "  ✓ plaintext api_key schema present (provider_fields KV: value TEXT + visibility TEXT)"
     else
         echo "  ✗ FAIL: provider_fields plaintext schema not detected"
