@@ -305,7 +305,7 @@ async fn openapi_call(
         region,
         &cq,
         body,
-        chrono::Utc::now(),
+        chrono::Utc::now(), // intentional Utc: SigV4 X-Date header must be UTC
     );
 
     let resp = match client
