@@ -1910,13 +1910,40 @@ mod tests {
 
     use crate::timeutil;
 
+    /// Build an epoch at a specific LOCAL wall-clock time on a fixed date, in
+    /// the host's own timezone. Used so the timezone regression tests are
+    /// portable: they pass in ANY host TZ (not just Asia/Shanghai) and still
+    /// catch a UTC-interpretation regression, because at least one candidate
+    /// time diverges from UTC on any given host TZ.
+    fn local_epoch(y: i32, m: u32, d: u32, h: u32, min: u32, s: u32) -> i64 {
+        use chrono::{Local, TimeZone};
+        Local.with_ymd_and_hms(y, m, d, h, min, s)
+            .earliest()
+            .expect("constructed local time must be valid")
+            .timestamp_millis()
+    }
+
     #[test]
     fn local_date_str_local_midnight_crosses_utc() {
         
         
         
         
-        assert_eq!(timeutil::local_date_str(1782837000000), "2026-07-01");
+        use chrono::{TimeZone, Utc};
+        // Each candidate local time must bucket into the LOCAL day "2026-07-01",
+        // and must NOT return the UTC day when the host TZ makes them differ.
+        // 00:30 diverges on eastern hosts; 20:00 diverges on western hosts —
+        // together they catch the UTC-interpretation bug on ANY host TZ.
+        for (h, min) in [(0, 30), (20, 0)] {
+            let epoch = local_epoch(2026, 7, 1, h, min, 0);
+            assert_eq!(timeutil::local_date_str(epoch), "2026-07-01",
+                "local {h}:{min:02} must bucket into local day 2026-07-01");
+            let utc_day = Utc.timestamp_millis_opt(epoch).single().unwrap().format("%Y-%m-%d").to_string();
+            if utc_day != "2026-07-01" {
+                assert_ne!(timeutil::local_date_str(epoch), utc_day,
+                    "regression: local_date_str returned UTC day {utc_day} for local {h}:{min:02}");
+            }
+        }
     }
 
     #[test]
@@ -1946,22 +1973,35 @@ mod tests {
         
         
         
+        use chrono::{TimeZone, Utc};
         let svc = make_service();
-        let input = make_input("gpt-4o", 1000, 500, 1782837000000i64);
-        svc.record_usage("rec-tz-1", input).unwrap();
+        // Record two events on local 2026-07-01: just after midnight (00:30,
+        // diverges on eastern hosts) and in the evening (20:00, diverges on
+        // western hosts). Together they expose a UTC-bucketing regression on
+        // any host TZ.
+        let epochs = [local_epoch(2026, 7, 1, 0, 30, 0), local_epoch(2026, 7, 1, 20, 0, 0)];
+        for (i, &epoch) in epochs.iter().enumerate() {
+            svc.record_usage(&format!("rec-tz-{i}"), make_input("gpt-4o", 1000, 500, epoch)).unwrap();
+        }
         let summary = svc.get_periods_summary(&Default::default()).unwrap();
         let mut all_dates: Vec<&str> = Vec::new();
         for d in &summary.periods.today.daily_series { all_dates.push(&d.date); }
         for d in &summary.periods.month.daily_series  { all_dates.push(&d.date); }
         for d in &summary.periods.all_time.daily_series { all_dates.push(&d.date); }
-        assert!(
-            !all_dates.contains(&"2026-06-30"),
-            "daily_series must NOT contain UTC-yesterday bucket '2026-06-30' (regression: 2026-07-01 incident); got {all_dates:?}"
-        );
-        
-        
-        let any_july_first: Vec<&&str> = all_dates.iter().filter(|d| **d == "2026-07-01").collect();
-        let _ = any_july_first; 
+
+        // Both records must land in their LOCAL day.
+        assert!(all_dates.contains(&"2026-07-01"),
+            "daily_series must contain local bucket 2026-07-01; got {all_dates:?}");
+
+        // Regression guard: on a host TZ where an event's local != UTC day,
+        // that UTC day must NOT leak into daily_series.
+        for &epoch in &epochs {
+            let utc_day = Utc.timestamp_millis_opt(epoch).single().unwrap().format("%Y-%m-%d").to_string();
+            if utc_day != "2026-07-01" {
+                assert!(!all_dates.contains(&utc_day.as_str()),
+                    "daily_series must NOT contain UTC day {utc_day} (regression: 2026-07-01 incident); got {all_dates:?}");
+            }
+        }
     }
 
     #[test]
@@ -1977,14 +2017,22 @@ mod tests {
         
         
         let svc = make_service();
-        let gap_epoch = 1782763200000i64;
-        let input = make_input("gpt-4o", 1000, 500, gap_epoch);
-        svc.record_usage("rec-tz-gap", input).unwrap();
+        // Two epochs on local 2026-06-30: 04:00 (diverges on eastern hosts)
+        // and 20:00 (diverges on western hosts). Both are unambiguously inside
+        // the local-day window [Local 06-30 00:00, Local 07-01 00:00) on ANY
+        // host TZ, so this catches a regression that builds the window from
+        // UTC midnights (a buggy cutoff would exclude at least one of them).
+        let gap_epochs = [local_epoch(2026, 6, 30, 4, 0, 0), local_epoch(2026, 6, 30, 20, 0, 0)];
+        for (i, &gap_epoch) in gap_epochs.iter().enumerate() {
+            svc.record_usage(&format!("rec-tz-gap-{i}"), make_input("gpt-4o", 1000, 500, gap_epoch)).unwrap();
+        }
 
         let from = crate::timeutil::local_date_to_epoch("2026-06-30", false).unwrap();
         let to_excl = crate::timeutil::local_date_to_epoch("2026-07-01", true).unwrap();
         assert!(from < to_excl, "from must precede to_excl");
-        assert!(gap_epoch >= from && gap_epoch < to_excl,
-            "gap_epoch (Local 06-30 04:00) must fall in [Local 06-30 00:00, Local 07-01 00:00) — buggy cutoff at UTC 06-30 00:00 would exclude it");
+        for &gap_epoch in &gap_epochs {
+            assert!(gap_epoch >= from && gap_epoch < to_excl,
+                "gap_epoch (Local 06-30) must fall in [Local 06-30 00:00, Local 07-01 00:00) — buggy UTC cutoff would exclude it");
+        }
     }
 }
