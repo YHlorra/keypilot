@@ -17,6 +17,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # fix-date-local-timezone regression tests assume Local == Asia/Shanghai.
+      # chrono::Local on Windows reads GetTimeZoneInformation (not the TZ env
+      # var that init.sh exports), so we set the OS timezone explicitly.
+      # Runner is admin by default; no elevation needed.
+      - name: Set timezone to China Standard Time (for chrono::Local tests)
+        shell: pwsh
+        run: Set-TimeZone -Id "China Standard Time"
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
